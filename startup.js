@@ -23,6 +23,8 @@ const SCRIPTS = [
 	// After Tian Di Hui: flies to and joins the city factions whose augments are still wanted, one rival group per run.
 	{ stage: "early", script: "singularity/city-factions.js" },
 	{ stage: "early", script: "hacknet-manager.js" },
+	// Destroys w0r1d_d43m0n once The Red Pill is installed and hacking/ports allow, then enters the next BitNode.
+	{ stage: "early", script: "singularity/auto-destroy.js" },
 	// tools/track-income.js left out (2.7GB): the batcher, darknet and stock logs already show income. Run it by hand.
 	{ stage: "early", script: "go/ipvgo-bot.js", args: ["--opponent", "Netburners"], restartOnNewArgs: true, until: "mid" },
 	{ stage: "mid", script: "go/ipvgo-bot.js", args: ["--opponent", "The Black Hand"], restartOnNewArgs: true, until: "late" },
@@ -61,7 +63,7 @@ const MAX_OFF_HOME_SHARE = 0.65;
  * You don't need to run it again by hand: upgrade-home-ram.js and buy-programs.js start it
  * after each home upgrade / port opener, so new stages and scripts that didn't fit get going.
  * It also runs after an augment install (auto-reset / install-augs) and, with
- * singularity/next-bitnode.js, at the start of the next BitNode.
+ * singularity/next-bitnode.js (run by auto-destroy.js), at the start of the next BitNode.
  */
 /** @param {NS} ns */
 export async function main(ns) {

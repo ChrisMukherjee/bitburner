@@ -27,7 +27,8 @@ reset by themselves.
   the best $/s per target and posts its income rate for other scripts to read.
 - **Full Singularity loop.** Studies, buys programs and home upgrades, backdoors servers,
   joins factions (including the right city factions), works for factions and companies toward
-  real rep goals, plans augmentation purchases and decides when a reset is worth it.
+  real rep goals, plans augmentation purchases, decides when a reset is worth it, and destroys
+  the BitNode by itself once The Red Pill is installed.
 - **Coding contracts.** `workers/contract-solver.js` solves all 30 contract types in the game
   (tested on 2000 random contracts per type against the game's own solvers).
 - **IPvGO bot** using Monte Carlo tree search (UCT + RAVE) at 0GB extra RAM. In-game record:
@@ -134,6 +135,7 @@ alias install-augs='run /singularity/install-augs.js /startup.js'
 | `auto-reset.js` | Watches the plan and buys + installs augs when a reset pays off; on by default in `startup.js` mid stage (`--dry` only logs) |
 | `install-augs.js` | Installs augs and runs a script afterwards; refuses unless the advice says RESET (or `--force`) |
 | `next-bitnode.js <n>` | Destroys w0r1d_d43m0n and enters BitNode n |
+| `auto-destroy.js` | Runs `next-bitnode.js` by itself once The Red Pill is installed and hacking level and root allow; the next BitNode comes from its `ROUTE` list (BN4 until SF4.3), then it waits for you (`--bn N` overrides, `--dry` only says) |
 
 ### Ports
 
