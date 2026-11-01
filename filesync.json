@@ -1,0 +1,11 @@
+{
+  "scriptsFolder": ".",
+  "allowedFiletypes": [".js", ".txt"],
+  "exclude": [".vscode", "node_modules", "archive"],
+  "allowDeletingFiles": false,
+  "pushAllOnConnection": true,
+  "definitionFile": {
+    "update": true,
+    "location": "./NetscriptDefinitions.d.ts"
+  }
+}

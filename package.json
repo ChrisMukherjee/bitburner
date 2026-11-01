@@ -1,0 +1,11 @@
+{
+  "name": "bitburner-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "bitburner-filesync"
+  },
+  "devDependencies": {
+    "bitburner-filesync": "1.2.0-beta4"
+  }
+}
