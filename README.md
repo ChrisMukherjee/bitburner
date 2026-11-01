@@ -131,7 +131,7 @@ alias install-augs='run /singularity/install-augs.js /startup.js'
 | `faction-work.js` | Hacking contracts for the next faction below its real rep goal |
 | `company-work.js` | Megacorp jobs until their faction invites arrive |
 | `buy-augs.js` | Plans and buys useful augs, most expensive first (`--dry` shows the plan and reset advice) |
-| `auto-reset.js` | Watches the plan and installs augs when a reset pays off (`--dry` only logs) |
+| `auto-reset.js` | Watches the plan and buys + installs augs when a reset pays off; on by default in `startup.js` mid stage (`--dry` only logs) |
 | `install-augs.js` | Installs augs and runs a script afterwards; refuses unless the advice says RESET (or `--force`) |
 | `next-bitnode.js <n>` | Destroys w0r1d_d43m0n and enters BitNode n |
 

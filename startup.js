@@ -32,9 +32,9 @@ const SCRIPTS = [
 	{ stage: "mid", script: "singularity/upgrade-home-cores.js" },
 	// Last in mid: it only runs during faction work and only on RAM the batcher leaves free.
 	{ stage: "mid", script: "share-manager.js" },
-	// --dry: only logs when it would reset. Drop the flag once its timing looks right (it then resets
-	// the run by itself and startup.js comes back afterwards).
-	{ stage: "mid", script: "singularity/auto-reset.js", args: ["--dry"], restartOnNewArgs: true, homeOnly: true },
+	// Buys and installs augs by itself when the reset rule in buy-augs.js says so; startup.js comes
+	// back afterwards. Add args: ["--dry"] to only log (restartOnNewArgs swaps a running copy).
+	{ stage: "mid", script: "singularity/auto-reset.js", args: [], restartOnNewArgs: true, homeOnly: true },
 	{ stage: "late", script: "go/ipvgo-bot.js", args: ["--opponent", "Daedalus"], restartOnNewArgs: true },
 	{ stage: "late", script: "stock-trader.js", args: ["--buy-4s", "--promote", 32], homeOnly: true },
 ];

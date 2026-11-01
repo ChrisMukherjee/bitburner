@@ -36,4 +36,11 @@ Bitburner automation scripts. See README.md for what each script does, setup and
 
 - Chris commits and pushes himself unless he asks otherwise.
 - Writing to Chris's PC from a cloud session: the shared project folder can serve a stale copy for a few seconds after an edit. After every copy to the device, read the file back from the device and confirm it has your change before saying it's done.
-- Keep README.md's BitNode table and Go record up to date when they change.
+
+## Keep the READMEs up to date
+
+Update docs in the same change as the code, not later.
+
+- **README.md**: update it when a script is added, removed, renamed or moved, when its flags or behaviour change in a way the README describes, and when aliases, folders, ports or achievements (BitNode table, Go record) change.
+- **archive/README.md**: add a line (what the file did, what the next version changed) whenever a file is archived or removed.
+- **AGENTS.md**: update it when a project rule, convention or port changes.
