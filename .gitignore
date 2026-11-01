@@ -1,0 +1,6 @@
+# npm packages for bitburner-filesync (reinstall with npm install)
+node_modules/
+
+# editor and OS clutter
+.DS_Store
+Thumbs.db
