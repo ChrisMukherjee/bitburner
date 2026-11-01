@@ -1,0 +1,39 @@
+# Agent rules for this repo
+
+Bitburner automation scripts. See README.md for what each script does, setup and aliases.
+
+## API
+
+- Always use the **Bitburner v3.0.0** Netscript API. `NetscriptDefinitions.d.ts` (refreshed from the game on connect) is the reference.
+
+## Versioning old scripts
+
+- Only when replacing a **working** script with an improved one: rename the current file to `<name>-vX.js` (next unused X, matching `archive/` numbering) and write the new version under the original name. Chris moves the `-vX` file into `archive/` himself.
+- Never version a broken script: bug fixes overwrite in place. Skip versioning for small fixes too.
+- `archive/README.md` has one line per archived file (what it did, what the next version changed). Add a line when a file is archived.
+- Don't move files into `archive/` yourself.
+
+## Aliases
+
+- Use absolute script paths starting with `/`, single quotes outside, plain double quotes inside: `alias status='run /tools/status.js'`.
+
+## Coding gotchas
+
+- **RAM check matches names.** The static RAM checker charges any identifier named like an NS function (a local helper `attempt` cost 10GB, `window` 25GB). Never name helpers `attempt`, `hack`, `grow`, `weaken`, `spawn`, `exec`, `run`, `kill`, `scan`, `share`, `window`, etc.
+- **Income:** never use `ns.getTotalScriptIncome` for money income (batcher hack workers exit on payout, so it reads ~$0). Use `readIncomeRate(ns)` from `utils/income.js`.
+- **Alerts:** use `notify(ns, tag, message, variant, terminal)` from `utils/notify.js` (0GB). FYI/good news = toast only. Things Chris must act on = `terminal = true` (sticky toast + terminal line + log). Routine chatter = `ns.print` only. Announce once, or only on change.
+- **Ports** (keep unique; add new ones here and in README.md):
+  20 darknet, 21 stock influence, 22 hacked total, 23 faction goals, 24 income rate, 25 city plan, 26 stock summary.
+- Move heavy, rarely used NS calls into one-shot `workers/` scripts to keep manager RAM low.
+- After editing a batcher worker (`workers/hack.js`, `grow.js`, `weaken.js`), the batcher must be restarted.
+
+## Sync to the game
+
+- bitburner-filesync (`npm run sync`, port 12525) is **one way** (disk to game), never deletes in game, and skips `archive/`. Moving or renaming a file must also be done in game.
+- Files the game writes (e.g. `data/*.txt`) never reach disk; ask Chris to paste them.
+
+## Workflow
+
+- Chris commits and pushes himself unless he asks otherwise.
+- Writing to Chris's PC from a cloud session: the shared project folder can serve a stale copy for a few seconds after an edit. After every copy to the device, read the file back from the device and confirm it has your change before saying it's done.
+- Keep README.md's BitNode table and Go record up to date when they change.
