@@ -37,6 +37,7 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - `workers/hack-v3.js`, `grow-v3.js`, `weaken-v3.js`: `additionalMsec` delay. Next (v4 for hack/grow, current `weaken.js`): `args[1]` is an absolute landing time and the worker measures its own duration.
 - `workers/hack-v4.js`, `grow-v4.js`: absolute landing time. Next: `hack.js` adds the hacked total on port 22 and both pass `stock: true` for servers the stock trader posts on port 21.
 - `workers/contract-solver-v1.js`: solved 9 contract types. Next: `contract-solver.js` solves 30, catches solver crashes and wrong-format answers, and reports through `utils/notify.js`.
+- `workers/buy-4s.js`: one-shot that bought the 4S Market Data TIX API for `stock-trader.js --buy-4s`. Replaced by `workers/buy-market-access.js`, which buys the TIX API and (with `--4s`) 4S, each only above the cash reserve.
 
 ## Utils and tools
 
@@ -86,6 +87,7 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 
 - `darknet/dnet-manager-v1.js`: the tutorial self-spreading probe and authenticate loop. Next (v2): runs on home, seeds a crawler on darkweb and collects the map, passwords, earnings and stasis links, with `--once`, `--recon`, `--no-stasis`.
 - `darknet/dnet-manager-v2.js`: see above. Next: `dnet-manager.js` reports through `utils/notify.js` and uses `ps` + kill by pid to save RAM.
+- `darknet/factorios.js`: Factori-Os password solver for the crawler. Replaced by `darknet/feedback-solvers.js`, which logs in through `darknet/auth.js` and stops on timeouts or vanished servers instead of silently dropping a prime factor.
 
 ## Go
 
