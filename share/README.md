@@ -4,5 +4,5 @@ Shares spare RAM for faction reputation. No design note of its own; the worker p
 
 | Script | What it does | Flags | RAM |
 | --- | --- | --- | --- |
-| [`share-manager.js`](share-manager.js) | Fills RAM the batcher isn't using with share workers, only during faction work | `--no-home`, `--always`, `--headroom N`, `--max-threads N` | ? |
+| [`share-manager.js`](share-manager.js) | Fills RAM the batcher isn't using with share workers, only during faction work; leaves free the RAM the batcher claims on port 31 | `--no-home`, `--always`, `--headroom N`, `--max-threads N` | ? |
 | [`workers/share.js`](workers/share.js) | One `ns.share()` call, then exits | none | 4GB |

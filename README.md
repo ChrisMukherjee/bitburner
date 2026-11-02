@@ -185,17 +185,18 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | 24 | Income rate ($/s, from the batcher) |
 | 25 | City faction plan |
 | 26 | Stock summary |
-| 27 | Target stats (batcher without Formulas.exe) |
+| 27 | Target stats and home cores (for the batcher) |
 | 28 | Gang summary (for status) |
 | 29 | Gang equipment list |
 | 30 | Gang invite crimes (for player-work) |
+| 31 | Batcher RAM claim (free RAM its batches still need; share-manager leaves it alone) |
 
 ## Conventions
 
 - **Design notes.** Why things are built the way they are (batching, startup stages, settings, aug resets, player work,
   RAM, darknet, stocks, Go, gang) is in [`docs/`](docs/), one short note per area, linked from each script's header.
 - **Versioning.** When a working script is replaced by an improved one, the old copy is renamed
-  `<name>-vX.js` (next unused number) and later moved into [`archive/`](archive/). Bug fixes to a broken
+  `<name>-vX.js` (next unused number) and moved into [`archive/`](archive/). Bug fixes to a broken
   script overwrite it in place. Old versions are kept for history (and the file-count achievement).
 - **Across BitNodes.** One folder per mechanic (like [`gang/`](gang/)) whose manager exits when its API
   isn't available; checks ask what the run can use, not which BitNode it is; per-BitNode tuning lives in

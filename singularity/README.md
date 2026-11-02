@@ -16,7 +16,7 @@ Player automation. Design: [`docs/player-work.md`](../docs/player-work.md) and [
 | Script | What it does | Flags | RAM |
 | --- | --- | --- | --- |
 | [`player-work.js`](player-work.js) | The one script that moves the player: free CS course until hacking 75, then faction work for the next faction below its real rep goal (order in `factionWork`), megacorp jobs when no faction needs rep; in BitNode 2 crimes for the gang invite first (after study); also flies to get Tian Di Hui and the one city-faction group whose augs are still wanted | `--focus`, `--study N`, `--no-company`, `--plan` | ? |
-| [`buy-programs.js`](buy-programs.js) | TOR, port openers, DarkscapeNavigator.exe, Formulas.exe | `--once` | ? |
+| [`buy-programs.js`](buy-programs.js) | TOR (only once cash also covers the next program, which is bought straight after), port openers, DarkscapeNavigator.exe, Formulas.exe | `--once` | ? |
 | [`upgrade-home-ram.js`](upgrade-home-ram.js) | Home RAM upgrades within `homeRamBuying` | `--once` | ? |
 | [`upgrade-home-cores.js`](upgrade-home-cores.js) | Home core upgrades within `homeCoresBuying` | `--once` | ? |
 | [`home-upgrade-loop.js`](home-upgrade-loop.js) | Library: the loop both upgraders share | import only | ? |
