@@ -50,6 +50,7 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - `utils/spending-v1.js`: one fixed reserve and max fraction per manager. Next: `spending.js` adds income stages that only tighten during a run.
 - `tools/track-income-v1.js`: prints the change in home money every 10s. Next: `track-income.js` also shows hacking income from `getMoneySources`.
 - `tools/list-backdoors-v1.js`: lists servers without a backdoor. Next: `list-backdoors.js` ranks them by what the backdoor actually unlocks (faction invites, company rep, class discounts) and hides useless ones unless `--all`.
+- `tools/status-v1.js`: one-screen run summary (stage, cash/income, work, faction goals with ETAs, reset advice, Go, city plan, stocks, scripts running). Next: `status.js` adds a BitNode section (Daedalus invite needs and rep against The Red Pill, `w0r1d_d43m0n` hacking level and root, next BitNode on the route).
 - `tools/serverinfo.js`: printed one server's details. Uses functions that no longer exist; no replacement.
 - `solve-contracts-v1.js`: found and solved contracts itself (about 22GB all the time). Next: `solve-contracts.js` only finds them every 15 minutes (3.5GB) and launches `workers/contract-solver.js` briefly to solve them.
 

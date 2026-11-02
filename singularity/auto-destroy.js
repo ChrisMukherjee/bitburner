@@ -1,13 +1,14 @@
 import { loadConfig } from "/utils/config.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 import { notify } from "/utils/notify.js";
+import { nextRouteStep } from "/utils/bitnode-route.js";
 
 const DAEMON = "w0r1d_d43m0n";
 const DESTROYER = "singularity/next-bitnode.js";
 const LOOP_MS = 60_000;
 
 // Which BitNode to go to next: `bitnodeRoute` in the config (config.js, data/config.json),
-// a list of { bitNode, level }. The first entry whose Source-File level isn't reached yet wins,
+// a list of { bitNode, level }, read by utils/bitnode-route.js. The first entry whose Source-File level isn't reached yet wins,
 // counting the level this destroy is about to give. When every entry is done, it waits for
 // you to pick (run next-bitnode.js, or use --bn).
 
@@ -41,7 +42,7 @@ export async function main(ns) {
 			continue;
 		}
 
-		const nextBN = flags.bn > 0 ? flags.bn : routeNext(ns, route);
+		const nextBN = flags.bn > 0 ? flags.bn : (nextRouteStep(ns, route)?.bitNode ?? null);
 		if (nextBN === null) {
 			if (!toldReady) notify(ns, "[daemon]", `${DAEMON} is ready to destroy, but bitnodeRoute in the config is done. Pick the next BitNode: run /singularity/next-bitnode.js <n>`, "warning", true);
 			toldReady = true;
@@ -76,13 +77,4 @@ function waitingOn(ns) {
 	if (!ns.hasRootAccess(DAEMON)) nukeAllServers(ns);
 	if (!ns.hasRootAccess(DAEMON)) return "no root yet (needs all 5 port openers)";
 	return "";
-}
-
-/** The first route BitNode still short of its level after this destroy, or null when the route is done. */
-function routeNext(ns, route) {
-	const info = ns.getResetInfo();
-	const levels = new Map(info.ownedSF);
-	levels.set(info.currentNode, (levels.get(info.currentNode) ?? 0) + 1); // what destroying now gives
-	const next = route.find((step) => (levels.get(step.bitNode) ?? 0) < step.level);
-	return next ? next.bitNode : null;
 }

@@ -75,6 +75,11 @@ run /startup.js mid      # force a stage
 run /tools/status.js     # one-screen summary of the whole run
 ```
 
+`status` also has a BitNode line: the SF level destroying this node gives, the next BitNode on
+`bitnodeRoute`, and how far along the end is (Daedalus invite needs, Daedalus rep against The Red
+Pill's requirement, then hacking level and root for `w0r1d_d43m0n`). The Red Pill and Daedalus
+numbers come from `data/aug-plan.json`, which `auto-reset.js` refreshes every 10 minutes.
+
 `startup.js` holds one priority-ordered list of long-running scripts, each tagged with the
 stage it starts in. It skips anything already running and exits once everything is launched.
 
@@ -150,7 +155,7 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 | `darknet/` | Darknet crawler, password solvers, phishing and stasis links (`dnet-manager.js` is the entry point) |
 | `go/` | IPvGO bot (`ipvgo-bot.js`) and its move search (`choose-move.js`) |
 | `workers/` | Small scripts exec'd by managers: hack/grow/weaken, contract solver, faction goals, market access, share |
-| `utils/` | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter |
+| `utils/` | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter, BitNode route |
 | `tools/` | Manual tools: status, settings (`show-config.js`), state dump, income tracker, backdoor list, server checks |
 | `tools/exploits/` | One-shot scripts for the hidden "Exploit:" achievements (Source-File -1), see below |
 | `archive/` | Older versions of scripts, kept for history (not synced to the game) |

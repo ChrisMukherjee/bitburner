@@ -2,6 +2,7 @@ import { readIncomeRate } from "/utils/income.js";
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts } from "/utils/aug-filter.js";
 const NEUROFLUX = "NeuroFlux Governor";
+const RED_PILL = "The Red Pill";
 const PLAN_FILE = "data/aug-plan.json";
 const PRICE_MULT = 1.9; // every purchase multiplies the price of the rest
 
@@ -24,7 +25,7 @@ let RESET_RULE = null;
  * purchase that fails is retried after the next one succeeds, so e.g. Cranial Signal
  * Processors Gen II goes through once Gen I is bought.
  *
- * Est. 29GB RAM. It runs once and exits.
+ * Est. 32GB RAM. It runs once and exits.
  *
  *   run singularity/buy-augs.js                  buy the useful ones you can afford
  *   run singularity/buy-augs.js --dry            list them with what each one boosts, the
@@ -112,7 +113,7 @@ export async function main(ns) {
 
 		ns.write(PLAN_FILE, JSON.stringify({
 			time: rates.snapshotTime, rep: rates.snapshot, perSecond: rates.perSecond, checkedAt: Date.now(),
-			queued, affordable: fit.augs, cost: fit.cost, decision,
+			queued, affordable: fit.augs, cost: fit.cost, decision, bitnode: bitnodeGoal(ns, factions),
 		}), "w");
 		if (flags.dry) showAdvice(ns, plan, cash(), sellers, boosts, skipped, upcoming, queued, fit, decision, rates, sinceInstallMs, income);
 		return;
@@ -314,4 +315,15 @@ function showAdvice(ns, plan, cash, sellers, boosts, skipped, upcoming, queued, 
 		ns.tprint(`WAIT: ${decision.reason}`);
 		ns.tprint("  Don't buy yet either: prices only go up, and nothing works until it's installed.");
 	}
+}
+
+/**
+ * What tools/status.js needs to show how far the BitNode is from ending: The Red Pill's rep
+ * requirement and price, and, while Daedalus hasn't invited you yet, its invite requirements.
+ */
+function bitnodeGoal(ns, factions) {
+	return {
+		redPill: { rep: ns.singularity.getAugmentationRepReq(RED_PILL), price: ns.singularity.getAugmentationPrice(RED_PILL) },
+		daedalusInvite: factions.includes("Daedalus") ? null : ns.singularity.getFactionInviteRequirements("Daedalus"),
+	};
 }

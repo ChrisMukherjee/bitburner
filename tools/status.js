@@ -1,6 +1,7 @@
 import { loadConfig } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { readIncomeRate } from "/utils/income.js";
+import { nextRouteStep } from "/utils/bitnode-route.js";
 
 /**
  * One-screen summary of the run, so you don't have to tail six logs.
@@ -9,7 +10,8 @@ import { readIncomeRate } from "/utils/income.js";
  *   alias status='run /tools/status.js'   (absolute path, so it works from any directory)
  *
  * Shows: stage and home RAM, cash and income, current work, faction rep goals with ETAs, the
- * reset advice, Go progress, the city-faction plan, stocks, and which startup.js scripts run.
+ * reset advice, how close the BitNode is to ending (Daedalus, The Red Pill, w0r1d_d43m0n and
+ * the next BitNode on the route), Go progress, the city-faction plan, stocks, and which startup.js scripts run.
  *
  * Cheap on purpose (about 5GB): almost everything comes from what the other scripts already
  * post, read with 0GB calls:
@@ -17,7 +19,8 @@ import { readIncomeRate } from "/utils/income.js";
  *   port 24  batcher income            (utils/income.js)
  *   port 25  city-faction plan         (workers/city-plan.js, via city-factions.js)
  *   port 26  stock summary             (stock-trader.js, every 10 ticks)
- *   data/aug-plan.json   reset advice + rep rates (buy-augs.js --plan, every 10 min via auto-reset.js)
+ *   data/aug-plan.json   reset advice + rep rates, Red Pill rep/price and Daedalus invite needs
+ *                        (buy-augs.js --plan, every 10 min via auto-reset.js)
  *   data/go-bonus.json   Go bonus history (go/ipvgo-bot.js)
  *   startup.js and go/ipvgo-bot.js are read as text for their script list, stage thresholds and
  *   Go rotation, so this never falls out of step with them.
@@ -29,6 +32,8 @@ const STOCK_SUMMARY_PORT = 26;
 const PLAN_FILE = "data/aug-plan.json";
 const GO_FILE = "data/go-bonus.json";
 const REP_FILE = "data/status-rep.json";
+const DAEMON = "w0r1d_d43m0n";
+const RED_PILL = "The Red Pill";
 // Same defaults as go/ipvgo-bot.js (--span, --level-off, --min-win-rate).
 const GO_SETTINGS = { span: 10, levelOff: 0.25, minWinRate: 0.2 };
 const RATE_GAP = { minMs: 120_000, maxMs: 3 * 3600_000 };
@@ -37,7 +42,8 @@ const RATE_GAP = { minMs: 120_000, maxMs: 3 * 3600_000 };
 export async function main(ns) {
 	const player = ns.getPlayer();
 	const now = Date.now();
-	const lastReset = ns.getResetInfo().lastAugReset;
+	const resetInfo = ns.getResetInfo();
+	const lastReset = resetInfo.lastAugReset;
 	const money = (amount) => "$" + ns.format.number(amount);
 	const ago = (time) => (time ? `${ns.format.time(Math.max(0, now - time))} ago` : "never");
 	const out = [];
@@ -94,6 +100,48 @@ export async function main(ns) {
 		out.push(`Reset: ${plan.decision.reset ? "RESET NOW" : "wait"} (checked ${ago(plan.checkedAt)}): ${plan.decision.reason}`);
 		out.push(`  ${plan.queued.length} bought + ${plan.affordable.length} affordable for ${money(plan.cost)}` +
 			(autoReset ? (autoReset.args.includes("--dry") ? " | auto-reset is in --dry: it won't reset by itself" : " | auto-reset will act on it") : " | auto-reset not running"));
+	}
+
+	// --- BitNode: Daedalus -> The Red Pill -> w0r1d_d43m0n -> next BitNode ---
+	const node = resetInfo.currentNode;
+	const destroyer = processes.find((proc) => proc.filename === "singularity/auto-destroy.js");
+	const forcedBN = destroyer ? argValue(destroyer.args, "--bn") : null;
+	const step = nextRouteStep(ns, config.bitnodeRoute);
+	const nextBN = forcedBN ? `BitNode ${forcedBN} (auto-destroy --bn)`
+		: step ? `BitNode ${step.bitNode} (route: SF${step.bitNode}.${step.level})` : "none, bitnodeRoute is done (you pick)";
+	const sfAfter = (resetInfo.ownedSF.get(node) ?? 0) + 1;
+	out.push(`BitNode ${node}: destroying gives SF${node}.${sfAfter}, next ${nextBN} | auto-destroy ` +
+		(destroyer ? (destroyer.args.includes("--dry") ? "running in --dry" : "running") : "not running"));
+	const redPill = plan?.checkedAt >= lastReset ? plan.bitnode?.redPill : null;
+	if (resetInfo.ownedAugs.has(RED_PILL)) {
+		if (ns.serverExists(DAEMON)) {
+			const needed = ns.getServerRequiredHackingLevel(DAEMON);
+			const root = ns.hasRootAccess(DAEMON);
+			out.push(`  ${RED_PILL} installed | ${DAEMON}: hacking ${player.skills.hacking} / ${needed}` +
+				(player.skills.hacking >= needed ? " (ready)" : ` (${needed - player.skills.hacking} to go)`) +
+				` | root ${root ? "yes" : "no (needs all 5 port openers)"}`);
+		} else {
+			out.push(`  ${RED_PILL} installed, but ${DAEMON} not found`);
+		}
+	} else if (plan?.queued?.includes(RED_PILL) && plan.checkedAt >= lastReset) {
+		out.push(`  ${RED_PILL} bought, not installed: install augments to make ${DAEMON} appear`);
+	} else if (joined.has("Daedalus")) {
+		if (!redPill) {
+			out.push(`  Daedalus joined, ${ns.format.number(rep.Daedalus)} rep | ${RED_PILL} needs: not known yet (buy-augs.js --plan posts it)`);
+		} else {
+			const missing = redPill.rep - rep.Daedalus;
+			const rate = rates.perSecond.Daedalus ?? 0;
+			const eta = missing <= 0 ? "enough rep, buy it" : rate > 0 ? `ETA ~${ns.format.time((missing / rate) * 1000)}` : "no rate yet";
+			out.push(`  Daedalus ${ns.format.number(rep.Daedalus)} / ${ns.format.number(redPill.rep)} rep for ${RED_PILL} ` +
+				`(${money(redPill.price)}) | ${eta}`);
+		}
+	} else {
+		const invite = plan?.checkedAt >= lastReset ? plan.bitnode?.daedalusInvite : null;
+		const installed = resetInfo.ownedAugs.size;
+		out.push(`  Daedalus not joined` + (invite
+			? `; invite needs ${describeNeeds(ns, invite, player, installed)}`
+			: ` (its invite needs aren't known yet; buy-augs.js --plan posts them)`) +
+			(redPill ? ` | then ${ns.format.number(redPill.rep)} rep for ${RED_PILL}` : ""));
 	}
 
 	// --- Go ---
@@ -165,6 +213,29 @@ export async function main(ns) {
 	if (stopped.length) out.push(`Not running: ${stopped.join(", ")} (some exit when done; \`run startup.js\` restarts the rest)`);
 
 	ns.tprint("\n" + out.join("\n"));
+}
+
+/**
+ * Daedalus's invite requirements (from getFactionInviteRequirements) as text, each one marked
+ * done or with what you have. Only the kinds Daedalus uses are spelled out.
+ */
+function describeNeeds(ns, needs, player, installed) {
+	const tick = (ok) => (ok ? " ok" : "");
+	const one = (need) => {
+		switch (need.type) {
+			case "money": return `$${ns.format.number(need.money)} (have $${ns.format.number(player.money)})${tick(player.money >= need.money)}`;
+			case "numAugmentations": return `${need.numAugmentations} augs installed (have ${installed})${tick(installed >= need.numAugmentations)}`;
+			case "skills": {
+				const parts = Object.entries(need.skills).map(([skill, level]) => `${skill} ${level}`);
+				const ok = Object.entries(need.skills).every(([skill, level]) => player.skills[skill] >= level);
+				return parts.join(" + ") + tick(ok);
+			}
+			case "someCondition": return "(" + need.conditions.map(one).join(" or ") + ")";
+			case "everyCondition": return need.conditions.map(one).join(" and ");
+			default: return need.type;
+		}
+	};
+	return needs.map(one).join(", ");
 }
 
 function describeWork(work) {
