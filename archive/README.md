@@ -10,34 +10,34 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 
 ## Hacking: from first scripts to the batcher
 
-- [`n00dles.js`](n00dles.js): endless `hack("n00dles")` loop, the very first script. Next: [`early-hack.js`](early-hack.js) adds weaken/grow thresholds and a target argument.
-- [`early-hack.js`](early-hack.js): the tutorial weaken/grow/hack loop against one target. Next: [`deployer-v1.js`](deployer-v1.js) copies it to servers and runs it there.
-- [`purchase-server-8gb.js`](purchase-server-8gb.js): the tutorial script that buys 8GB cloud servers and runs the early-hack template on them. Next: [`purchase-servers-v1.js`](purchase-servers-v1.js).
-- [`deployer-v1.js`](deployer-v1.js): roots the servers next to home and runs the early-hack template on n00dles with all their RAM. Next (v2): scans the whole network, uses [`attempt-nuke.js`](attempt-nuke.js), picks the best target.
-- [`deployer-v2.js`](deployer-v2.js): as v1 over the whole network with the best target. Next (v3): uses separate hack/grow/weaken workers instead of one loop, and loops forever.
-- [`deployer-v3.js`](deployer-v3.js): picks one action (weaken, grow or hack) for the best target and fills every rooted server with it. Next: [`hack-manager-v1.js`](hack-manager-v1.js) adds an "xp" mode and the shared worker pool.
-- [`hack-manager-v1.js`](hack-manager-v1.js): deployer-v3 plus an "xp" mode (grow/weaken joesguns for exp) and [`utils/workpool.js`](utils/workpool.js). Next (v2): moves to the utils/ and workers/ folders and splits the pool across the top 3 targets.
-- [`hack-manager-v2.js`](hack-manager-v2.js): one action per target, pool split across the top 3 targets. Next: [`batch-manager.js`](batch-manager.js) switches to HWGW batches.
-- [`batch-manager.js`](batch-manager.js): first HWGW batcher. Preps one target, then sends 10% hack batches timed to land in order, waiting until the whole batch fits in free RAM. Next: [`jit-batch-manager-v1.js`](jit-batch-manager-v1.js) drops the RAM wait so a batch starts every second (pipelining).
-- [`jit-batch-manager-v1.js`](jit-batch-manager-v1.js): pipelined HWGW against one target, one batch per second. Next (v2): rewritten around a CONFIG, all-or-nothing RAM placement split across servers, target switching with hysteresis, prep waves, many batches per tick.
-- [`jit-batch-manager-v2.js`](jit-batch-manager-v2.js): see above. Next (v3): ops use live durations and pass their delay as `additionalMsec`; a launch horizon stops RAM being hoarded by far-future batches.
-- [`jit-batch-manager-v3.js`](jit-batch-manager-v3.js): see above. Next (v4): workers get an absolute landing time and measure their own duration when they start, with a safety factor for higher security.
-- [`jit-batch-manager-v4.js`](jit-batch-manager-v4.js): single-target JIT batcher. Next (v5): multi-target, ranked by [`utils/targets.js`](../utils/targets.js) and fed from one shared RAM pool, best target first.
-- [`jit-batch-manager-v5.js`](jit-batch-manager-v5.js): multi-target batcher. Next (v6): uses Formulas.exe when owned (exact batch sizes, rank by money per GB per second, one combined prep wave) and reports income from port 22.
-- [`jit-batch-manager-v6.js`](jit-batch-manager-v6.js): see above. Next: [`batcher-v7.js`](batcher-v7.js) (renamed) execs each worker just before it starts, so batches only hold RAM while running (about 2.4x more batches), and rate-limits targets by a RAM budget.
-- [`batcher-v7.js`](batcher-v7.js): see above. Next: [`batcher.js`](../hack/batcher.js) sizes hack fraction per target with Formulas (up to 50%), measures targets with [`hack/workers/target-stats.js`](../hack/workers/target-stats.js) without Formulas, and drops the analyze calls (about 6GB less RAM).
-- [`attempt-nuke.js`](attempt-nuke.js): opens ports and nukes one server. Replaced by [`utils/nuke-all.js`](../utils/nuke-all.js), which roots everything in one call.
+- [`hack/n00dles.js`](hack/n00dles.js): endless `hack("n00dles")` loop, the very first script. Next: [`hack/early-hack.js`](hack/early-hack.js) adds weaken/grow thresholds and a target argument.
+- [`hack/early-hack.js`](hack/early-hack.js): the tutorial weaken/grow/hack loop against one target. Next: [`hack/deployer-v1.js`](hack/deployer-v1.js) copies it to servers and runs it there.
+- [`pserv/purchase-server-8gb.js`](pserv/purchase-server-8gb.js): the tutorial script that buys 8GB cloud servers and runs the early-hack template on them. Next: [`pserv/purchase-servers-v1.js`](pserv/purchase-servers-v1.js).
+- [`hack/deployer-v1.js`](hack/deployer-v1.js): roots the servers next to home and runs the early-hack template on n00dles with all their RAM. Next (v2): scans the whole network, uses [`utils/attempt-nuke.js`](utils/attempt-nuke.js), picks the best target.
+- [`hack/deployer-v2.js`](hack/deployer-v2.js): as v1 over the whole network with the best target. Next (v3): uses separate hack/grow/weaken workers instead of one loop, and loops forever.
+- [`hack/deployer-v3.js`](hack/deployer-v3.js): picks one action (weaken, grow or hack) for the best target and fills every rooted server with it. Next: [`hack/hack-manager-v1.js`](hack/hack-manager-v1.js) adds an "xp" mode and the shared worker pool.
+- [`hack/hack-manager-v1.js`](hack/hack-manager-v1.js): deployer-v3 plus an "xp" mode (grow/weaken joesguns for exp) and [`utils/workpool.js`](utils/workpool.js). Next (v2): moves to the utils/ and workers/ folders and splits the pool across the top 3 targets.
+- [`hack/hack-manager-v2.js`](hack/hack-manager-v2.js): one action per target, pool split across the top 3 targets. Next: [`hack/batch-manager.js`](hack/batch-manager.js) switches to HWGW batches.
+- [`hack/batch-manager.js`](hack/batch-manager.js): first HWGW batcher. Preps one target, then sends 10% hack batches timed to land in order, waiting until the whole batch fits in free RAM. Next: [`hack/jit-batch-manager-v1.js`](hack/jit-batch-manager-v1.js) drops the RAM wait so a batch starts every second (pipelining).
+- [`hack/jit-batch-manager-v1.js`](hack/jit-batch-manager-v1.js): pipelined HWGW against one target, one batch per second. Next (v2): rewritten around a CONFIG, all-or-nothing RAM placement split across servers, target switching with hysteresis, prep waves, many batches per tick.
+- [`hack/jit-batch-manager-v2.js`](hack/jit-batch-manager-v2.js): see above. Next (v3): ops use live durations and pass their delay as `additionalMsec`; a launch horizon stops RAM being hoarded by far-future batches.
+- [`hack/jit-batch-manager-v3.js`](hack/jit-batch-manager-v3.js): see above. Next (v4): workers get an absolute landing time and measure their own duration when they start, with a safety factor for higher security.
+- [`hack/jit-batch-manager-v4.js`](hack/jit-batch-manager-v4.js): single-target JIT batcher. Next (v5): multi-target, ranked by [`utils/targets.js`](../utils/targets.js) and fed from one shared RAM pool, best target first.
+- [`hack/jit-batch-manager-v5.js`](hack/jit-batch-manager-v5.js): multi-target batcher. Next (v6): uses Formulas.exe when owned (exact batch sizes, rank by money per GB per second, one combined prep wave) and reports income from port 22.
+- [`hack/jit-batch-manager-v6.js`](hack/jit-batch-manager-v6.js): see above. Next: [`hack/batcher-v7.js`](hack/batcher-v7.js) (renamed) execs each worker just before it starts, so batches only hold RAM while running (about 2.4x more batches), and rate-limits targets by a RAM budget.
+- [`hack/batcher-v7.js`](hack/batcher-v7.js): see above. Next: [`batcher.js`](../hack/batcher.js) sizes hack fraction per target with Formulas (up to 50%), measures targets with [`hack/workers/target-stats.js`](../hack/workers/target-stats.js) without Formulas, and drops the analyze calls (about 6GB less RAM).
+- [`utils/attempt-nuke.js`](utils/attempt-nuke.js): opens ports and nukes one server. Replaced by [`utils/nuke-all.js`](../utils/nuke-all.js), which roots everything in one call.
 - [`startup.js`](startup.js): BN1 startup that launched hacknet-manager, pserv-manager and hack-manager. Next: [`startup-v2.js`](startup-v2.js).
 - [`startup-v2.js`](startup-v2.js): stage-tagged script list (early/mid/late by home RAM), home only. Next: [`startup.js`](../startup.js) also runs scripts on rooted servers when home is too small, uses absolute paths, adds city factions, and prints the status screen when typed by hand.
 
 ## Workers
 
-- [`workers/hack-v1.js`](workers/hack-v1.js), [`grow-v1.js`](workers/grow-v1.js), [`weaken-v1.js`](workers/weaken-v1.js): one call on `args[0]`. Next (v2): optional sleep delay in `args[1]`.
-- [`workers/hack-v2.js`](workers/hack-v2.js), [`grow-v2.js`](workers/grow-v2.js), [`weaken-v2.js`](workers/weaken-v2.js): sleep, then act. Next (v3): the delay goes to the game as `additionalMsec`.
-- [`workers/hack-v3.js`](workers/hack-v3.js), [`grow-v3.js`](workers/grow-v3.js), [`weaken-v3.js`](workers/weaken-v3.js): `additionalMsec` delay. Next (v4 for hack/grow, current [`weaken.js`](../hack/workers/weaken.js)): `args[1]` is an absolute landing time and the worker measures its own duration.
-- [`workers/hack-v4.js`](workers/hack-v4.js), [`grow-v4.js`](workers/grow-v4.js): absolute landing time. Next: [`hack.js`](../hack/workers/hack.js) adds the hacked total on port 22 and both pass `stock: true` for servers the stock trader posts on port 21.
-- [`workers/contract-solver-v1.js`](workers/contract-solver-v1.js): solved 9 contract types. Next: [`contract-solver.js`](../contracts/workers/contract-solver.js) solves 30, catches solver crashes and wrong-format answers, and reports through [`utils/notify.js`](../utils/notify.js).
-- [`workers/buy-4s.js`](workers/buy-4s.js): one-shot that bought the 4S Market Data TIX API for [`stock-trader.js --buy-4s`](../stocks/stock-trader.js). Replaced by [`stocks/workers/buy-market-access.js`](../stocks/workers/buy-market-access.js), which buys the TIX API and (with `--4s`) 4S, each only above the cash reserve.
+- [`hack/workers/hack-v1.js`](hack/workers/hack-v1.js), [`grow-v1.js`](hack/workers/grow-v1.js), [`weaken-v1.js`](hack/workers/weaken-v1.js): one call on `args[0]`. Next (v2): optional sleep delay in `args[1]`.
+- [`hack/workers/hack-v2.js`](hack/workers/hack-v2.js), [`grow-v2.js`](hack/workers/grow-v2.js), [`weaken-v2.js`](hack/workers/weaken-v2.js): sleep, then act. Next (v3): the delay goes to the game as `additionalMsec`.
+- [`hack/workers/hack-v3.js`](hack/workers/hack-v3.js), [`grow-v3.js`](hack/workers/grow-v3.js), [`weaken-v3.js`](hack/workers/weaken-v3.js): `additionalMsec` delay. Next (v4 for hack/grow, current [`weaken.js`](../hack/workers/weaken.js)): `args[1]` is an absolute landing time and the worker measures its own duration.
+- [`hack/workers/hack-v4.js`](hack/workers/hack-v4.js), [`grow-v4.js`](hack/workers/grow-v4.js): absolute landing time. Next: [`hack.js`](../hack/workers/hack.js) adds the hacked total on port 22 and both pass `stock: true` for servers the stock trader posts on port 21.
+- [`contracts/workers/contract-solver-v1.js`](contracts/workers/contract-solver-v1.js): solved 9 contract types. Next: [`contract-solver.js`](../contracts/workers/contract-solver.js) solves 30, catches solver crashes and wrong-format answers, and reports through [`utils/notify.js`](../utils/notify.js).
+- [`stocks/workers/buy-4s.js`](stocks/workers/buy-4s.js): one-shot that bought the 4S Market Data TIX API for [`stock-trader.js --buy-4s`](../stocks/stock-trader.js). Replaced by [`stocks/workers/buy-market-access.js`](../stocks/workers/buy-market-access.js), which buys the TIX API and (with `--4s`) 4S, each only above the cash reserve.
 
 ## Utils and tools
 
@@ -52,26 +52,26 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`tools/list-backdoors-v1.js`](tools/list-backdoors-v1.js): lists servers without a backdoor. Next: [`list-backdoors.js`](../tools/list-backdoors.js) ranks them by what the backdoor actually unlocks (faction invites, company rep, class discounts) and hides useless ones unless `--all`.
 - [`tools/status-v1.js`](tools/status-v1.js): one-screen run summary (stage, cash/income, work, faction goals with ETAs, reset advice, Go, city plan, stocks, scripts running). Next: [`status.js`](../tools/status.js) adds a BitNode section (Daedalus invite needs and rep against The Red Pill, `w0r1d_d43m0n` hacking level and root, next BitNode on the route).
 - [`tools/serverinfo.js`](tools/serverinfo.js): printed one server's details. Uses functions that no longer exist; no replacement.
-- [`solve-contracts-v1.js`](solve-contracts-v1.js): found and solved contracts itself (about 22GB all the time). Next: [`solve-contracts.js`](../contracts/solve-contracts.js) only finds them every 15 minutes (3.5GB) and launches [`contracts/workers/contract-solver.js`](../contracts/workers/contract-solver.js) briefly to solve them.
+- [`contracts/solve-contracts-v1.js`](contracts/solve-contracts-v1.js): found and solved contracts itself (about 22GB all the time). Next: [`solve-contracts.js`](../contracts/solve-contracts.js) only finds them every 15 minutes (3.5GB) and launches [`contracts/workers/contract-solver.js`](../contracts/workers/contract-solver.js) briefly to solve them.
 
 ## Servers and hacknet
 
-- [`purchase-servers-v1.js`](purchase-servers-v1.js): buys 8GB servers until the limit. Next (v2): keeps doubling RAM by deleting and re-buying servers.
-- [`purchase-servers-v2.js`](purchase-servers-v2.js): see above. Next: [`pserv-manager-v1.js`](pserv-manager-v1.js).
-- [`pserv-manager-v1.js`](pserv-manager-v1.js): buys and upgrades servers to the biggest tier with a 2x cash buffer. Next (v2): upgrades in place, smallest first, one per pass, within the shared spending budget; never deletes.
-- [`pserv-manager-v2.js`](pserv-manager-v2.js): see above. Next: [`pserv-manager.js`](../pserv/pserv-manager.js) also buys new servers in free slots (after a reset) and uses income stages.
-- [`hacknet-manager-v1.js`](hacknet-manager-v1.js): bought the best gain/cost upgrade, capped at 12 nodes. Next (v2): buys by shortest payback from real production, within a budget and max payback time.
-- [`hacknet-manager-v2.js`](hacknet-manager-v2.js): see above. Next (v3): income stages for reserve and payback; exact new-node value with Formulas.exe.
-- [`hacknet-manager-v3.js`](hacknet-manager-v3.js): see above. Next (v4): prices a new node as a package with the upgrades worth putting on it, so new nodes actually get bought.
-- [`hacknet-manager-v4.js`](hacknet-manager-v4.js): see above. Next: [`hacknet-manager.js`](../hacknet/hacknet-manager.js) uses shorter payback limits (suited to short runs between aug installs; the stages are now `hacknetBuying` in [`config.js`](../config.js)) and stops once hacknet is under 1% of income.
+- [`pserv/purchase-servers-v1.js`](pserv/purchase-servers-v1.js): buys 8GB servers until the limit. Next (v2): keeps doubling RAM by deleting and re-buying servers.
+- [`pserv/purchase-servers-v2.js`](pserv/purchase-servers-v2.js): see above. Next: [`pserv/pserv-manager-v1.js`](pserv/pserv-manager-v1.js).
+- [`pserv/pserv-manager-v1.js`](pserv/pserv-manager-v1.js): buys and upgrades servers to the biggest tier with a 2x cash buffer. Next (v2): upgrades in place, smallest first, one per pass, within the shared spending budget; never deletes.
+- [`pserv/pserv-manager-v2.js`](pserv/pserv-manager-v2.js): see above. Next: [`pserv-manager.js`](../pserv/pserv-manager.js) also buys new servers in free slots (after a reset) and uses income stages.
+- [`hacknet/hacknet-manager-v1.js`](hacknet/hacknet-manager-v1.js): bought the best gain/cost upgrade, capped at 12 nodes. Next (v2): buys by shortest payback from real production, within a budget and max payback time.
+- [`hacknet/hacknet-manager-v2.js`](hacknet/hacknet-manager-v2.js): see above. Next (v3): income stages for reserve and payback; exact new-node value with Formulas.exe.
+- [`hacknet/hacknet-manager-v3.js`](hacknet/hacknet-manager-v3.js): see above. Next (v4): prices a new node as a package with the upgrades worth putting on it, so new nodes actually get bought.
+- [`hacknet/hacknet-manager-v4.js`](hacknet/hacknet-manager-v4.js): see above. Next: [`hacknet-manager.js`](../hacknet/hacknet-manager.js) uses shorter payback limits (suited to short runs between aug installs; the stages are now `hacknetBuying` in [`config.js`](../config.js)) and stops once hacknet is under 1% of income.
 
 ## Stocks
 
-- [`stock-trader-v1.js`](stock-trader-v1.js): long and short (`--short`) trader using 4S data or price-history estimates. Next (v2): `--promote N` runs promoteStock workers on the biggest longs.
-- [`stock-trader-v2.js`](stock-trader-v2.js): see above. Next (v3): posts held companies on port 21 so batcher grows push longs up and hacks push shorts down.
-- [`stock-trader-v3.js`](stock-trader-v3.js): see above, last version with `--short`. Next (v4): longs only (shorts need BN8/SF8.2 and cost 5GB), buys 4S through a one-shot helper, cheaper price reads.
-- [`stock-trader-v4.js`](stock-trader-v4.js): see above. Next (v5): buys the TIX API itself through the helper when cash allows (`--no-buy-tix` to skip).
-- [`stock-trader-v5.js`](stock-trader-v5.js): see above. Next: [`stock-trader.js`](../stocks/stock-trader.js) runs promote workers on darkweb and stasis-linked darknet servers and posts a summary on port 26.
+- [`stocks/stock-trader-v1.js`](stocks/stock-trader-v1.js): long and short (`--short`) trader using 4S data or price-history estimates. Next (v2): `--promote N` runs promoteStock workers on the biggest longs.
+- [`stocks/stock-trader-v2.js`](stocks/stock-trader-v2.js): see above. Next (v3): posts held companies on port 21 so batcher grows push longs up and hacks push shorts down.
+- [`stocks/stock-trader-v3.js`](stocks/stock-trader-v3.js): see above, last version with `--short`. Next (v4): longs only (shorts need BN8/SF8.2 and cost 5GB), buys 4S through a one-shot helper, cheaper price reads.
+- [`stocks/stock-trader-v4.js`](stocks/stock-trader-v4.js): see above. Next (v5): buys the TIX API itself through the helper when cash allows (`--no-buy-tix` to skip).
+- [`stocks/stock-trader-v5.js`](stocks/stock-trader-v5.js): see above. Next: [`stock-trader.js`](../stocks/stock-trader.js) runs promote workers on darkweb and stasis-linked darknet servers and posts a summary on port 26.
 
 ## Singularity
 
@@ -81,7 +81,7 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`singularity/buy-augs-v3.js`](singularity/buy-augs-v3.js): see above. Next (v4): `--dry` shows the running cost of the whole set and whether to wait for locked augments.
 - [`singularity/buy-augs-v4.js`](singularity/buy-augs-v4.js): see above. Next (v5): one shared reset rule (`decideReset`) for `--dry`, `--plan` and auto-reset, with rep-rate estimates.
 - [`singularity/buy-augs-v5.js`](singularity/buy-augs-v5.js): see above. Next (v6): only waits for upcoming augments you could still afford, and caps waiting with timers kept in the plan file.
-- `singularity/buy-augs-v6.js`: reset rule by augment count (5 ready, wait up to 60 min for affordable unlocks within 30 min, smaller resets after 3h). Next: [`buy-augs.js`](../singularity/buy-augs.js) resets at the moment with the most augment value per hour of run (weighted log multipliers, NeuroFlux, favor), plus a Daedalus favor rule ([`docs/aug-reset.md`](../docs/aug-reset.md)).
+- [`singularity/buy-augs-v6.js`](singularity/buy-augs-v6.js): reset rule by augment count (5 ready, wait up to 60 min for affordable unlocks within 30 min, smaller resets after 3h). Next: [`buy-augs.js`](../singularity/buy-augs.js) resets at the moment with the most augment value per hour of run (weighted log multipliers, NeuroFlux, favor), plus a Daedalus favor rule ([`docs/aug-reset.md`](../docs/aug-reset.md)).
 - [`singularity/auto-reset-v1.js`](singularity/auto-reset-v1.js): reset once 5 augments (or a key one) were affordable. Next: [`auto-reset.js`](../singularity/auto-reset.js) uses the buy-augs reset rule, so `augs` and auto-reset always agree.
 - [`singularity/faction-work-v1.js`](singularity/faction-work-v1.js): worked factions in order to fixed rep goals. Next (v2): takes goals from [`workers/faction-goals.js`](../singularity/workers/faction-goals.js) (highest rep still needed for useful augments) and adds joined city factions last.
 - [`singularity/faction-work-v2.js`](singularity/faction-work-v2.js): see above. Next: [`player-work.js`](../singularity/player-work.js) does faction work the same way, as one of the parts of the single player-work script.
