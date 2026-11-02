@@ -1,5 +1,6 @@
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
+import { startHelper } from "/utils/start-helper.js";
 // Port workers/faction-goals.js writes to (not imported: the static RAM check would charge its
 // Singularity calls to this script too).
 const GOALS_PORT = 23;
@@ -27,7 +28,7 @@ const CONFIG = {
  * first. Exits once every faction with something left to buy is joined and at its goal.
  *
  * The goals come from workers/faction-goals.js (about 22GB for a moment, on home or else on
- * this server), run at the start, whenever you join a faction, when a faction reaches its
+ * any rooted server with room), run at the start, whenever you join a faction, when a faction reaches its
  * goal, and every 10 minutes. This script stays about 10GB. Until the helper has had room
  * to run once, it does no faction work and logs why.
  *
@@ -104,14 +105,10 @@ export async function main(ns) {
 	}
 }
 
-/** Runs the helper (home first, else this server) and returns its goals, or null if it couldn't run. */
+/** Runs the helper (home first, else any server with room) and returns its goals, or null if it couldn't run. */
 async function refreshGoals(ns) {
 	const askedAt = Date.now();
-	let pid = ns.exec(CONFIG.helper, "home", 1, ...FACTIONS);
-	if (pid === 0 && ns.getHostname() !== "home") {
-		ns.scp(CONFIG.helperImports, ns.getHostname(), "home");
-		pid = ns.exec(CONFIG.helper, ns.getHostname(), 1, ...FACTIONS);
-	}
+	const pid = startHelper(ns, CONFIG.helper, CONFIG.helperImports, ...FACTIONS);
 	if (pid === 0) return null;
 	while (ns.isRunning(pid)) await ns.sleep(100);
 	try {

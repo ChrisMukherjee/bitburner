@@ -1,6 +1,7 @@
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { getAllServers } from "/utils/get-all-servers.js";
+import { startHelper } from "/utils/start-helper.js";
 
 // Port workers/city-plan.js writes to (not imported: the static RAM check would charge its
 // Singularity calls to this script too).
@@ -46,7 +47,7 @@ const CONFIG = {
  * joined, or when no city sells anything you still want.
  *
  * About 10GB, plus workers/city-plan.js (about 17GB) for a moment at the start, after each
- * join and every 10 minutes (on home, else on this server).
+ * join and every 10 minutes (on home, else on any rooted server with room).
  *
  *   run singularity/city-factions.js         travel and join
  *   run singularity/city-factions.js --dry   print the plan, travel and join nothing
@@ -150,7 +151,7 @@ function announcePlan(ns, plan, groupIndex, joined, wanted, lastKey) {
 	let message;
 	if (groupIndex < 0) {
 		key = "none";
-		message = "City plan: no city faction sells anything you still want, so any city invite is fine to accept.";
+		message = "City plan: no city faction sells anything you still want, so join-factions.js accepts any city invite (for the favor).";
 	} else {
 		const group = plan.groups[groupIndex];
 		const want = wanted(group);
@@ -182,16 +183,11 @@ function tianDiHuiRunning(ns) {
 	return getAllServers(ns).some((host) => ns.ps(host).some((proc) => proc.filename === CONFIG.tianDiHuiScript));
 }
 
-/** Runs the helper (home first, else this server) and returns the plan, or null if it couldn't run. */
+/** Runs the helper (home first, else any server with room) and returns the plan, or null if it couldn't run. */
 async function refreshPlan(ns, cities) {
 	const askedAt = Date.now();
 	const arg = JSON.stringify({ groups: cities.groups, otherSources: cities.otherSources });
-	let pid = ns.exec(CONFIG.helper, "home", 1, arg);
-	const here = ns.getHostname();
-	if (pid === 0 && here !== "home") {
-		ns.scp([CONFIG.helper, ...CONFIG.helperImports], here, "home");
-		pid = ns.exec(CONFIG.helper, here, 1, arg);
-	}
+	const pid = startHelper(ns, CONFIG.helper, CONFIG.helperImports, arg);
 	if (pid === 0) return null;
 	while (ns.isRunning(pid)) await ns.sleep(100);
 	try {

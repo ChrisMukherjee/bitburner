@@ -160,7 +160,7 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 | [`darknet/`](darknet/) | Darknet crawler, password solvers, phishing and stasis links ([`dnet-manager.js`](darknet/dnet-manager.js) is the entry point) |
 | [`go/`](go/) | IPvGO bot ([`ipvgo-bot.js`](go/ipvgo-bot.js)) and its move search ([`choose-move.js`](go/choose-move.js)) |
 | [`workers/`](workers/) | Small scripts exec'd by managers: hack/grow/weaken, contract solver, faction goals, market access, share |
-| [`utils/`](utils/) | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter, BitNode route |
+| [`utils/`](utils/) | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter, BitNode route, one-shot helper launcher |
 | [`tools/`](tools/) | Manual tools: status, settings ([`show-config.js`](tools/show-config.js)), state dump, income tracker, backdoor list, server checks |
 | [`tools/exploits/`](tools/exploits/) | One-shot scripts for the hidden "Exploit:" achievements (Source-File -1), see below |
 | [`archive/`](archive/) | Older versions of scripts, kept for history (not synced to the game) |
@@ -173,7 +173,7 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 | [`buy-programs.js`](singularity/buy-programs.js) | TOR, port openers, DarkscapeNavigator.exe, Formulas.exe |
 | [`upgrade-home-ram.js`](singularity/upgrade-home-ram.js) / [`upgrade-home-cores.js`](singularity/upgrade-home-cores.js) | Home upgrades within the spending rules (`--once` for a single pass) |
 | [`auto-backdoor.js`](singularity/auto-backdoor.js) | Backdoors faction and company servers (`--daemon` also does w0r1d_d43m0n) |
-| [`join-factions.js`](singularity/join-factions.js) | Accepts invites (city factions only with `--cities`) |
+| [`join-factions.js`](singularity/join-factions.js) | Accepts invites; city ones only when they lock out no wanted city faction (same rival group already joined, or the city plan wants nothing), or all with `--cities` |
 | [`get-tian-di-hui.js`](singularity/get-tian-di-hui.js) / [`city-factions.js`](singularity/city-factions.js) | Travels to get Tian Di Hui and the one city-faction group whose augs are still wanted |
 | [`faction-work.js`](singularity/faction-work.js) | Hacking contracts for the next faction below its real rep goal (order in `factionWork`) |
 | [`company-work.js`](singularity/company-work.js) | Megacorp jobs until their faction invites arrive |
