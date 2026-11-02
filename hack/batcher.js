@@ -480,7 +480,12 @@ function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft,
 		state.lastLandTime = 0;
 		ns.print(`[batcher] ${target} prepped. Batching.`);
 	}
-	if (state.mode === "batch" && (security > minSecurity + 3 || money < maxMoney * 0.3)) {
+	// Mid-batch, money dips by the planned steal and security rises by one batch's worth, so the limits
+	// scale with the plan (a fixed 30% money floor would trip on every batch that steals 70% or more)
+	const lastPlan = state.lastPlan;
+	const securityLimit = lastPlan ? 2 * lastPlan.securityAdded + 1 : 3;
+	const moneyFloor = lastPlan ? 0.5 * (1 - lastPlan.stolen) : 0.3;
+	if (state.mode === "batch" && (security > minSecurity + securityLimit || money < maxMoney * moneyFloor)) {
 		state.mode = "prep";
 		state.pending = []; // don't start any more of the queued ops
 		ns.print(
@@ -681,7 +686,7 @@ function makePlan(ns, target, hackPerThread, hackFraction, scriptRam, ctx, catch
 		growThreads * scriptRam.grow +
 		(hackWeakenThreads + growWeakenThreads) * scriptRam.weaken;
 
-	return { hackThreads, growThreads, hackWeakenThreads, growWeakenThreads, ramCost, durationSafety, stolen };
+	return { hackThreads, growThreads, hackWeakenThreads, growWeakenThreads, ramCost, durationSafety, stolen, securityAdded };
 }
 
 function launchAll(ns, assignments, target, batchId, ctx) {
