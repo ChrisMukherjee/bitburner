@@ -1,3 +1,4 @@
+// Design: docs/darknet.md
 import { notify } from "/utils/notify.js";
 import { candidatePasswords } from "darknet/hint-interpreter.js";
 import {

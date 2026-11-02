@@ -1,3 +1,4 @@
+// Design: docs/startup.md
 import { loadConfig, USER_CONFIG_FILE } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { nukeAllServers } from "/utils/nuke-all.js";

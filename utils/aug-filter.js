@@ -1,3 +1,4 @@
+// Design: docs/config.md
 import { STAT_GROUPS, LOWER_IS_BETTER } from "/config.js";
 
 /**
@@ -30,4 +31,26 @@ export function wantedBoosts(augName, stats, augConfig) {
 /** Stat group names in augConfig.wantStats that STAT_GROUPS doesn't know (typos). */
 export function unknownStatGroups(augConfig) {
 	return augConfig.wantStats.filter((group) => !(group in STAT_GROUPS));
+}
+
+/**
+ * What an augment is worth for the reset rule (buy-augs.js decideReset): the weighted sum of
+ * ln(multiplier) over the stats in augConfig.wantStats, so e^value is roughly how much faster
+ * it makes a run. Weights are augConfig.resetRule.weights (per stat, else defaultWeight);
+ * augments without useful stats get resetRule.specialValue[name], or 0. Never negative. 0GB.
+ */
+export function augValue(augName, stats, augConfig) {
+	const rule = augConfig.resetRule;
+	if (augConfig.never.includes(augName)) return 0;
+	if (rule.specialValue && augName in rule.specialValue) return rule.specialValue[augName];
+	let value = 0;
+	for (const group of augConfig.wantStats) {
+		for (const key of Object.keys(STAT_GROUPS[group] ?? {})) {
+			const multiplier = stats[key];
+			if (multiplier === undefined || multiplier <= 0) continue;
+			const weight = rule.weights[key] ?? rule.defaultWeight;
+			value += weight * (LOWER_IS_BETTER.includes(key) ? -Math.log(multiplier) : Math.log(multiplier));
+		}
+	}
+	return Math.max(0, value);
 }

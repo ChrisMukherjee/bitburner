@@ -1,3 +1,4 @@
+// Design: docs/gang.md
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { createPolicyTracker, getBudget, formatMoney } from "/utils/spending.js";

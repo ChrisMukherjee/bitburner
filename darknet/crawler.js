@@ -1,3 +1,4 @@
+// Design: docs/darknet.md
 import { candidatePasswords } from "darknet/hint-interpreter.js";
 import { FACTORIOS_MODEL, solveDivisibility } from "darknet/feedback-solvers.js";
 import { login } from "darknet/auth.js";

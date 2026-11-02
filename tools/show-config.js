@@ -40,7 +40,7 @@ function printExample(ns, config) {
 		augments: {
 			wantStats: config.augments.wantStats,
 			never: config.augments.never,
-			resetRule: { minAugs: config.augments.resetRule.minAugs, maxWaitMinutes: config.augments.resetRule.maxWaitMinutes },
+			resetRule: { minRunMinutes: config.augments.resetRule.minRunMinutes, waitMargin: config.augments.resetRule.waitMargin },
 		},
 		studying: { hackLevel: config.studying.hackLevel },
 		startupSkip: config.startupSkip,

@@ -1,3 +1,4 @@
+// Design: docs/player-work.md
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { startHelper } from "/utils/start-helper.js";

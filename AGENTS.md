@@ -17,6 +17,15 @@ Bitburner automation scripts. See [README.md](README.md) for what each script do
 
 - Use absolute script paths starting with `/`, single quotes outside, plain double quotes inside: `alias status='run /tools/status.js'`.
 
+## Structure across BitNodes
+
+Each BitNode adds a mechanic. These rules keep the scripts from growing a branch per BitNode.
+
+- **One folder per mechanic.** [`gang/`](gang/) is the model; later ones get their own (`bladeburner/`, `corp/`, `sleeves/` ...). The mechanic's manager, its one-shot workers and its helpers live in that folder. Its manager checks that the API is usable and exits cleanly (one `ns.print` line, no error) when it isn't, so it can be listed in [`startup.js`](startup.js) for every BitNode.
+- **Check what's available, not which BitNode you're in.** Ask "can this run use the Gang API?", never `currentNode === 2`. Capability checks live in one helper per API, like [`utils/singularity.js`](utils/singularity.js); scripts import it instead of reading `getResetInfo()` themselves. A real game rule that does depend on the BitNode number (e.g. no karma needed for a gang in BitNode 2) is written once, inside that helper.
+- **BitNode tuning only in [`config.js`](config.js).** Values that should differ between BitNodes are settings there, never `if (bn === N)` in a script. Script `CONFIG` blocks are for engine timing and game constants only.
+- **Small, stable core.** The core ([`startup.js`](startup.js), [`batcher.js`](batcher.js), [`pserv-manager.js`](pserv-manager.js), [`hacknet-manager.js`](hacknet-manager.js), [`stock-trader.js`](stock-trader.js), [`tools/status.js`](tools/status.js), [`utils/`](utils/)) works the same in every BitNode and doesn't know about any one mechanic's details. A new mechanic adds a folder and one line to `startup.js`, not branches in the core. The one exception is player focus: a mechanic that needs the player (e.g. crimes for a gang invite) adds a step to [`singularity/player-work.js`](singularity/player-work.js).
+
 ## Settings
 
 - Choices that depend on the player's progress (aug stats worth buying, reset rule, faction/company order, study target, city groups, spending stages, startup stages, BitNode route) belong in [`config.js`](config.js) (`DEFAULTS`, `PRESETS`), read with `loadConfig(ns)` from [`utils/config.js`](utils/config.js) (0GB). Don't hardcode new ones in scripts.
@@ -47,7 +56,13 @@ Bitburner automation scripts. See [README.md](README.md) for what each script do
 
 ## Write for any user
 
-Docs, rules, script output and code comments should make sense to anyone who uses these scripts. Don't name people or refer to one person's machine, folders or setup; say "the user" instead.
+Docs (including [`docs/`](docs/)), rules, script output and code comments should make sense to anyone who uses these scripts. Don't name people or refer to one person's machine, folders or setup; say "the user" instead.
+
+## Design notes
+
+- Record design decisions in [`docs/`](docs/): one short note per area (the decision, why, tradeoffs and rejected alternatives, current state). Not flag lists or history; see [`docs/README.md`](docs/README.md).
+- When a change makes or reverses a design decision, update its note in the same change. A new area gets a new note, listed in [`docs/README.md`](docs/README.md).
+- Link the note from the script's first line: `// Design: docs/<name>.md`. Read the note before changing a script that has one.
 
 ## Keep the READMEs up to date
 

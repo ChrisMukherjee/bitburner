@@ -1,3 +1,4 @@
+// Design: docs/go-bot.md
 /** @param {NS} ns */
 import { chooseMove } from "/go/choose-move.js"
 

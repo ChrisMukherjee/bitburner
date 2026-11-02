@@ -1,3 +1,4 @@
+// Design: docs/stocks.md
 import { loadConfig } from "/utils/config.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
 import { STOCK_INFLUENCE_PORT, SYMBOL_SERVERS } from "/utils/stock-servers.js";

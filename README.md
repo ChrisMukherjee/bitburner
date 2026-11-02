@@ -101,13 +101,13 @@ To change them, don't edit [`config.js`](config.js): create `data/config.json` i
 (`nano data/config.json`) with just what you want different. Objects merge key by key; lists
 and single values replace the default. It stays in the game, so git and filesync never
 overwrite it and each player keeps their own. For example, a player who wants combat and
-crime augs too, bigger reset batches, and BitNode 5 after SF4.3:
+crime augs too, no reset in the first hour of a run, and BitNode 5 after SF4.3:
 
 ```json
 {
   "augments": {
     "wantStats": ["hacking", "rep", "hacknet", "darknet", "combat", "crime"],
-    "resetRule": { "minAugs": 8 }
+    "resetRule": { "minRunMinutes": 60 }
   },
   "bitnodeRoute": [{ "bitNode": 4, "level": 3 }, { "bitNode": 5, "level": 1 }]
 }
@@ -165,6 +165,7 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 | [`utils/`](utils/) | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter, BitNode route, Singularity check, one-shot helper launcher |
 | [`tools/`](tools/) | Manual tools: status, settings ([`show-config.js`](tools/show-config.js)), state dump, income tracker, backdoor list, server checks |
 | [`tools/exploits/`](tools/exploits/) | One-shot scripts for the hidden "Exploit:" achievements (Source-File -1), see below |
+| [`docs/`](docs/) | Design notes: why the scripts work the way they do (start at [`docs/README.md`](docs/README.md)) |
 | [`archive/`](archive/) | Older versions of scripts, kept for history (not synced to the game) |
 
 ### Singularity scripts
@@ -189,8 +190,8 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 | [`upgrade-home-ram.js`](singularity/upgrade-home-ram.js) / [`upgrade-home-cores.js`](singularity/upgrade-home-cores.js) | Home upgrades within the spending rules (`--once` for a single pass) |
 | [`auto-backdoor.js`](singularity/auto-backdoor.js) | Backdoors faction and company servers (`--daemon` also does w0r1d_d43m0n) |
 | [`join-factions.js`](singularity/join-factions.js) | Accepts invites; city ones only when they lock out no wanted city faction (same rival group already joined, or the city plan wants nothing), or all with `--cities` |
-| [`buy-augs.js`](singularity/buy-augs.js) | Plans and buys useful augs, most expensive first (`--dry` shows the plan and reset advice; what counts as useful is `augments` in the config) |
-| [`auto-reset.js`](singularity/auto-reset.js) | Watches the plan and buys + installs augs when a reset pays off; on by default in [`startup.js`](startup.js) mid stage (`--dry` only logs) |
+| [`buy-augs.js`](singularity/buy-augs.js) | Plans and buys useful augs, most expensive first (`--dry` shows the plan and reset advice; what counts as useful is `augments` in the config). Reset rule: most augment value per hour of run, see [`docs/aug-reset.md`](docs/aug-reset.md) |
+| [`auto-reset.js`](singularity/auto-reset.js) | Watches the plan and, when the rule says reset, sells stocks, buys and installs augs; on by default in [`startup.js`](startup.js) mid stage (`--dry` only logs) |
 | [`install-augs.js`](singularity/install-augs.js) | Installs augs and runs a script afterwards; refuses unless the advice says RESET (or `--force`) |
 | [`next-bitnode.js <n>`](singularity/next-bitnode.js) | Destroys w0r1d_d43m0n and enters BitNode n |
 | [`auto-destroy.js`](singularity/auto-destroy.js) | Runs [`next-bitnode.js`](singularity/next-bitnode.js) by itself once The Red Pill is installed and hacking level and root allow; the next BitNode comes from `bitnodeRoute` in the config (BN4 until SF4.3, then BN2 once), then it waits for you (`--bn N` overrides, `--dry` only says) |
@@ -255,9 +256,14 @@ Step-by-step instructions for every one, including the manual ones, are in
 
 ## Conventions
 
+- **Design notes.** Why things are built the way they are (batching, startup stages, settings, aug resets, player work,
+  RAM, darknet, stocks, Go, gang) is in [`docs/`](docs/), one short note per area, linked from each script's header.
 - **Versioning.** When a working script is replaced by an improved one, the old copy is renamed
   `<name>-vX.js` (next unused number) and later moved into [`archive/`](archive/). Bug fixes to a broken
   script overwrite it in place. Old versions are kept for history (and the file-count achievement).
+- **Across BitNodes.** One folder per mechanic (like [`gang/`](gang/)) whose manager exits when its API
+  isn't available; checks ask what the run can use, not which BitNode it is; per-BitNode tuning lives in
+  [`config.js`](config.js); the core scripts stay the same everywhere. Details in [`AGENTS.md`](AGENTS.md).
 - **Static RAM.** The game charges RAM for any identifier that matches an NS function name,
   so helpers are never named `hack`, `grow`, `exec`, `attempt`, `window` and so on. Heavy
   API calls live in one-shot [`workers/`](workers/) scripts so long-running managers stay small.

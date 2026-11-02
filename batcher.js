@@ -1,3 +1,4 @@
+// Design: docs/batcher.md
 import { notify } from "/utils/notify.js";
 /** @param {NS} ns **/
 import { getAllServers } from "/utils/get-all-servers.js";

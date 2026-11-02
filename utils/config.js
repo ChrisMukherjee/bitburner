@@ -1,3 +1,4 @@
+// Design: docs/config.md
 import { DEFAULTS, PRESETS } from "/config.js";
 import { notify } from "/utils/notify.js";
 

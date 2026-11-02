@@ -1,3 +1,4 @@
+// Design: docs/config.md
 /**
  * Choices that depend on where you are in the game: which augments are worth buying, which
  * factions to work for, when to reset, how freely to spend, where to go after this BitNode.
@@ -65,17 +66,29 @@ export const DEFAULTS = {
 		never: [],
 		// Spend what's left on NeuroFlux Governor after the rest (buy-augs --no-neuroflux turns it off once).
 		neuroflux: true,
-		// When to reset (buy-augs --dry / --plan, auto-reset.js, install-augs.js).
+		// When to reset (buy-augs --dry / --plan, auto-reset.js, install-augs.js). The rule: reset at
+		// the moment that gives the most augment value per hour of the run (docs/aug-reset.md).
 		resetRule: {
-			keyAugs: ["The Red Pill", "Neuroreceptor Manager"], // reset as soon as one of these is ready
-			minAugs: 5,           // a normal reset: at least this many useful augments ready...
-			soonMinutes: 30,      // ...unless another one you could afford unlocks within this long (then wait for it)
-			maxWaitMinutes: 60,   // ...but once a batch is ready, wait at most this long IN TOTAL for more
-			plentyAugs: 10,       // ...and with this many ready, don't wait for anything
-			stallMinAugs: 2,      // a smaller reset is fine when progress has stalled: this many ready,
-			minRunHours: 3,       //   the run is at least this old,
-			stallHours: 4,        //   and either nothing you could afford unlocks within this long
-			maxSmallWaitHours: 3, //   or you've already waited this long for the batch to grow
+			keyAugs: ["The Red Pill"], // reset as soon as one of these is ready
+			// Value of an augment = sum of weight x ln(multiplier) over its wanted stats.
+			weights: {
+				hacking: 1, hacking_money: 1, hacking_speed: 1, faction_rep: 1,
+				hacking_exp: 0.5, hacking_chance: 0.5, hacking_grow: 0.5,
+				company_rep: 0.25,
+				hacknet_node_money: 0.2, dnet_money: 0.2,
+				hacknet_node_purchase_cost: 0.1, hacknet_node_ram_cost: 0.1, hacknet_node_core_cost: 0.1, hacknet_node_level_cost: 0.1,
+			},
+			defaultWeight: 0.2,   // stats not listed above (e.g. combat, if added to wantStats)
+			// Favor counts as a rep multiplier at that faction, times this (it only speeds up the
+			// rep-limited part of the next run).
+			favorWeight: 0.5,
+			// Value of augments without useful stats (The Red Pill is in keyAugs instead).
+			specialValue: { "Neuroreceptor Manager": 0.25, "CashRoot Starter Kit": 0.05 },
+			overheadMinutes: 5,   // fixed cost of one reset, added to the run age
+			minRunMinutes: 30,    // never reset a run younger than this
+			waitMargin: 0.05,     // wait only if a later moment beats now by more than 5% per hour
+			horizonHours: 6,      // how far ahead the forecast looks
+			daedalusFavor: true,  // Daedalus rule: reset for 150 favor (donations) when that beats working for The Red Pill
 			minRateGapMs: 120_000, // rep rates need two snapshots at least 2 minutes apart
 			maxRateGapMs: 3 * 3600_000,
 		},

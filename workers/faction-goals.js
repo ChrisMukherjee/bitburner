@@ -1,3 +1,4 @@
+// Design: docs/player-work.md
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts } from "/utils/aug-filter.js";
 // Port player-work.js reads the goals from (20 darknet, 21 stock influence, 22 batcher income).

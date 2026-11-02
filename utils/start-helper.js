@@ -1,3 +1,4 @@
+// Design: docs/ram.md
 import { getAllServers } from "/utils/get-all-servers.js";
 
 // The player's own settings, copied along so loadConfig sees them on another server too.
