@@ -15,15 +15,20 @@ const WORKER_SCRIPTS = {
 // One-shot helper that measures targets with the 1GB analyze functions (only used without Formulas.exe)
 const STATS_SCRIPT = "/hack/workers/target-stats.js";
 const STATS_PORT = 27; // (26 is stock-trader.js summary)
+// Free RAM the batcher still wants for its planned batches, so share/share-manager.js leaves it alone
+const CLAIM_PORT = 31;
 
 const CONFIG = {
 	homeReservedRam: 64,   // RAM on home the batcher never uses (for startup.js, status and typed commands)...
 	homeReservedShare: 0.25, // ...but at most this share of home, so a small home (fresh BitNode) still helps
-	gapMs: 100,            // time between the four landings inside one batch
-	hackFraction: 0.10,    // fraction of max money stolen per batch (shrinks automatically if RAM is tiny)
-	maxHackFractionFormulas: 0.5, // with Formulas.exe a top target may steal up to this much per batch
-	                       // when RAM is plentiful, instead of handing the RAM to worse targets
-	growSafety: 1.05,      // extra grow threads as a safety margin
+	gapMs: 40,             // time between the four landings inside one batch (a target gets at most one
+	                       // batch per 4 gaps, so this caps a target's income when RAM is plentiful)
+	hackFraction: 0.10,    // fraction of max money stolen per batch for ranking; the real one is picked per
+	                       // target (smaller if RAM is tiny, bigger if RAM is plentiful)
+	maxHackFraction: 0.8,  // a top target may steal up to this much per batch when RAM is plentiful,
+	                       // instead of handing the RAM to worse targets
+	growSafety: 1.05,      // extra grow threads as a safety margin (estimated grow rate, no Formulas.exe)...
+	growSafetyFormulas: 1.01, // ...and with Formulas.exe, where the grow threads are exact
 	batchFromMoney: 0.5,   // start batching once at min security and this share of max money (not waiting for 100%):
 	                       // batches earn straight away and each one grows a bit extra until money is back at max
 	catchUpPerBatch: 1.25, // ...at most this money multiplier of extra growth per batch
@@ -33,18 +38,21 @@ const CONFIG = {
 	tickMs: 200,
 	maxBatchesPerTick: 300, // per target
 	horizonMs: 1000,       // don't queue batches landing further than this past the earliest possible slot
-	launchLeadMs: 500,     // workers are exec'd this long before they must start (covers tick jitter)
+	launchLeadMs: 300,     // workers are exec'd this long before they must start (covers tick jitter)
+	psRefreshMs: 1000,     // how often every server's process list is re-read to count workers in flight
 	ramBudget: 0.95,       // fraction of network RAM that targets' steady-state batching may commit
 	maxBatchShare: 0.2,    // one batch may be at most this much of a target's RAM share (big batches
 	                       // overlap unevenly, so later ops of a batch would often find no RAM)
 	logMs: 10000,
 	incomeWindowMs: 60000, // income is reported as an average over this long (it arrives in bursts)
-	statsRefreshMs: 30000, // without Formulas.exe: how often hack/workers/target-stats.js re-measures targets
+	statsRefreshMs: 30000, // how often hack/workers/target-stats.js re-measures targets (without Formulas.exe)
+	                       // and home's cores (always)
 	statsRetryMs: 5000,    // ...and how soon to retry when it couldn't run
 	// Game constants (not BitNode-scaled), used instead of hackAnalyzeSecurity/growthAnalyzeSecurity (1GB each)
 	hackSecurityPerThread: 0.002,
 	growSecurityPerThread: 0.004,
 	defaultWeakenPerThread: 0.05, // until target-stats.js has measured the real value (BitNode-scaled)
+	coreBonusPerCore: 1 / 16, // each home core past the first adds this to grow and weaken power on home
 };
 
 // hack/workers/hack.js keeps a running total of money hacked on this port
@@ -56,7 +64,8 @@ const BATCH_SPACING_MS = CONFIG.gapMs * 4;
 function stripSlash(filename) {
 	return filename.replace(/^\//, "");
 }
-const WORKER_FILENAMES = Object.values(WORKER_SCRIPTS).map(stripSlash);
+// worker filename (no leading slash) -> op type
+const WORKER_TYPES = new Map(Object.entries(WORKER_SCRIPTS).map(([type, file]) => [stripSlash(file), type]));
 
 /**
  * Multi-target JIT batcher. Same batch and prep logic as archive/jit-batch-manager-v6.js, except that each
@@ -88,13 +97,18 @@ const WORKER_FILENAMES = Object.values(WORKER_SCRIPTS).map(stripSlash);
  *     so they are exact even for a target that isn't prepped yet.
  *   - Targets are ranked by money per GB of RAM per second (their real batch RAM, not a proxy).
  *   - Prep is one combined weaken + grow + weaken wave instead of a weaken wave then a grow wave.
- *   - Hack fraction is sized per target: when its RAM share is bigger than 10% batches at full speed
- *     can use, it steals more per batch (up to maxHackFractionFormulas); when RAM is short, less.
  * Without it, hack/workers/target-stats.js measures hack percent, chance and grow rate every 30s and the
  * batcher rescales them to min security (grow too, so prep and batches are sized for min security).
+ * Either way:
+ *   - Hack fraction is sized per target: when its RAM share is bigger than 10% batches at full speed
+ *     can use, it steals more per batch (up to maxHackFraction); when RAM is short, less.
+ *   - Grow and weaken ops go on home first when they fit there whole, with fewer threads for home's
+ *     cores (target-stats.js reports the core count).
+ *   - The free RAM the planned batches still need is posted on CLAIM_PORT, so share-manager.js
+ *     doesn't fill it between launches.
  *
  * RAM: no analyze functions in this file (they are 1GB each). Hack/grow security use the game's
- * constants, weaken per thread comes from formulas or target-stats.js. About 6GB less than batcher-v7.js.
+ * constants, weaken per thread comes from formulas or target-stats.js.
  */
 export async function main(ns) {
 	ns.disableLog("ALL");
@@ -120,6 +134,9 @@ export async function main(ns) {
 	let lastLog = 0;
 	let batchId = 0;
 	let formulasWasOn = null; // null so the first tick always reports the mode
+	let committedRam = 0;     // steady-state RAM the active targets' batches need (from chooseTargets)
+	// Worker processes per target, from a full ps pass every psRefreshMs plus what was launched since
+	const flight = { time: 0, counts: new Map(), workerRam: 0, launchedSince: new Map() };
 	const incomeSamples = [{ time: Date.now(), total: hackedTotal(ns) }]; // for the income average
 
 	while (true) {
@@ -146,12 +163,14 @@ export async function main(ns) {
 			homeReservedRam: Math.min(CONFIG.homeReservedRam, ns.getServerMaxRam("home") * CONFIG.homeReservedShare),
 			minFreeRam: minScriptRam,
 		});
-		const inFlightByTarget = countInFlight(ns, allServers);
+		if (Date.now() - flight.time > CONFIG.psRefreshMs) refreshInFlight(ns, allServers, flight, scriptRam);
+		const inFlightByTarget = inFlightCounts(flight);
 
-		if (!fx && statsRam > 0 && Date.now() - lastStatsAttempt > CONFIG.statsRetryMs &&
+		// target-stats.js also reports home's cores, so it runs with Formulas.exe too (with no targets)
+		if (statsRam > 0 && Date.now() - lastStatsAttempt > CONFIG.statsRetryMs &&
 			(!stats || Date.now() - stats.time > CONFIG.statsRefreshMs)) {
 			lastStatsAttempt = Date.now();
-			const hackable = allServers.filter((server) => isHackable(ns, server, ns.getHackingLevel()));
+			const hackable = fx ? [] : allServers.filter((server) => isHackable(ns, server, ns.getHackingLevel()));
 			const fresh = await measureTargets(ns, hackable, ramPool, statsRam);
 			if (fresh) {
 				stats = fresh;
@@ -163,12 +182,16 @@ export async function main(ns) {
 			fx,
 			stats: fx ? null : stats,
 			weakenPerThread: fx ? ns.formulas.hacking.weakenEffect(1) : stats?.weakenPerThread ?? CONFIG.defaultWeakenPerThread,
+			// Grow and weaken run on home are this much stronger per thread (1 + 1/16 per extra core)
+			homeBonus: 1 + Math.max(0, (stats?.homeCores ?? 1) - 1) * CONFIG.coreBonusPerCore,
+			flight,
+			scriptRam,
 		};
 
 		if (activeTargets.length === 0 || Date.now() - lastRetarget > CONFIG.retargetMs) {
 			lastRetarget = Date.now();
 			const previous = activeTargets;
-			activeTargets = chooseTargets(ns, allServers, scriptRam, totalRam, new Set(previous), ctx);
+			({ chosen: activeTargets, committedRam } = chooseTargets(ns, allServers, scriptRam, totalRam, new Set(previous), ctx));
 			const added = activeTargets.filter((target) => !previous.includes(target));
 			const dropped = previous.filter((target) => !activeTargets.includes(target));
 			if (added.length > 0 || dropped.length > 0) {
@@ -191,7 +214,7 @@ export async function main(ns) {
 		}
 
 		// Batches already under way get first claim on free RAM
-		launchDueOps(ns, states, ramPool, scriptRam);
+		launchDueOps(ns, states, ramPool, scriptRam, ctx);
 
 		let budgetLeft = totalRam * CONFIG.ramBudget;
 		for (const target of activeTargets) {
@@ -203,7 +226,11 @@ export async function main(ns) {
 		}
 
 		// New batches' weakens are due straight away
-		launchDueOps(ns, states, ramPool, scriptRam);
+		launchDueOps(ns, states, ramPool, scriptRam, ctx);
+
+		// Tell share-manager.js how much free RAM the planned batches still need (JIT ops claim RAM late)
+		ns.clearPort(CLAIM_PORT);
+		ns.writePort(CLAIM_PORT, { time: Date.now(), wantFree: Math.max(0, committedRam - flight.workerRam) });
 
 		if (Date.now() - lastLog > CONFIG.logMs) {
 			lastLog = Date.now();
@@ -230,21 +257,44 @@ function newTargetState() {
 	};
 }
 
-// One pass over every server's processes; returns target -> number of worker processes aimed at it.
-function countInFlight(ns, allServers) {
+/**
+ * One pass over every server's processes: target -> number of worker processes aimed at it, and the
+ * RAM all workers hold. Only run every psRefreshMs (it gets slow with thousands of workers);
+ * launches in between are added by noteLaunch, so a fresh prep wave is never missed.
+ */
+function refreshInFlight(ns, allServers, flight, scriptRam) {
 	const counts = new Map();
+	let workerRam = 0;
 	for (const server of allServers) {
 		for (const process of ns.ps(server)) {
-			if (!WORKER_FILENAMES.includes(stripSlash(process.filename))) continue;
+			const type = WORKER_TYPES.get(stripSlash(process.filename));
+			if (!type) continue;
 			const target = process.args[0];
 			counts.set(target, (counts.get(target) || 0) + 1);
+			workerRam += process.threads * scriptRam[type];
 		}
 	}
+	flight.time = Date.now();
+	flight.counts = counts;
+	flight.workerRam = workerRam;
+	flight.launchedSince = new Map();
+}
+
+// Workers in flight per target: last ps pass plus launches since (finished ones count until the next pass)
+function inFlightCounts(flight) {
+	const counts = new Map(flight.counts);
+	for (const [target, launched] of flight.launchedSince) counts.set(target, (counts.get(target) || 0) + launched);
 	return counts;
+}
+
+function noteLaunch(flight, target, ram) {
+	flight.launchedSince.set(target, (flight.launchedSince.get(target) || 0) + 1);
+	flight.workerRam += ram;
 }
 
 /**
  * Ranks every hackable server and activates them in order until their steady-state RAM fills the budget.
+ * Returns { chosen (targets in rank order), committedRam (their steady-state RAM) }.
  * Steady state = one batch's RAM-time (each op's RAM x how long it runs) / batch spacing, using the plan
  * stepTarget would pick with the budget still left (so with Formulas.exe a top target that steals more
  * per batch leaves fewer targets needed).
@@ -298,21 +348,23 @@ function chooseTargets(ns, allServers, scriptRam, totalRam, currentlyActive, ctx
 		`[batcher] ${chosen.length} of ${candidates.length} hackable targets chosen, ` +
 		`steady-state RAM ${ns.format.ram(committedRam)} / ${ns.format.ram(totalRam)}${reason}`
 	);
-	return chosen;
+	return { chosen, committedRam };
 }
 
 /**
  * Picks the batch for a target given the steady-state RAM it may commit (budget): the hack fraction
- * (10% down to tiny, or up to maxHackFractionFormulas with Formulas.exe) that earns the most per second
+ * (from maxHackFraction down to tiny) that earns the most per second
  * within that budget. A batch can't be more than maxBatchShare of the budget, and batches can't come
  * faster than one per BATCH_SPACING_MS, so with lots of RAM bigger batches win; with little RAM, smaller
  * ones win (fewer grow threads per dollar), until the 1-thread minimums on each op make them wasteful.
  * Returns { plan, ramMs } or null if nothing fits.
  */
 function pickPlan(ns, target, hackPerThread, timings, budget, scriptRam, ctx, catchUp = 1) {
-	const fractions = ctx.fx ? [0.5, 0.4, 0.3, 0.2, 0.15] : [];
+	// Without Formulas.exe big fractions are safe too: the grow rate from target-stats.js is rescaled
+	// exactly to min security, and growSafety plus the catch-up grow cover the rest.
+	const fractions = [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.15];
 	for (let fraction = CONFIG.hackFraction; fraction >= 0.0005; fraction /= 2) fractions.push(fraction);
-	const maxFraction = ctx.fx ? CONFIG.maxHackFractionFormulas : CONFIG.hackFraction;
+	const maxFraction = CONFIG.maxHackFraction;
 
 	let best = null;
 	let lastHackThreads = 0;
@@ -366,10 +418,9 @@ function estimateAtMinSecurity(ns, target, ctx) {
 
 /**
  * Runs hack/workers/target-stats.js (one thread, a few GB, finishes at once) on free RAM and waits for its
- * result on STATS_PORT. Returns the result, or null if it couldn't run or didn't answer in time.
+ * result on STATS_PORT. With no targets it only reports weaken per thread and home's cores. Returns the result, or null if it couldn't run or didn't answer in time.
  */
 async function measureTargets(ns, targets, ramPool, statsRam) {
-	if (targets.length === 0) return null;
 	const assignments = allocate(ramPool, [{ type: "stats", threads: 1 }], { stats: statsRam });
 	if (!assignments) return null;
 	const requested = Date.now();
@@ -521,8 +572,10 @@ function batchRamMs(plan, timings, scriptRam) {
  * Execs every queued op (across all targets) whose start time is within launchLeadMs, earliest start
  * first. An op that can't get RAM, or can no longer land on time, drops the rest of its batch. Ops start
  * in the order weaken, weaken, grow, hack, so what's already running is always safe to land without it.
+ * Linear in the queue length (batches are marked dropped and queues rebuilt once at the end), since
+ * short batch spacing makes queues long.
  */
-function launchDueOps(ns, states, ramPool, scriptRam) {
+function launchDueOps(ns, states, ramPool, scriptRam, ctx) {
 	const now = Date.now();
 	const due = [];
 	for (const [target, state] of states) {
@@ -535,21 +588,45 @@ function launchDueOps(ns, states, ramPool, scriptRam) {
 			}
 		}
 	}
+	if (due.length === 0) return;
 	due.sort((a, b) => a.start - b.start);
 
+	const touched = new Set();
 	for (const { target, state, operation, liveTime } of due) {
-		if (!state.pending.includes(operation)) continue; // its batch was dropped earlier in this pass
-		state.pending.splice(state.pending.indexOf(operation), 1);
+		touched.add(state);
+		operation.done = true;
+		if (operation.batch.dropped) continue; // an earlier op of its batch failed in this pass
 		let launched = false;
 		if (Date.now() + liveTime <= operation.landTime) {
-			const assignments = allocate(ramPool, [operation], scriptRam);
-			launched = !!assignments && launchAll(ns, assignments, target, operation.batch.id);
+			const assignments = placeOp(ramPool, operation, scriptRam, ctx.homeBonus);
+			launched = !!assignments && launchAll(ns, assignments, target, operation.batch.id, ctx);
 		}
 		if (!launched) {
-			state.pending = state.pending.filter((other) => other.batch !== operation.batch);
+			operation.batch.dropped = true;
 			state.droppedBatches++;
 		}
 	}
+	for (const state of touched) {
+		state.pending = state.pending.filter((operation) => !operation.done && !operation.batch.dropped);
+	}
+}
+
+/**
+ * Places one batch op. Grow and weaken go on home first when the whole op fits there: home's cores make
+ * each thread stronger, so it needs threads / homeBonus. Otherwise (and for hack, which cores don't
+ * help) the op is spread over the pool as usual.
+ */
+function placeOp(ramPool, operation, scriptRam, homeBonus) {
+	if (homeBonus > 1 && (operation.type === "grow" || operation.type === "weaken")) {
+		const home = ramPool.find((entry) => entry.host === "home");
+		const threads = Math.max(1, Math.ceil(operation.threads / homeBonus));
+		const ram = threads * scriptRam[operation.type];
+		if (home && home.freeRam + 1e-9 >= ram) {
+			home.freeRam -= ram;
+			return [{ host: "home", threads, operation }];
+		}
+	}
+	return allocate(ramPool, [operation], scriptRam);
 }
 
 /**
@@ -591,7 +668,7 @@ function makePlan(ns, target, hackPerThread, hackFraction, scriptRam, ctx, catch
 		const estimate = estimateAtMinSecurity(ns, target, ctx);
 		growThreadsExact = estimate ? estimate.growPerLn * Math.log(catchUp / (1 - stolen)) : Infinity;
 	}
-	const growThreads = Math.max(1, Math.ceil(growThreadsExact * CONFIG.growSafety));
+	const growThreads = Math.max(1, Math.ceil(growThreadsExact * (fx ? CONFIG.growSafetyFormulas : CONFIG.growSafety)));
 	const hackSecurityAdded = hackThreads * CONFIG.hackSecurityPerThread;
 	const growSecurityAdded = growThreads * CONFIG.growSecurityPerThread;
 	const hackWeakenThreads = Math.max(1, Math.ceil(hackSecurityAdded / weakenPerThread));
@@ -607,12 +684,14 @@ function makePlan(ns, target, hackPerThread, hackFraction, scriptRam, ctx, catch
 	return { hackThreads, growThreads, hackWeakenThreads, growWeakenThreads, ramCost, durationSafety, stolen };
 }
 
-function launchAll(ns, assignments, target, batchId) {
+function launchAll(ns, assignments, target, batchId, ctx) {
 	let allLaunched = true;
 	for (const assignment of assignments) {
 		const { host, threads, operation } = assignment;
 		const pid = ns.exec(WORKER_SCRIPTS[operation.type], host, threads, target, operation.landTime, batchId);
-		if (!pid) {
+		if (pid) {
+			noteLaunch(ctx.flight, target, threads * ctx.scriptRam[operation.type]);
+		} else {
 			allLaunched = false;
 			ns.print(`[ERROR] exec failed: ${operation.type} x${threads} on ${host} (is ${WORKER_SCRIPTS[operation.type]} there?)`);
 		}
@@ -633,7 +712,7 @@ function prepWave(ns, target, ramPool, scriptRam, minSecurity, security, maxMone
 				[{ type: "weaken", threads: weakenThreads, landTime: 0 }],
 				scriptRam
 			);
-			if (assignments) return launchAll(ns, assignments, target, 0);
+			if (assignments) return launchAll(ns, assignments, target, 0, ctx);
 		}
 	} else if (money < maxMoney * 0.999) {
 		const weakenTime = ns.getWeakenTime(target);
@@ -651,7 +730,7 @@ function prepWave(ns, target, ramPool, scriptRam, minSecurity, security, maxMone
 				{ type: "weaken", threads: weakenThreads, landTime: 0 },
 			];
 			const assignments = allocate(ramPool, operations, scriptRam);
-			if (assignments) return launchAll(ns, assignments, target, 0);
+			if (assignments) return launchAll(ns, assignments, target, 0, ctx);
 			growThreads = Math.floor(growThreads * 0.8);
 		}
 	}
@@ -680,7 +759,7 @@ function prepWaveFormulas(ns, target, ramPool, scriptRam, minSecurity, security,
 	if (weakenThreads > weakenCapacity) {
 		if (weakenCapacity <= 0) return false;
 		const assignments = allocate(ramPool, [{ type: "weaken", threads: weakenCapacity, landTime: 0 }], scriptRam);
-		return assignments ? launchAll(ns, assignments, target, 0) : false;
+		return assignments ? launchAll(ns, assignments, target, 0, ctx) : false;
 	}
 
 	let growThreads = 0;
@@ -702,7 +781,7 @@ function prepWaveFormulas(ns, target, ramPool, scriptRam, minSecurity, security,
 		}
 		if (operations.length === 0) return false;
 		const assignments = allocate(ramPool, operations, scriptRam);
-		if (assignments) return launchAll(ns, assignments, target, 0);
+		if (assignments) return launchAll(ns, assignments, target, 0, ctx);
 		if (growThreads <= 0) return false;
 		growThreads = Math.floor(growThreads * 0.8);
 	}

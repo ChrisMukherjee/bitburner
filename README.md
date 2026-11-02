@@ -185,10 +185,11 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | 24 | Income rate ($/s, from the batcher) |
 | 25 | City faction plan |
 | 26 | Stock summary |
-| 27 | Target stats (batcher without Formulas.exe) |
+| 27 | Target stats and home cores (for the batcher) |
 | 28 | Gang summary (for status) |
 | 29 | Gang equipment list |
 | 30 | Gang invite crimes (for player-work) |
+| 31 | Batcher RAM claim (free RAM its batches still need; share-manager leaves it alone) |
 
 ## Conventions
 

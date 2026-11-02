@@ -5,9 +5,14 @@ import { buildRamPool, freeRamTotal } from "/utils/ram-pool.js";
 import { hasSingularity } from "/utils/singularity.js";
 
 const WORKER = "share/workers/share.js";
+// hack/batcher.js posts { time, wantFree } here: free RAM its planned batches still need. Its workers
+// are exec'd just before they start, so RAM that looks free is often already spoken for.
+const BATCHER_CLAIM_PORT = 31;
 
 const CONFIG = {
-	headroom: 0.15,          // fraction of the network's RAM (home included) always left free for the batcher
+	headroom: 0.15,          // fraction of the network's RAM (home included) always left free for the batcher,
+	                         // or more if the batcher says its planned batches need more
+	claimMaxAgeMs: 30000,    // ignore the batcher's claim if it is older than this (batcher not running)
 	homeReservedGb: 128,     // home always keeps at least this much free for scripts started by hand...
 	homeReservedShare: 0.05, // ...or this fraction of home's RAM, whichever is bigger
 	waveGapMs: 1000,         // pause after a wave ends, so the batcher sees the freed RAM first
@@ -19,7 +24,8 @@ const CONFIG = {
  * Fills RAM the batcher isn't using with share/workers/share.js while the player does faction work,
  * which raises faction rep gain (ns.getSharePower()). Each worker shares once (~10s) and exits,
  * and the next wave only starts a second later, so the batcher always gets freed RAM back first
- * and share only ever gets the leftovers. A slice of the network (--headroom) is never touched.
+ * and share only ever gets the leftovers. It leaves free whichever is bigger: a slice of the network
+ * (--headroom) or the RAM the batcher says its planned batches still need (port 31).
  * Share power grows with the log of threads, so it's a modest boost; it's for idle RAM only.
  *
  * Home is used too (its cores raise share power), above a reserve of max(128GB, 5% of home).
@@ -86,7 +92,8 @@ export async function main(ns) {
 		});
 		// Smallest servers first: their scraps are the hardest for the batcher to use. Home last.
 		ramPool.sort((a, b) => (a.host === "home") - (b.host === "home") || a.freeRam - b.freeRam);
-		let budget = freeRamTotal(ramPool) - flags.headroom * totalRam;
+		const keepFree = Math.max(flags.headroom * totalRam, batcherClaim(ns));
+		let budget = freeRamTotal(ramPool) - keepFree;
 		let threadsLeft = flags["max-threads"] > 0 ? flags["max-threads"] : Infinity;
 
 		let launched = 0;
@@ -103,7 +110,7 @@ export async function main(ns) {
 		const state = launched > 0 ? "[share] sharing" : "[share] no spare RAM past the headroom";
 		if (state !== lastState || Date.now() - lastLog > CONFIG.logMs) {
 			ns.print(
-				`${state} (${ns.format.ram(flags.headroom * totalRam)} kept back): ${launched} threads (${ns.format.ram(launched * workerRam)} of ` +
+				`${state} (${ns.format.ram(keepFree)} kept back): ${launched} threads (${ns.format.ram(launched * workerRam)} of ` +
 				`${ns.format.ram(totalRam)}), share power x${ns.getSharePower().toFixed(3)}` +
 				(factionWork ? ` for ${work.factionName}` : "")
 			);
@@ -114,4 +121,11 @@ export async function main(ns) {
 		// ns.share() takes ~10s; wait for this wave to finish plus a gap before the next one.
 		await ns.sleep(launched > 0 ? 10_000 + CONFIG.waveGapMs : CONFIG.idleCheckMs);
 	}
+}
+
+// Free RAM hack/batcher.js still wants for its planned batches (0 if it isn't running). peek is 0GB.
+function batcherClaim(ns) {
+	const posted = ns.peek(BATCHER_CLAIM_PORT); // "NULL PORT DATA" when nothing was posted
+	if (!posted || typeof posted !== "object" || Date.now() - posted.time > CONFIG.claimMaxAgeMs) return 0;
+	return Number(posted.wantFree) || 0;
 }
