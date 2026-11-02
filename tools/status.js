@@ -15,9 +15,9 @@ import { nextRouteStep } from "/utils/bitnode-route.js";
  *
  * Cheap on purpose (about 5GB): almost everything comes from what the other scripts already
  * post, read with 0GB calls:
- *   port 23  faction rep goals        (workers/faction-goals.js, via faction-work.js)
+ *   port 23  faction rep goals        (workers/faction-goals.js, via player-work.js)
  *   port 24  batcher income            (utils/income.js)
- *   port 25  city-faction plan         (workers/city-plan.js, via city-factions.js)
+ *   port 25  city-faction plan         (workers/city-plan.js, via player-work.js)
  *   port 26  stock summary             (stock-trader.js, every 10 ticks)
  *   data/aug-plan.json   reset advice + rep rates, Red Pill rep/price and Daedalus invite needs
  *                        (buy-augs.js --plan, every 10 min via auto-reset.js)
@@ -65,22 +65,27 @@ export async function main(ns) {
 	out.push(`Cash ${money(player.money)} | income ${money(income.perSecond)}/s (${income.source})`);
 
 	// --- Current work and faction goals ---
-	const work = ns.singularity.getCurrentWork();
-	out.push(`Doing: ${describeWork(work)}`);
+	// Work and rep need the Singularity API (BitNode 4 or Source-File 4); without it those lines say so.
+	// No extra RAM: getResetInfo is already called above.
+	const sf4 = resetInfo.currentNode === 4 || (resetInfo.ownedSF.get(4) ?? 0) > 0;
+	const work = sf4 ? ns.singularity.getCurrentWork() : null;
+	out.push(`Doing: ${sf4 ? describeWork(work) : "unknown (needs BitNode 4 or Source-File 4)"}`);
 
 	const plan = readJson(ns, PLAN_FILE);
 	const goalsPost = peekJson(ns, GOALS_PORT);
 	const joined = new Set(player.factions);
-	const rep = Object.fromEntries(player.factions.map((faction) => [faction, ns.singularity.getFactionRep(faction)]));
+	const rep = Object.fromEntries(player.factions.map((faction) => [faction, sf4 ? ns.singularity.getFactionRep(faction) : 0]));
 	const rates = repRates(ns, rep, plan, now, lastReset);
-	if (!goalsPost?.goals) {
-		out.push("Faction goals: none posted yet (faction-work.js posts them on port 23)");
+	if (!sf4) {
+		out.push("Faction goals: need BitNode 4 or Source-File 4 (player-work.js posts them)");
+	} else if (!goalsPost?.goals) {
+		out.push("Faction goals: none posted yet (player-work.js posts them on port 23)");
 	} else {
 		const open = Object.entries(goalsPost.goals)
 			.filter(([faction, goal]) => joined.has(faction) && goal.rep > 0 && rep[faction] < goal.rep);
 		const working = work?.type === "FACTION" ? work.factionName : "";
 		out.push(`Faction goals (posted ${ago(goalsPost.time)})${open.length ? ":" : ": every joined faction is at its goal"}`);
-		// The one being worked first, then the rest in faction-work's order.
+		// The one being worked first, then the rest in player-work's order.
 		open.sort(([first], [second]) => (second === working) - (first === working));
 		for (const [faction, goal] of open.slice(0, 5)) {
 			const missing = goal.rep - rep[faction];
@@ -163,7 +168,7 @@ export async function main(ns) {
 	// --- City factions ---
 	const city = peekJson(ns, CITY_PORT);
 	if (!city?.groups) {
-		out.push("City factions: no plan posted (city-factions.js posts it on port 25)");
+		out.push("City factions: no plan posted (player-work.js posts it on port 25)");
 	} else {
 		const wanted = (group) => group.factions.filter((faction) => (group.needs[faction] ?? []).length > 0);
 		const lockedGroup = city.groups.find((group) => group.factions.some((faction) => joined.has(faction)));

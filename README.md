@@ -83,9 +83,10 @@ numbers come from `data/aug-plan.json`, which [`auto-reset.js`](singularity/auto
 
 [`startup.js`](startup.js) holds one priority-ordered list of long-running scripts, each tagged with the
 stage it starts in. It skips anything already running and exits once everything is launched.
-Below 64GB home (a fresh BitNode) it is in the `start` stage: only the home/program buyers, study,
-the batcher and faction scripts run, so the batcher gets the free servers' RAM; the Go bot, hacknet,
-server buying, city factions and auto-destroy follow after the first home upgrades. The batcher
+Below 64GB home (a fresh BitNode) it is in the `start` stage: only the home/program buyers,
+the batcher, invites and backdoors, and [`player-work.js`](singularity/player-work.js) (study, faction and company work,
+Tian Di Hui and city factions) run, so the batcher gets the free servers' RAM; the Go bot, hacknet,
+server buying and auto-destroy follow after the first home upgrades. The batcher
 keeps at most a quarter of home (up to 64GB) free for typed commands.
 
 ### Settings for your point in the game
@@ -160,7 +161,7 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 | [`darknet/`](darknet/) | Darknet crawler, password solvers, phishing and stasis links ([`dnet-manager.js`](darknet/dnet-manager.js) is the entry point) |
 | [`go/`](go/) | IPvGO bot ([`ipvgo-bot.js`](go/ipvgo-bot.js)) and its move search ([`choose-move.js`](go/choose-move.js)) |
 | [`workers/`](workers/) | Small scripts exec'd by managers: hack/grow/weaken, contract solver, faction goals, market access, share |
-| [`utils/`](utils/) | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter, BitNode route, one-shot helper launcher |
+| [`utils/`](utils/) | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter, BitNode route, Singularity check, one-shot helper launcher |
 | [`tools/`](tools/) | Manual tools: status, settings ([`show-config.js`](tools/show-config.js)), state dump, income tracker, backdoor list, server checks |
 | [`tools/exploits/`](tools/exploits/) | One-shot scripts for the hidden "Exploit:" achievements (Source-File -1), see below |
 | [`archive/`](archive/) | Older versions of scripts, kept for history (not synced to the game) |
@@ -172,22 +173,21 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 > function also costs more RAM: 16x at SF4.1, 4x at SF4.2 and the normal cost at SF4.3, so these
 > scripts may not fit in a small home until SF4.3.
 >
-> A few scripts outside [`singularity/`](singularity/) call it too: [`startup.js`](startup.js) launches the
-> Singularity scripts (list any you can't run in `startupSkip` in the config), [`tools/status.js`](tools/status.js)
-> and [`share-manager.js`](share-manager.js) read the current work (and faction rep), and
+> Without it, [`startup.js`](startup.js) leaves out every Singularity script by itself (one line says how
+> many) and starts the rest: batcher, servers, hacknet, Go, contracts, darknet, stocks. Buy home RAM and
+> programs by hand and run `startup` again for the next stage. [`share-manager.js`](share-manager.js) can't see
+> faction work, so startup skips it; run it with `--always` to share anyway. [`tools/status.js`](tools/status.js)
+> shows work and faction goals as unknown. The check is in [`utils/singularity.js`](utils/singularity.js).
 > [`workers/faction-goals.js`](workers/faction-goals.js), [`workers/city-plan.js`](workers/city-plan.js) and
-> [`utils/aug-filter.js`](utils/aug-filter.js) read augmentation data.
+> [`utils/aug-filter.js`](utils/aug-filter.js) also use the API, but only Singularity scripts run them.
 
 | Script | Role |
 | --- | --- |
-| [`study.js`](singularity/study.js) | Free CS course until hacking 75 (`studying` in the config) |
+| [`player-work.js`](singularity/player-work.js) | The one script that moves the player: free CS course until hacking 75, then faction work for the next faction below its real rep goal (order in `factionWork`), megacorp jobs when no faction needs rep; also flies to get Tian Di Hui and the one city-faction group whose augs are still wanted (`--focus`, `--study N`, `--no-company`, `--plan` prints the city plan) |
 | [`buy-programs.js`](singularity/buy-programs.js) | TOR, port openers, DarkscapeNavigator.exe, Formulas.exe |
 | [`upgrade-home-ram.js`](singularity/upgrade-home-ram.js) / [`upgrade-home-cores.js`](singularity/upgrade-home-cores.js) | Home upgrades within the spending rules (`--once` for a single pass) |
 | [`auto-backdoor.js`](singularity/auto-backdoor.js) | Backdoors faction and company servers (`--daemon` also does w0r1d_d43m0n) |
 | [`join-factions.js`](singularity/join-factions.js) | Accepts invites; city ones only when they lock out no wanted city faction (same rival group already joined, or the city plan wants nothing), or all with `--cities` |
-| [`get-tian-di-hui.js`](singularity/get-tian-di-hui.js) / [`city-factions.js`](singularity/city-factions.js) | Travels to get Tian Di Hui and the one city-faction group whose augs are still wanted |
-| [`faction-work.js`](singularity/faction-work.js) | Hacking contracts for the next faction below its real rep goal (order in `factionWork`) |
-| [`company-work.js`](singularity/company-work.js) | Megacorp jobs until their faction invites arrive |
 | [`buy-augs.js`](singularity/buy-augs.js) | Plans and buys useful augs, most expensive first (`--dry` shows the plan and reset advice; what counts as useful is `augments` in the config) |
 | [`auto-reset.js`](singularity/auto-reset.js) | Watches the plan and buys + installs augs when a reset pays off; on by default in [`startup.js`](startup.js) mid stage (`--dry` only logs) |
 | [`install-augs.js`](singularity/install-augs.js) | Installs augs and runs a script afterwards; refuses unless the advice says RESET (or `--force`) |

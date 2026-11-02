@@ -1,0 +1,377 @@
+import { loadConfig } from "/utils/config.js";
+import { notify } from "/utils/notify.js";
+import { startHelper } from "/utils/start-helper.js";
+
+// Ports the one-shot helpers write to (not imported: the static RAM check would charge their
+// Singularity calls to this script too).
+const GOALS_PORT = 23; // workers/faction-goals.js: rep goal per faction
+const PLAN_PORT = 25;  // workers/city-plan.js: which city factions still sell something wanted
+
+// City factions are worked only once joined, never waited for (the city part decides which to join).
+const CITY_FACTIONS = ["Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven"];
+// City invite rules (v3.0.0 FactionInfo.tsx): be in the faction's city with this much money.
+const INVITE_MONEY = {
+	"Sector-12": 15e6, "Aevum": 40e6, "Chongqing": 20e6, "New Tokyo": 20e6, "Ishima": 30e6, "Volhaven": 50e6,
+};
+// Tian Di Hui: hacking 50 and $1m while in Chongqing, New Tokyo or Ishima. Not a city faction,
+// so it locks nobody out. Its Neuroreceptor Manager removes the penalty for unfocused work.
+const TIAN_DI_HUI = {
+	faction: "Tian Di Hui",
+	city: "Chongqing",
+	inviteCities: ["Chongqing", "New Tokyo", "Ishima"],
+	minHacking: 50,
+	minMoney: 1e6,
+};
+
+const CONFIG = {
+	loopMs: 30_000,
+	refreshMs: 10 * 60_000,    // re-read goals and city plan this often (catches augments bought meanwhile)
+	travelCost: 200e3,
+	goalsHelper: "workers/faction-goals.js",
+	goalsImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
+	planHelper: "workers/city-plan.js",
+	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
+};
+
+/**
+ * The one script that decides what the player does and where they are, so nothing fights over
+ * the player's focus or flies them around behind another script's back. It replaces study.js,
+ * faction-work.js, company-work.js, get-tian-di-hui.js and city-factions.js (now in archive/).
+ *
+ * Work, one at a time, in this order:
+ *   1. Study: below studying.hackLevel (75), takes the free course (`studying` in the config) once
+ *      and leaves the class alone. The class keeps running past the target until something
+ *      better below takes over.
+ *   2. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
+ *      below its real rep goal, from workers/faction-goals.js on port 23: the highest rep needed
+ *      among the augments still worth buying there (utils/aug-filter.js), with the BitNode's
+ *      rep-cost multiplier. When a faction reaches its goal, its work stops.
+ *   3. Company work: when no faction needs rep, a companyWork.field job at the first megacorp
+ *      whose faction you haven't joined, until its invite (companyWork.repNeeded). Asks for a
+ *      promotion every pass. Left alone while you do faction work you started yourself.
+ *
+ * Travel and joining, alongside the work:
+ *   - Tian Di Hui first: once you have hacking 50 and $1.2m, flies to Chongqing and joins on the invite.
+ *   - Then the city factions that still sell augments worth having, one rival group per run
+ *     (`cities` in the config; plan from workers/city-plan.js on port 25): Sector-12 + Aevum
+ *     (CashRoot, PCMatrix), then Chongqing (Neuregen) in a later run. Flies there once you have
+ *     the invite money plus the $200k flight and joins only factions with something left to buy,
+ *     never a rival. Says once (toast + terminal) which city invites not to accept by hand.
+ *
+ * The helpers (about 22GB and 17GB, for a moment) run on home, else on any rooted server with
+ * room: at the start, after joining a faction, when a faction reaches its goal and every 10 minutes.
+ * Until the goals helper has run once, no faction work happens (logged).
+ * Exits once every part is done: hacking at the study target, Tian Di Hui joined, the city group
+ * joined (or nothing wanted), every faction at its goal and every megacorp faction joined.
+ *
+ *   run singularity/player-work.js               unfocused (80% speed, you keep the screen)
+ *   run singularity/player-work.js --focus       focused (full speed, takes over the screen)
+ *   run singularity/player-work.js --study 100   study until hacking 100 instead of studying.hackLevel
+ *   run singularity/player-work.js --no-company  never take megacorp jobs
+ *   run singularity/player-work.js --plan        print the city plan and exit (travels and joins nothing)
+ */
+/** @param {NS} ns */
+export async function main(ns) {
+	ns.disableLog("ALL");
+	const flags = ns.flags([["focus", false], ["study", 0], ["no-company", false], ["plan", false]]);
+	const config = loadConfig(ns);
+	const state = {
+		config,
+		focus: flags.focus,
+		studyLevel: Number(flags.study) || config.studying.hackLevel,
+		noCompany: flags["no-company"],
+		studyStarted: false,
+		studyAnnounced: false,
+		goals: null, goalsAt: 0, goalsFor: "", lastGoalFaction: "", factionAnnounced: false,
+		plan: null, planAt: 0, lastAnnounced: "", cityDone: false, cityMessage: "",
+	};
+
+	if (flags.plan) {
+		const plan = await refreshPlan(ns, config.cities);
+		if (!plan) ns.tprint(`No room right now for ${CONFIG.planHelper} (${ns.format.ram(ns.getScriptRam(CONFIG.planHelper))}).`);
+		else printPlan(ns, plan, new Set(ns.getPlayer().factions));
+		return;
+	}
+
+	const lastMessages = {};
+	while (true) {
+		let player = ns.getPlayer();
+		const order = config.factionWork.order;
+		const joinedKey = order.filter((faction) => player.factions.includes(faction)).join("|");
+		const reached = state.lastGoalFaction && state.goals &&
+			ns.singularity.getFactionRep(state.lastGoalFaction) >= state.goals[state.lastGoalFaction].rep;
+		if (!state.goals || joinedKey !== state.goalsFor || reached || Date.now() - state.goalsAt >= CONFIG.refreshMs) {
+			const fresh = await refreshGoals(ns, order);
+			if (fresh) Object.assign(state, { goals: fresh, goalsAt: Date.now(), goalsFor: joinedKey });
+		}
+		if (!state.cityDone && (!state.plan || Date.now() - state.planAt >= CONFIG.refreshMs)) {
+			const fresh = await refreshPlan(ns, config.cities);
+			if (fresh) Object.assign(state, { plan: fresh, planAt: Date.now() });
+		}
+
+		const travel = travelStep(ns, state, player);
+		player = ns.getPlayer(); // a join or flight above changes factions, city and money
+		const work = workStep(ns, state, player);
+
+		for (const [part, message] of Object.entries({ travel: travel.message, work: work.message })) {
+			if (message !== lastMessages[part]) ns.print(message);
+			lastMessages[part] = message;
+		}
+		if (travel.done && work.done) {
+			notify(ns, "[player-work]", "studied, joined and worked everything it can; done.", "success");
+			return;
+		}
+		await ns.sleep(CONFIG.loopMs);
+	}
+}
+
+// --- Work: study, then faction work, then company work ---
+
+/** Starts or keeps the right kind of work. Returns { message, done }. */
+function workStep(ns, state, player) {
+	const hacking = player.skills.hacking;
+	const joined = new Set(player.factions);
+	let current = ns.singularity.getCurrentWork();
+	const { factionWork, companyWork, studying } = state.config;
+
+	if (state.studyStarted && !state.studyAnnounced && hacking >= state.studyLevel) {
+		notify(ns, "[study]", `hacking ${hacking} reached. The class keeps running until faction work takes over.`, "success");
+		state.studyAnnounced = true;
+	}
+
+	// Which faction needs rep next.
+	let goalFaction = "";
+	let factionDone = false;
+	let factionMessage = "";
+	if (!state.goals) {
+		factionMessage = `[faction-work] no room yet for ${CONFIG.goalsHelper} (${ns.format.ram(ns.getScriptRam(CONFIG.goalsHelper))}), so no rep goals; retrying`;
+	} else {
+		const goals = state.goals;
+		// A city faction we haven't joined isn't waited for (its invite may never come).
+		const open = factionWork.order.filter((faction) => goals[faction]?.rep > 0 &&
+			(joined.has(faction) ? ns.singularity.getFactionRep(faction) < goals[faction].rep : !CITY_FACTIONS.includes(faction)));
+		factionDone = open.length === 0;
+		goalFaction = open.find((faction) => joined.has(faction)) ?? "";
+		if (factionDone) {
+			factionMessage = "[faction-work] every faction has the rep for all its augments worth buying";
+			if (!state.factionAnnounced) notify(ns, "[faction-work]", "every faction has the rep for all its augments worth buying.", "success");
+		} else if (!goalFaction) {
+			factionMessage = `[faction-work] no joined faction below its goal; waiting for invites (${open.join(", ")})`;
+		}
+		state.factionAnnounced = factionDone;
+	}
+
+	// Moving off a faction because its goal was reached: stop its work so we don't keep grinding it.
+	if (!goalFaction && state.lastGoalFaction &&
+		current?.type === "FACTION" && current.factionName === state.lastGoalFaction) {
+		ns.singularity.stopAction();
+		current = null;
+	}
+	state.lastGoalFaction = hacking >= state.studyLevel ? goalFaction : "";
+
+	const companies = state.noCompany ? [] : companyWork.companies.filter((entry) =>
+		!joined.has(entry.faction) && ns.singularity.getCompanyRep(entry.company) < companyWork.repNeeded);
+	const done = hacking >= state.studyLevel && factionDone && companies.length === 0;
+
+	// 1. Study.
+	if (hacking < state.studyLevel) {
+		return { message: studyStep(ns, state, player, current, studying), done };
+	}
+	// 2. Faction work.
+	if (goalFaction) {
+		const already = current?.type === "FACTION" && current.factionName === goalFaction;
+		if (!already && ns.singularity.workForFaction(goalFaction, factionWork.workType, state.focus)) {
+			notify(ns, "[faction-work]", `${factionWork.workType} work for ${goalFaction}`, "info");
+		}
+		const goal = state.goals[goalFaction];
+		const rep = ns.singularity.getFactionRep(goalFaction);
+		return {
+			message: `[faction-work] ${goalFaction}: ${ns.format.number(rep)} / ${ns.format.number(goal.rep)} rep (for ${goal.aug}, ${goal.count} augment(s) left there)`,
+			done,
+		};
+	}
+	// 3. Company work, filling the gaps.
+	if (companies.length === 0) {
+		return { message: `${factionMessage}; ${state.noCompany ? "company work off (--no-company)" : "every megacorp faction is joined"}`, done };
+	}
+	if (current?.type === "FACTION") {
+		return { message: `[company-work] you're working for ${current.factionName} yourself; leaving it alone`, done };
+	}
+	const target = companies[0];
+	const newJob = ns.singularity.applyToCompany(target.company, companyWork.field); // hire or promote
+	if (newJob) ns.print(`[company-work] ${target.company}: now ${newJob}`);
+	if (!(target.company in player.jobs) && !newJob) {
+		return { message: `[company-work] ${target.company} won't hire you for ${companyWork.field} yet (needs more hacking or charisma)`, done };
+	}
+	const working = current?.type === "COMPANY" && current.companyName === target.company;
+	if (!working || newJob) ns.singularity.workForCompany(target.company, state.focus);
+	const rep = ns.singularity.getCompanyRep(target.company);
+	return { message: `[company-work] ${target.company}: ${ns.format.number(rep)} / ${ns.format.number(companyWork.repNeeded)} rep`, done };
+}
+
+/** Starts the class once (flying to its city if needed); after that leaves the player's work alone. */
+function studyStep(ns, state, player, current, studying) {
+	const target = `hacking ${player.skills.hacking} < ${state.studyLevel}`;
+	if (current?.type === "CLASS") {
+		state.studyStarted = true;
+		return `[study] ${target}, studying`;
+	}
+	if (state.studyStarted) return `[study] ${target}, but the class was stopped; leaving your work alone`;
+	if (player.city !== studying.city) {
+		if (player.money < CONFIG.travelCost) return `[study] ${target}; waiting for $${ns.format.number(CONFIG.travelCost)} to fly to ${studying.city}`;
+		if (!ns.singularity.travelToCity(studying.city)) return `[study] flight to ${studying.city} failed, will retry`;
+	}
+	if (!ns.singularity.universityCourse(studying.university, studying.course, state.focus)) {
+		return `[study] couldn't start ${studying.course} at ${studying.university}, will retry`;
+	}
+	state.studyStarted = true;
+	return `[study] studying ${studying.course} until hacking ${state.studyLevel}`;
+}
+
+// --- Travel and joining: Tian Di Hui, then the city factions ---
+
+/** One step towards Tian Di Hui, then the city group. Returns { message, done }. */
+function travelStep(ns, state, player) {
+	const joined = new Set(player.factions);
+	const tdh = TIAN_DI_HUI;
+	if (!joined.has(tdh.faction)) {
+		if (ns.singularity.joinFaction(tdh.faction)) {
+			notify(ns, "[tdh]", `joined ${tdh.faction}`, "success");
+			return { message: `[tdh] joined ${tdh.faction}`, done: false };
+		}
+		let message;
+		if (tdh.inviteCities.includes(player.city)) {
+			message = `[tdh] in ${player.city}, waiting for the invite (keep $1m and hacking ${tdh.minHacking})`;
+		} else if (player.skills.hacking < tdh.minHacking) {
+			message = `[tdh] waiting for hacking ${tdh.minHacking} (now ${player.skills.hacking})`;
+		} else if (player.money < tdh.minMoney + CONFIG.travelCost) {
+			message = `[tdh] waiting for $${ns.format.number(tdh.minMoney + CONFIG.travelCost)}`;
+		} else if (ns.singularity.travelToCity(tdh.city)) {
+			message = `[tdh] flew to ${tdh.city}`;
+		} else {
+			message = `[tdh] flight to ${tdh.city} failed, will retry`;
+		}
+		return { message, done: false };
+	}
+	if (state.cityDone) return { message: state.cityMessage, done: true };
+	const plan = state.plan;
+	if (!plan) {
+		return { message: `[city] no room yet for ${CONFIG.planHelper} (${ns.format.ram(ns.getScriptRam(CONFIG.planHelper))}); retrying`, done: false };
+	}
+
+	const wanted = (group) => group.factions.filter((faction) => plan.needs(group, faction).length > 0);
+	const lockedIndex = plan.groups.findIndex((group) => group.factions.some((faction) => joined.has(faction)));
+	const groupIndex = lockedIndex >= 0 ? lockedIndex : plan.groups.findIndex((group) => wanted(group).length > 0);
+	state.lastAnnounced = announcePlan(ns, plan, groupIndex, joined, wanted, state.lastAnnounced);
+
+	if (groupIndex < 0) {
+		state.cityDone = true;
+		state.cityMessage = "[city] no city faction sells anything you still want; done.";
+		return { message: state.cityMessage, done: true };
+	}
+	const group = plan.groups[groupIndex];
+	const todo = wanted(group).filter((faction) => !joined.has(faction));
+	if (todo.length === 0) {
+		state.cityDone = true;
+		const next = plan.groups.findIndex((other, index) => index !== groupIndex && wanted(other).length > 0);
+		state.cityMessage = `[city] joined everything wanted in ${group.factions.join(" + ")}` +
+			(next >= 0 ? `; once its augments are bought, a later run goes for ${wanted(plan.groups[next]).join(" + ")}.` : ".");
+		return { message: state.cityMessage, done: true };
+	}
+	const message = pursue(ns, player, todo, plan, group);
+	if (message.startsWith("[city] joined")) state.planAt = 0; // refresh: the next faction or group may change
+	return { message, done: false };
+}
+
+/** One step towards the first faction in todo: join it, fly there, or say what we wait for. */
+function pursue(ns, player, todo, plan, group) {
+	for (const faction of todo) {
+		if (ns.singularity.joinFaction(faction)) {
+			notify(ns, "[city]", `joined ${faction}`, "success");
+			return `[city] joined ${faction} (for ${plan.needs(group, faction).join(", ")})`;
+		}
+	}
+	const faction = todo[0];
+	const augs = plan.needs(group, faction).join(", ");
+	const needed = INVITE_MONEY[faction];
+	if (player.city === faction) {
+		return `[city] in ${faction}, waiting for the invite (needs $${ns.format.number(needed)} on hand; for ${augs})`;
+	}
+	if (player.money < needed + CONFIG.travelCost) {
+		return `[city] next: ${faction} for ${augs}; waiting for $${ns.format.number(needed + CONFIG.travelCost)} (invite + flight)`;
+	}
+	return ns.singularity.travelToCity(faction)
+		? `[city] flew to ${faction}, waiting for the invite (for ${augs})`
+		: `[city] flight to ${faction} failed, will retry`;
+}
+
+/**
+ * Says which city invites to accept this run (toast + terminal line, since a wrong click by hand
+ * locks out the rival group). Only when the plan changes; returns the new key.
+ */
+function announcePlan(ns, plan, groupIndex, joined, wanted, lastKey) {
+	const allCities = plan.groups.flatMap((group) => group.factions);
+	let key;
+	let message;
+	if (groupIndex < 0) {
+		key = "none";
+		message = "City plan: no city faction sells anything you still want, so join-factions.js accepts any city invite (for the favor).";
+	} else {
+		const group = plan.groups[groupIndex];
+		const want = wanted(group);
+		const todo = want.filter((faction) => !joined.has(faction));
+		if (todo.length === 0) return lastKey; // already joined everything wanted: nothing to decide
+		const augs = want.flatMap((faction) => plan.needs(group, faction));
+		const avoid = allCities.filter((faction) => !group.factions.includes(faction) && !joined.has(faction));
+		key = `${groupIndex}|${todo.join(",")}`;
+		message = `City plan: ${want.join(" + ")} (${augs.join(", ")}); player-work.js joins them for you.` +
+			(avoid.length ? ` Don't accept ${avoid.join(", ")} this run (rivals).` : "");
+	}
+	if (key !== lastKey) notify(ns, "[city]", message, "info", true);
+	return key;
+}
+
+function printPlan(ns, plan, joined) {
+	const wanted = (group) => group.factions.filter((faction) => plan.needs(group, faction).length > 0);
+	const lockedIndex = plan.groups.findIndex((group) => group.factions.some((faction) => joined.has(faction)));
+	const groupIndex = lockedIndex >= 0 ? lockedIndex : plan.groups.findIndex((group) => wanted(group).length > 0);
+	ns.tprint("City plan (augments still wanted that only a city sells):");
+	plan.groups.forEach((group, index) => {
+		const tag = index === lockedIndex ? " [joined this run]" : index === groupIndex ? " [next]" : "";
+		const parts = group.factions.map((faction) => {
+			const augs = plan.needs(group, faction);
+			return `${faction}: ${augs.length ? augs.join(", ") : "-"}`;
+		});
+		ns.tprint(`  ${index + 1}. ${parts.join("  |  ")}${tag}`);
+	});
+}
+
+// --- Helpers that run for a moment on home, else on any server with room ---
+
+/** Runs workers/faction-goals.js and returns its goals, or null if it couldn't run. */
+async function refreshGoals(ns, order) {
+	const result = await runHelper(ns, CONFIG.goalsHelper, CONFIG.goalsImports, GOALS_PORT, ...order);
+	return result?.goals ?? null;
+}
+
+/** Runs workers/city-plan.js and returns the plan, or null if it couldn't run. */
+async function refreshPlan(ns, cities) {
+	const arg = JSON.stringify({ groups: cities.groups, otherSources: cities.otherSources });
+	const result = await runHelper(ns, CONFIG.planHelper, CONFIG.planImports, PLAN_PORT, arg);
+	if (!result?.groups) return null;
+	return { groups: result.groups, needs: (group, faction) => group.needs[faction] ?? [] };
+}
+
+/** Starts a helper, waits for it, and returns the JSON it posted on its port (only if posted after asking). */
+async function runHelper(ns, script, imports, port, ...args) {
+	const askedAt = Date.now();
+	const pid = startHelper(ns, script, imports, ...args);
+	if (pid === 0) return null;
+	while (ns.isRunning(pid)) await ns.sleep(100);
+	try {
+		const result = JSON.parse(ns.peek(port));
+		return result.time >= askedAt ? result : null;
+	} catch {
+		return null;
+	}
+}

@@ -1,6 +1,6 @@
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts } from "/utils/aug-filter.js";
-// Port faction-work.js reads the goals from (20 darknet, 21 stock influence, 22 batcher income).
+// Port player-work.js reads the goals from (20 darknet, 21 stock influence, 22 batcher income).
 export const GOALS_PORT = 23;
 const NEUROFLUX = "NeuroFlux Governor";
 
@@ -14,7 +14,7 @@ const NEUROFLUX = "NeuroFlux Governor";
  * multiplier. An augment sold by several of the factions counts only for the first joined
  * one in the list (or the first one, if none is joined), as before.
  *
- * Started by singularity/faction-work.js; writes
+ * Started by singularity/player-work.js; writes
  *   { time, goals: { faction: { rep, aug, count } } }
  * to port 23 and exits. About 22GB, but only for a moment.
  */

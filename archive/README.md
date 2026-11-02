@@ -75,14 +75,19 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 
 ## Singularity
 
-- [`singularity/auto-study.js`](singularity/auto-study.js): studied Algorithms until a hacking level, then stopped the class. Next: [`singularity/study.js`](../singularity/study.js) takes the free course to 75 and leaves the class running.
+- [`singularity/auto-study.js`](singularity/auto-study.js): studied Algorithms until a hacking level, then stopped the class. Next: [`singularity/study.js`](singularity/study.js) takes the free course to 75 and leaves the class running.
 - [`singularity/buy-augs-v1.js`](singularity/buy-augs-v1.js): bought every affordable augment, most expensive first, then NeuroFlux. Next (v2): `--plan` writes data/aug-plan.json for auto-reset.
 - [`singularity/buy-augs-v2.js`](singularity/buy-augs-v2.js): see above. Next (v3): only buys useful augments (hacking, hacknet, darknet, rep), `--all` for everything.
 - [`singularity/buy-augs-v3.js`](singularity/buy-augs-v3.js): see above. Next (v4): `--dry` shows the running cost of the whole set and whether to wait for locked augments.
 - [`singularity/buy-augs-v4.js`](singularity/buy-augs-v4.js): see above. Next (v5): one shared reset rule (`decideReset`) for `--dry`, `--plan` and auto-reset, with rep-rate estimates.
 - [`singularity/buy-augs-v5.js`](singularity/buy-augs-v5.js): see above. Next: [`buy-augs.js`](../singularity/buy-augs.js) only waits for upcoming augments you could still afford, and caps waiting with timers kept in the plan file.
 - [`singularity/auto-reset-v1.js`](singularity/auto-reset-v1.js): reset once 5 augments (or a key one) were affordable. Next: [`auto-reset.js`](../singularity/auto-reset.js) uses the buy-augs reset rule, so `augs` and auto-reset always agree.
-- [`singularity/faction-work-v1.js`](singularity/faction-work-v1.js): worked factions in order to fixed rep goals. Next: [`faction-work.js`](../singularity/faction-work.js) takes goals from [`workers/faction-goals.js`](../workers/faction-goals.js) (highest rep still needed for useful augments) and adds joined city factions last.
+- [`singularity/faction-work-v1.js`](singularity/faction-work-v1.js): worked factions in order to fixed rep goals. Next (v2): takes goals from [`workers/faction-goals.js`](../workers/faction-goals.js) (highest rep still needed for useful augments) and adds joined city factions last.
+- [`singularity/faction-work-v2.js`](singularity/faction-work-v2.js): see above. Next: [`player-work.js`](../singularity/player-work.js) does faction work the same way, as one of the parts of the single player-work script.
+- [`singularity/study.js`](singularity/study.js): free CS course until hacking 75, then left the class running. Merged into [`player-work.js`](../singularity/player-work.js), which starts the class once and then leaves it alone.
+- [`singularity/company-work.js`](singularity/company-work.js): megacorp Software jobs until their faction invites, waiting while faction work ran. Merged into [`player-work.js`](../singularity/player-work.js), which takes the jobs only when no faction needs rep.
+- [`singularity/get-tian-di-hui.js`](singularity/get-tian-di-hui.js): flew to Chongqing at hacking 50 and $1.2m and waited for the Tian Di Hui invite (join-factions accepted it). Merged into [`player-work.js`](../singularity/player-work.js), which also joins on the invite itself.
+- [`singularity/city-factions.js`](singularity/city-factions.js): flew to and joined the one city-faction group whose augments were still wanted, waiting for get-tian-di-hui first. Merged into [`player-work.js`](../singularity/player-work.js) (same plan from [`workers/city-plan.js`](../workers/city-plan.js); `--dry` became `--plan`), so study, travel and work no longer fight over the player.
 
 ## Darknet
 

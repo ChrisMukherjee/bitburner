@@ -2,6 +2,7 @@ import { notify } from "/utils/notify.js";
 /** @param {NS} ns **/
 import { getAllServers } from "/utils/get-all-servers.js";
 import { buildRamPool, freeRamTotal } from "/utils/ram-pool.js";
+import { hasSingularity } from "/utils/singularity.js";
 
 const WORKER = "workers/share.js";
 
@@ -29,6 +30,9 @@ const CONFIG = {
  *   run share-manager.js --always            share even when not doing faction work
  *   run share-manager.js --headroom 0.3      leave 30% of network RAM free instead of 15%
  *   run share-manager.js --max-threads 500   cap threads per wave
+ *
+ * Seeing faction work needs the Singularity API (BitNode 4 or Source-File 4). Without it, only
+ * --always works (share all the time); otherwise it says so once and exits.
  */
 export async function main(ns) {
 	ns.disableLog("ALL");
@@ -45,12 +49,18 @@ export async function main(ns) {
 		return;
 	}
 
+	// Costs 1GB (getResetInfo). With BN4/SF4 for sure, delete this check and the import to save it.
+	if (!flags.always && !hasSingularity(ns)) {
+		notify(ns, "[share]", "can't see faction work without BitNode 4 or Source-File 4. Run with --always to share anyway.", "warning", true);
+		return;
+	}
+
 	const syncedServers = new Set();
 	let lastLog = 0;
 	let lastState = "";
 
 	while (true) {
-		const work = ns.singularity.getCurrentWork();
+		const work = flags.always ? null : ns.singularity.getCurrentWork();
 		const factionWork = work?.type === "FACTION";
 		if (!factionWork && !flags.always) {
 			const state = `[share] idle: not doing faction work (current work: ${work?.type ?? "none"})`;

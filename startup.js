@@ -1,6 +1,7 @@
 import { loadConfig, USER_CONFIG_FILE } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
+import { singularityInfo } from "/utils/singularity.js";
 
 // Every long-running script, in priority order: earlier entries get RAM first.
 // A stage starts everything tagged with that stage or an earlier one.
@@ -8,6 +9,8 @@ import { nukeAllServers } from "/utils/nuke-all.js";
 //                     (otherwise two go bots would fight over the same board).
 //   homeOnly:         reads or writes data files on its own server, so it must run on home.
 //   skip:             (ns, config) => true leaves it out this time.
+//   needsSF4:         needs the Singularity API (BitNode 4 or Source-File 4). Every script in
+//                     singularity/ counts as this too; without the API they are all left out.
 // Scripts listed in `startupSkip` in the config (config.js, data/config.json) are never started.
 // Everything else may run on a rooted server when home is too small (see main below).
 const SCRIPTS = [
@@ -15,30 +18,26 @@ const SCRIPTS = [
 	// most of the free servers' RAM; everything else waits for the early stage (more home RAM).
 	{ stage: "start", script: "singularity/upgrade-home-ram.js" },
 	{ stage: "start", script: "singularity/buy-programs.js" },
-	// study.js exits by itself past its target (studying.hackLevel); skipping it here keeps its 6GB free for later entries.
-	{ stage: "start", script: "singularity/study.js", skip: (ns, config) => ns.getHackingLevel() >= config.studying.hackLevel },
 	{ stage: "start", script: "batcher.js" },
 	// Player work and invites from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.
 	{ stage: "start", script: "singularity/join-factions.js" },
 	{ stage: "start", script: "singularity/auto-backdoor.js" },
-	{ stage: "start", script: "singularity/faction-work.js" },
+	// The one script that moves the player: study to studying.hackLevel, faction work to the real rep
+	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. Exits when all is done.
+	{ stage: "start", script: "singularity/player-work.js" },
 	// Both keep $1m back for TOR and the port openers, so they buy nothing in the first minutes anyway.
 	{ stage: "early", script: "pserv-manager.js" },
-	{ stage: "early", script: "singularity/get-tian-di-hui.js", skip: (ns) => ns.getPlayer().factions.includes("Tian Di Hui") },
-	// After Tian Di Hui: flies to and joins the city factions whose augments are still wanted, one rival group per run.
-	{ stage: "early", script: "singularity/city-factions.js" },
 	{ stage: "early", script: "hacknet-manager.js" },
 	// Destroys w0r1d_d43m0n once The Red Pill is installed and hacking/ports allow, then enters the next BitNode.
 	{ stage: "early", script: "singularity/auto-destroy.js" },
 	// tools/track-income.js left out (2.7GB): the batcher, darknet and stock logs already show income. Run it by hand.
 	{ stage: "early", script: "go/ipvgo-bot.js", args: ["--opponent", "Netburners"], restartOnNewArgs: true, until: "mid" },
 	{ stage: "mid", script: "go/ipvgo-bot.js", args: ["--opponent", "The Black Hand"], restartOnNewArgs: true, until: "late" },
-	{ stage: "mid", script: "singularity/company-work.js" },
 	{ stage: "mid", script: "solve-contracts.js", homeOnly: true },
 	{ stage: "mid", script: "darknet/dnet-manager.js", homeOnly: true },
 	{ stage: "mid", script: "singularity/upgrade-home-cores.js" },
 	// Last in mid: it only runs during faction work and only on RAM the batcher leaves free.
-	{ stage: "mid", script: "share-manager.js" },
+	{ stage: "mid", script: "share-manager.js", needsSF4: true },
 	// Buys and installs augs by itself when the reset rule in buy-augs.js says so; startup.js comes
 	// back afterwards. Add args: ["--dry"] to only log (restartOnNewArgs swaps a running copy).
 	{ stage: "mid", script: "singularity/auto-reset.js", args: [], restartOnNewArgs: true, homeOnly: true },
@@ -85,11 +84,17 @@ export async function main(ns) {
 		return;
 	}
 	const level = STAGES.indexOf(stage);
-	const wanted = SCRIPTS.filter((entry) =>
+	// Costs 1GB (getResetInfo). With BN4/SF4 for sure, set sf4 to { available: true, level: 3, ramMultiplier: 1 }
+	// and drop the import to save it.
+	const sf4 = singularityInfo(ns);
+	const needsSingularity = (entry) => entry.needsSF4 || entry.script.startsWith("singularity/");
+	const inStage = SCRIPTS.filter((entry) =>
 		STAGES.indexOf(entry.stage) <= level &&
 		(!entry.until || STAGES.indexOf(entry.until) > level) &&
 		!config.startupSkip.includes(entry.script)
 	);
+	const wanted = inStage.filter((entry) => sf4.available || !needsSingularity(entry));
+	const noSingularity = inStage.length - wanted.length;
 
 	nukeAllServers(ns);
 	// Servers we can run scripts on other than home. Darknet servers need sessions, so not those.
@@ -140,6 +145,13 @@ export async function main(ns) {
 	}
 
 	ns.tprint(`startup: stage "${stage}" on ${ns.format.ram(homeRam)} home`);
+	if (noSingularity > 0) {
+		ns.tprint(`  skipped ${noSingularity} Singularity scripts (need BitNode 4 or Source-File 4). ` +
+			"Buy home RAM and programs yourself, then run startup.js again for the next stage.");
+	} else if (sf4.ramMultiplier > 1 && noRoom.length) {
+		ns.tprint(`  note: Singularity calls cost ${sf4.ramMultiplier}x RAM at SF4.${sf4.level}, ` +
+			"so some of these may wait for more home RAM.");
+	}
 	if (started.length) ns.tprint(`  started: ${started.join(", ")}`);
 	if (alreadyRunning.length) ns.tprint(`  already running: ${alreadyRunning.join(", ")}`);
 	if (noRoom.length) ns.tprint(`  no room yet (starts after the next home upgrade): ${noRoom.join(", ")}`);

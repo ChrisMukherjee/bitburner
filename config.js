@@ -53,7 +53,7 @@ export const DEFAULTS = {
 
 	augments: {
 		// Stat groups (STAT_GROUPS above) that make an augment worth buying. Used by buy-augs.js,
-		// and through it by faction-work.js (rep goals) and city-factions.js (which cities to join).
+		// and through it by player-work.js (rep goals via workers/faction-goals.js, cities via workers/city-plan.js).
 		wantStats: ["hacking", "rep", "hacknet", "darknet"],
 		// Always worth buying, whatever they boost, with the reason shown in `augs`.
 		special: {
@@ -81,7 +81,7 @@ export const DEFAULTS = {
 		},
 	},
 
-	// Studying (study.js). Below hackLevel, faction-work.js and company-work.js leave the class alone.
+	// Studying (player-work.js). Below hackLevel, the player studies and nothing else takes over.
 	studying: {
 		hackLevel: 75,
 		city: "Sector-12",
@@ -89,7 +89,7 @@ export const DEFAULTS = {
 		course: "Computer Science", // the free course
 	},
 
-	// Factions faction-work.js works for, in order. Each one's rep goal comes from the augments
+	// Factions player-work.js works for, in order. Each one's rep goal comes from the augments
 	// still worth buying there. An augment sold by several counts for the first joined one.
 	factionWork: {
 		order: [
@@ -108,13 +108,13 @@ export const DEFAULTS = {
 			"NWO",
 			"ECorp",
 			"Fulcrum Secret Technologies",
-			// City factions last, and only once joined (city-factions.js decides which).
+			// City factions last, and only once joined (player-work.js decides which, see `cities`).
 			"Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven",
 		],
 		workType: "hacking", // "hacking", "field" or "security"
 	},
 
-	// Megacorp jobs (company-work.js) that lead to faction invites, in order.
+	// Megacorp jobs (player-work.js, when no faction needs rep) that lead to faction invites, in order.
 	companyWork: {
 		companies: [
 			{ company: "Bachman & Associates", faction: "Bachman & Associates" },
@@ -129,7 +129,7 @@ export const DEFAULTS = {
 		repNeeded: 400_000,
 	},
 
-	// City factions (city-factions.js): rival groups, tried in this order, one group per run.
+	// City factions (player-work.js): rival groups, tried in this order, one group per run.
 	// A group is only joined if one of its factions sells a wanted augment that no faction in
 	// otherSources sells (those are joined anyway).
 	cities: {

@@ -31,6 +31,7 @@ Bitburner automation scripts. See [README.md](README.md) for what each script do
 - **Alerts:** use `notify(ns, tag, message, variant, terminal)` from [`utils/notify.js`](utils/notify.js) (0GB). FYI/good news = toast only. Things the user must act on = `terminal = true` (sticky toast + terminal line + log). Routine chatter = `ns.print` only. Announce once, or only on change.
 - **Ports** (keep unique; add new ones here and in README.md):
   20 darknet, 21 stock influence, 22 hacked total, 23 faction goals, 24 income rate, 25 city plan, 26 stock summary, 27 target stats.
+- **Player focus:** only [`singularity/player-work.js`](singularity/player-work.js) starts or stops player work (study, faction, company) or travels. Add new player activities to it rather than writing another script that fights it for the player.
 - Move heavy, rarely used NS calls into one-shot [`workers/`](workers/) scripts to keep manager RAM low.
 - After editing a batcher worker ([`workers/hack.js`](workers/hack.js), [`grow.js`](workers/grow.js), [`weaken.js`](workers/weaken.js)), the batcher must be restarted.
 
