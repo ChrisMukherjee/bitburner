@@ -1,6 +1,6 @@
 # gang/
 
-Gang manager for BitNode 2. Design: [`docs/gang.md`](../docs/gang.md). RAM figures are approximate; `mem <script>` in game gives the exact cost, and `?` means none is recorded.
+Gang manager for BitNode 2. Design: [`docs/gang.md`](../docs/gang.md). RAM figures are approximate; `mem <script>` in game gives the exact cost. Figures follow the game's static RAM check (base 1.6GB plus each NS function named in the script and what it imports).
 
 > **Untested in game.** Written against the v3.0.0 Gang API before reaching BitNode 2. Tail
 > `gang/gang-manager.js` on the first run; every decision is logged.
@@ -8,9 +8,9 @@ Gang manager for BitNode 2. Design: [`docs/gang.md`](../docs/gang.md). RAM figur
 | Script | What it does | Flags | RAM |
 | --- | --- | --- | --- |
 | [`gang-manager.js`](gang-manager.js) | Runs the gang; settings are `gang` in the config; posts status lines on port 28 | `--no-buy`, `--no-war` | about 33GB |
-| [`ready.js`](ready.js) | Library: tells [`startup.js`](../startup.js) when the manager has work | import only | ? |
-| [`workers/equipment.js`](workers/equipment.js) | One-shot: equipment list, on port 29 | none | ? |
-| [`workers/invite.js`](workers/invite.js) | One-shot for player-work: crimes needed for the invite, on port 30 | arg: JSON | ? |
+| [`ready.js`](ready.js) | Library: tells [`startup.js`](../startup.js) when the manager has work | import only | 1.5GB |
+| [`workers/equipment.js`](workers/equipment.js) | One-shot: equipment list, on port 29 | none | 5.6GB, for a moment |
+| [`workers/invite.js`](workers/invite.js) | One-shot for player-work: crimes needed for the invite, on port 30 | arg: JSON | 16.1GB (211.1GB at SF4.1, 55.1GB at SF4.2), for a moment |
 
 [`startup.js`](../startup.js) starts the manager once there's work: a gang exists, or a gang faction is joined and a
 gang can be created (BitNode 2, or Source-File 2 with karma -54,000; that rule lives in [`utils/gang.js`](../utils/gang.js)).

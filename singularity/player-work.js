@@ -131,15 +131,15 @@ export async function main(ns) {
 			}
 		}
 
-		const travel = travelStep(ns, state, player);
+		const trip = travelStep(ns, state, player);
 		player = ns.getPlayer(); // a join or flight above changes factions, city and money
 		const work = workStep(ns, state, player);
 
-		for (const [part, message] of Object.entries({ travel: travel.message, work: work.message })) {
+		for (const [part, message] of Object.entries({ travel: trip.message, work: work.message })) {
 			if (message !== lastMessages[part]) ns.print(message);
 			lastMessages[part] = message;
 		}
-		if (travel.done && work.done) {
+		if (trip.done && work.done) {
 			notify(ns, "[player-work]", "studied, joined and worked everything it can; done.", "success");
 			return;
 		}
