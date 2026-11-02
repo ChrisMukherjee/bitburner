@@ -53,7 +53,7 @@ export const DEFAULTS = {
 
 	augments: {
 		// Stat groups (STAT_GROUPS above) that make an augment worth buying. Used by buy-augs.js,
-		// and through it by faction-work.js (rep goals) and city-factions.js (which cities to join).
+		// and through it by player-work.js (rep goals via workers/faction-goals.js, cities via workers/city-plan.js).
 		wantStats: ["hacking", "rep", "hacknet", "darknet"],
 		// Always worth buying, whatever they boost, with the reason shown in `augs`.
 		special: {
@@ -81,7 +81,7 @@ export const DEFAULTS = {
 		},
 	},
 
-	// Studying (study.js). Below hackLevel, faction-work.js and company-work.js leave the class alone.
+	// Studying (player-work.js). Below hackLevel, the player studies and nothing else takes over.
 	studying: {
 		hackLevel: 75,
 		city: "Sector-12",
@@ -89,7 +89,7 @@ export const DEFAULTS = {
 		course: "Computer Science", // the free course
 	},
 
-	// Factions faction-work.js works for, in order. Each one's rep goal comes from the augments
+	// Factions player-work.js works for, in order. Each one's rep goal comes from the augments
 	// still worth buying there. An augment sold by several counts for the first joined one.
 	factionWork: {
 		order: [
@@ -108,13 +108,13 @@ export const DEFAULTS = {
 			"NWO",
 			"ECorp",
 			"Fulcrum Secret Technologies",
-			// City factions last, and only once joined (city-factions.js decides which).
+			// City factions last, and only once joined (player-work.js decides which, see `cities`).
 			"Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven",
 		],
 		workType: "hacking", // "hacking", "field" or "security"
 	},
 
-	// Megacorp jobs (company-work.js) that lead to faction invites, in order.
+	// Megacorp jobs (player-work.js, when no faction needs rep) that lead to faction invites, in order.
 	companyWork: {
 		companies: [
 			{ company: "Bachman & Associates", faction: "Bachman & Associates" },
@@ -129,7 +129,7 @@ export const DEFAULTS = {
 		repNeeded: 400_000,
 	},
 
-	// City factions (city-factions.js): rival groups, tried in this order, one group per run.
+	// City factions (player-work.js): rival groups, tried in this order, one group per run.
 	// A group is only joined if one of its factions sells a wanted augment that no faction in
 	// otherSources sells (those are joined anyway).
 	cities: {
@@ -173,6 +173,40 @@ export const DEFAULTS = {
 	// (paths as in its list, e.g. "darknet/dnet-manager.js").
 	startupStages: { start: 0, early: 64, mid: 128, late: 256 },
 	startupSkip: [],
+
+	// Gang (gang/gang-manager.js; BitNode 2, or anywhere with Source-File 2). Untested in game so far.
+	gang: {
+		// Factions to create the gang with, in order: the first one you're a member of is used, and
+		// that decides the gang type for good. Slum Snakes and the others here make a COMBAT gang
+		// (best money, Human Trafficking, and the strongest territory power); the invite needs combat
+		// 30 and karma -9, which player-work.js gets with crimes in BitNode 2 (gang.factions[0]).
+		// For a HACKING gang use ["NiteSec", "The Black Hand"]: no crimes needed (your hacking already
+		// gets the NiteSec invite), but less money and weaker in territory clashes.
+		factions: ["Slum Snakes", "Tetrads", "The Syndicate", "Speakers for the Dead", "The Dark Army"],
+		inviteCrimes: ["Mug", "Homicide"], // player-work.js picks the one losing karma fastest
+		trainLevel: 200,            // members train until their main stat (combat average, or hacking) reaches this
+		trainTasks: { combat: "Train Combat", hacking: "Train Hacking" },
+		focus: "auto",              // "respect", "money", or "auto": respect until the gang is full (12), then money
+		ascendAt: 1.5,              // ascend once the main-stat multiplier would grow this much
+		ascendMaxRespectShare: 0.25, // ...unless that member holds more than this share of the gang's respect
+		maxWantedPenalty: 0.05,     // above this wanted penalty, weakest earners switch to a cool task...
+		okWantedPenalty: 0.01,      // ...until it is back below this
+		coolTasks: ["Vigilante Justice", "Ethical Hacking"],
+		warfareTask: "Territory Warfare",
+		warfareShare: 0.5,          // with a full gang and territory left: this share of trained members builds power
+		engageAt: 0.55,             // clashes on once the win chance against every gang holding territory is this high
+		disengageAt: 0.5,           // ...and off again below this
+		buyAugmentations: true,     // gang member augments (permanent through ascension) first, then equipment
+		planMs: 20_000,             // re-plan tasks and ascensions this often
+		buyMs: 60_000,              // equipment pass this often
+		// Spending stages for equipment, as for hacknetBuying (reserve, maxFraction of cash per pass).
+		buying: [
+			{ name: "early", minIncome: 0, reserve: 5e6, maxFraction: 0.10 },
+			{ name: "growing", minIncome: 1e5, reserve: 50e6, maxFraction: 0.10 },
+			{ name: "established", minIncome: 1e7, reserve: 500e6, maxFraction: 0.10 },
+			{ name: "late", minIncome: 1e8, reserve: 2e9, maxFraction: 0.05 },
+		],
+	},
 
 	// Where auto-destroy.js goes after w0r1d_d43m0n: the first entry whose Source-File level
 	// isn't reached yet (counting the level this destroy gives). When all are done it waits for you.
