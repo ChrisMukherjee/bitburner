@@ -159,8 +159,9 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 | [`solve-contracts.js`](solve-contracts.js) | Finds coding contracts and hands them to [`workers/contract-solver.js`](workers/contract-solver.js) |
 | [`singularity/`](singularity/) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, [`next-bitnode.js <n>`](singularity/next-bitnode.js) |
 | [`darknet/`](darknet/) | Darknet crawler, password solvers, phishing and stasis links ([`dnet-manager.js`](darknet/dnet-manager.js) is the entry point) |
+| [`gang/`](gang/) | Gang manager for BitNode 2 ([`gang-manager.js`](gang/gang-manager.js)), see below |
 | [`go/`](go/) | IPvGO bot ([`ipvgo-bot.js`](go/ipvgo-bot.js)) and its move search ([`choose-move.js`](go/choose-move.js)) |
-| [`workers/`](workers/) | Small scripts exec'd by managers: hack/grow/weaken, contract solver, faction goals, market access, share |
+| [`workers/`](workers/) | Small scripts exec'd by managers: hack/grow/weaken, contract solver, faction goals, market access, share, gang equipment and gang invite |
 | [`utils/`](utils/) | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter, BitNode route, Singularity check, one-shot helper launcher |
 | [`tools/`](tools/) | Manual tools: status, settings ([`show-config.js`](tools/show-config.js)), state dump, income tracker, backdoor list, server checks |
 | [`tools/exploits/`](tools/exploits/) | One-shot scripts for the hidden "Exploit:" achievements (Source-File -1), see below |
@@ -183,7 +184,7 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 
 | Script | Role |
 | --- | --- |
-| [`player-work.js`](singularity/player-work.js) | The one script that moves the player: free CS course until hacking 75, then faction work for the next faction below its real rep goal (order in `factionWork`), megacorp jobs when no faction needs rep; also flies to get Tian Di Hui and the one city-faction group whose augs are still wanted (`--focus`, `--study N`, `--no-company`, `--plan` prints the city plan) |
+| [`player-work.js`](singularity/player-work.js) | The one script that moves the player: free CS course until hacking 75, then faction work for the next faction below its real rep goal (order in `factionWork`), megacorp jobs when no faction needs rep; in BitNode 2 crimes for the gang invite first (after study); also flies to get Tian Di Hui and the one city-faction group whose augs are still wanted (`--focus`, `--study N`, `--no-company`, `--plan` prints the city plan) |
 | [`buy-programs.js`](singularity/buy-programs.js) | TOR, port openers, DarkscapeNavigator.exe, Formulas.exe |
 | [`upgrade-home-ram.js`](singularity/upgrade-home-ram.js) / [`upgrade-home-cores.js`](singularity/upgrade-home-cores.js) | Home upgrades within the spending rules (`--once` for a single pass) |
 | [`auto-backdoor.js`](singularity/auto-backdoor.js) | Backdoors faction and company servers (`--daemon` also does w0r1d_d43m0n) |
@@ -192,7 +193,31 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 | [`auto-reset.js`](singularity/auto-reset.js) | Watches the plan and buys + installs augs when a reset pays off; on by default in [`startup.js`](startup.js) mid stage (`--dry` only logs) |
 | [`install-augs.js`](singularity/install-augs.js) | Installs augs and runs a script afterwards; refuses unless the advice says RESET (or `--force`) |
 | [`next-bitnode.js <n>`](singularity/next-bitnode.js) | Destroys w0r1d_d43m0n and enters BitNode n |
-| [`auto-destroy.js`](singularity/auto-destroy.js) | Runs [`next-bitnode.js`](singularity/next-bitnode.js) by itself once The Red Pill is installed and hacking level and root allow; the next BitNode comes from `bitnodeRoute` in the config (BN4 until SF4.3), then it waits for you (`--bn N` overrides, `--dry` only says) |
+| [`auto-destroy.js`](singularity/auto-destroy.js) | Runs [`next-bitnode.js`](singularity/next-bitnode.js) by itself once The Red Pill is installed and hacking level and root allow; the next BitNode comes from `bitnodeRoute` in the config (BN4 until SF4.3, then BN2 once), then it waits for you (`--bn N` overrides, `--dry` only says) |
+
+### Gang (BitNode 2)
+
+> **Untested in game.** Written against the v3.0.0 Gang API before reaching BitNode 2. Tail
+> `gang/gang-manager.js` on the first run; every decision is logged.
+
+[`gang/gang-manager.js`](gang/gang-manager.js) runs the gang; settings are `gang` in the config. [`startup.js`](startup.js)
+starts it once a gang exists or a gang faction is joined (BitNode 2, or Source-File 2 with karma -54,000).
+
+- **Combat or hacking.** The gang type comes from the faction it's created with, and can't be changed
+  later. The default is a combat gang with Slum Snakes: more money (Human Trafficking) and stronger in
+  territory clashes. The invite needs combat stats 30 and karma -9, so in BitNode 2
+  [`player-work.js`](singularity/player-work.js) commits crimes (Mug, later Homicide) after study until it
+  arrives. Set `gang.factions` to `["NiteSec", "The Black Hand"]` for a hacking gang instead: no crimes,
+  since the hacking scripts get the NiteSec invite anyway, but less money.
+- **Recruits** whenever respect allows; **ascends** a member once their main stat multiplier would grow
+  1.5x (`ascendAt`).
+- **Tasks:** members train until `trainLevel`; the rest earn respect until the gang is full (12), then
+  money. Each gets the task that pays them most, found by trying each task and reading the gain back.
+  Above a 5% wanted penalty the weakest earners do Vigilante Justice / Ethical Hacking until it's below 1%.
+- **Territory:** with a full gang, half the trained members do Territory Warfare. Clashes go on at a 55%
+  win chance against every gang still holding territory and off below 50%.
+- **Equipment:** once a minute, augmentations first (they survive ascension), then the cheapest useful
+  item, within the `gang.buying` spending stages. `--no-buy` and `--no-war` turn parts off.
 
 ### Exploit scripts
 
@@ -224,6 +249,9 @@ Step-by-step instructions for every one, including the manual ones, are in
 | 25 | City faction plan |
 | 26 | Stock summary |
 | 27 | Target stats (batcher without Formulas.exe) |
+| 28 | Gang summary (for status) |
+| 29 | Gang equipment list |
+| 30 | Gang invite crimes (for player-work) |
 
 ## Conventions
 

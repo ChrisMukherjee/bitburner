@@ -25,6 +25,9 @@ const SCRIPTS = [
 	// The one script that moves the player: study to studying.hackLevel, faction work to the real rep
 	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. Exits when all is done.
 	{ stage: "start", script: "singularity/player-work.js" },
+	// BitNode 2's money and augments. Only once a gang exists or a gang faction is joined (player-work.js
+	// gets the invite in BitNode 2), so its ~33GB isn't held while waiting. See gangReady below.
+	{ stage: "start", script: "gang/gang-manager.js", skip: (ns, config) => !gangReady(ns, config) },
 	// Both keep $1m back for TOR and the port openers, so they buy nothing in the first minutes anyway.
 	{ stage: "early", script: "pserv-manager.js" },
 	{ stage: "early", script: "hacknet-manager.js" },
@@ -163,6 +166,17 @@ export async function main(ns) {
 		ns.exec(STATUS_SCRIPT, "home") === 0) {
 		ns.tprint(`  (no room on home for ${STATUS_SCRIPT} yet; type \`status\` once things settle)`);
 	}
+}
+
+/**
+ * True when gang/gang-manager.js has something to do: a gang exists, or a faction from gang.factions
+ * is joined and a gang can be created (BitNode 2, or Source-File 2 with karma -54,000).
+ */
+function gangReady(ns, config) {
+	if (ns.gang.inGang()) return true; // 0GB, works without the Gang API
+	if (!config.gang.factions.some((faction) => ns.getPlayer().factions.includes(faction))) return false;
+	const info = ns.getResetInfo();
+	return info.currentNode === 2 || (info.ownedSF.has(2) && ns.heart.break() <= -54_000);
 }
 
 function freeRam(ns, host) {

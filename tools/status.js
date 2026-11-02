@@ -19,6 +19,7 @@ import { nextRouteStep } from "/utils/bitnode-route.js";
  *   port 24  batcher income            (utils/income.js)
  *   port 25  city-faction plan         (workers/city-plan.js, via player-work.js)
  *   port 26  stock summary             (stock-trader.js, every 10 ticks)
+ *   port 28  gang summary              (gang/gang-manager.js, every gang update)
  *   data/aug-plan.json   reset advice + rep rates, Red Pill rep/price and Daedalus invite needs
  *                        (buy-augs.js --plan, every 10 min via auto-reset.js)
  *   data/go-bonus.json   Go bonus history (go/ipvgo-bot.js)
@@ -29,6 +30,7 @@ import { nextRouteStep } from "/utils/bitnode-route.js";
 const GOALS_PORT = 23;
 const CITY_PORT = 25;
 const STOCK_SUMMARY_PORT = 26;
+const GANG_PORT = 28;
 const PLAN_FILE = "data/aug-plan.json";
 const GO_FILE = "data/go-bonus.json";
 const REP_FILE = "data/status-rep.json";
@@ -193,6 +195,25 @@ export async function main(ns) {
 	} else {
 		out.push(`Stocks (${ago(stocks.time)}): ${stocks.mode}, ${stocks.positions} positions worth ${money(stocks.value)} ` +
 			`(unrealized ${money(stocks.unrealized)}), profit since install ${money(stocks.earned)}`);
+	}
+
+	// --- Gang (only shown with a gang or in BitNode 2) ---
+	const gangPost = peekJson(ns, GANG_PORT);
+	const gangManager = processes.find((proc) => proc.filename === "gang/gang-manager.js");
+	if (gangPost && gangManager) {
+		const tasks = Object.entries(gangPost.tasks).map(([task, count]) => `${count} ${task}`).join(", ");
+		out.push(`Gang (${ago(gangPost.time)}): ${gangPost.faction} (${gangPost.isHacking ? "hacking" : "combat"}), ` +
+			`${gangPost.members}${gangPost.full ? " (full)" : ""} members, ${money(gangPost.moneyPerSecond)}/s, ` +
+			`respect ${ns.format.number(gangPost.respect)} (+${ns.format.number(gangPost.respectPerSecond)}/s), ` +
+			`wanted penalty ${ns.format.percent(gangPost.wantedPenalty)}${gangPost.cooling ? " (cooling)" : ""}`);
+		out.push(`  territory ${ns.format.percent(gangPost.territory)}, clashes ${gangPost.engaged ? "on" : "off"}` +
+			(gangPost.worstChance == null ? "" : ` (worst win chance ${ns.format.percent(gangPost.worstChance)})`) +
+			` | focus ${gangPost.focus} | ${tasks}`);
+	} else if (ns.gang.inGang()) {
+		out.push("Gang: exists, but gang/gang-manager.js isn't running (run `startup`)");
+	} else if (resetInfo.currentNode === 2) {
+		out.push(`Gang: none yet. Needs ${config.gang.factions[0]} joined (player-work.js commits crimes for the invite), ` +
+			`karma ${ns.format.number(player.karma)}`);
 	}
 
 	// --- Scripts startup.js manages ---

@@ -6,6 +6,7 @@ import { startHelper } from "/utils/start-helper.js";
 // Singularity calls to this script too).
 const GOALS_PORT = 23; // workers/faction-goals.js: rep goal per faction
 const PLAN_PORT = 25;  // workers/city-plan.js: which city factions still sell something wanted
+const GANG_PORT = 30;  // workers/gang-invite.js: crimes for the gang invite (BitNode 2)
 
 // City factions are worked only once joined, never waited for (the city part decides which to join).
 const CITY_FACTIONS = ["Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven"];
@@ -31,6 +32,8 @@ const CONFIG = {
 	goalsImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	planHelper: "workers/city-plan.js",
 	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
+	gangHelper: "workers/gang-invite.js",
+	gangRefreshMs: 2 * 60_000, // re-check the gang invite needs (and the best crime) this often
 };
 
 /**
@@ -42,11 +45,14 @@ const CONFIG = {
  *   1. Study: below studying.hackLevel (75), takes the free course (`studying` in the config) once
  *      and leaves the class alone. The class keeps running past the target until something
  *      better below takes over.
- *   2. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
+ *   2. Gang invite (BitNode 2 only, no gang yet): crimes from gang.inviteCrimes until the karma and
+ *      combat stats for gang.factions[0] (Slum Snakes) are met; join-factions.js accepts the invite
+ *      and gang/gang-manager.js creates the gang. Asked of workers/gang-invite.js every 2 minutes.
+ *   3. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
  *      below its real rep goal, from workers/faction-goals.js on port 23: the highest rep needed
  *      among the augments still worth buying there (utils/aug-filter.js), with the BitNode's
  *      rep-cost multiplier. When a faction reaches its goal, its work stops.
- *   3. Company work: when no faction needs rep, a companyWork.field job at the first megacorp
+ *   4. Company work: when no faction needs rep, a companyWork.field job at the first megacorp
  *      whose faction you haven't joined, until its invite (companyWork.repNeeded). Asks for a
  *      promotion every pass. Left alone while you do faction work you started yourself.
  *
@@ -62,7 +68,8 @@ const CONFIG = {
  * room: at the start, after joining a faction, when a faction reaches its goal and every 10 minutes.
  * Until the goals helper has run once, no faction work happens (logged).
  * Exits once every part is done: hacking at the study target, Tian Di Hui joined, the city group
- * joined (or nothing wanted), every faction at its goal and every megacorp faction joined.
+ * joined (or nothing wanted), every faction at its goal, every megacorp faction joined, and no
+ * gang invite still to get.
  *
  *   run singularity/player-work.js               unfocused (80% speed, you keep the screen)
  *   run singularity/player-work.js --focus       focused (full speed, takes over the screen)
@@ -84,6 +91,7 @@ export async function main(ns) {
 		studyAnnounced: false,
 		goals: null, goalsAt: 0, goalsFor: "", lastGoalFaction: "", factionAnnounced: false,
 		plan: null, planAt: 0, lastAnnounced: "", cityDone: false, cityMessage: "",
+		gang: null, gangAt: 0, gangDone: false,
 	};
 
 	if (flags.plan) {
@@ -109,6 +117,18 @@ export async function main(ns) {
 			if (fresh) Object.assign(state, { plan: fresh, planAt: Date.now() });
 		}
 
+		if (!state.gangDone && Date.now() - state.gangAt >= CONFIG.gangRefreshMs) {
+			const arg = JSON.stringify({ factions: config.gang.factions, crimes: config.gang.inviteCrimes });
+			const fresh = await runHelper(ns, CONFIG.gangHelper, [], GANG_PORT, arg);
+			if (fresh) {
+				// Just joined the gang faction: startup.js starts gang/gang-manager.js now that it has work.
+				if (state.gang?.applies && !fresh.applies && ns.exec("startup.js", "home") === 0) {
+					ns.print("[gang-invite] gang faction joined; no room on home to run startup.js, run `startup` for the gang manager");
+				}
+				Object.assign(state, { gang: fresh, gangAt: Date.now(), gangDone: !fresh.applies });
+			}
+		}
+
 		const travel = travelStep(ns, state, player);
 		player = ns.getPlayer(); // a join or flight above changes factions, city and money
 		const work = workStep(ns, state, player);
@@ -125,7 +145,7 @@ export async function main(ns) {
 	}
 }
 
-// --- Work: study, then faction work, then company work ---
+// --- Work: study, then gang-invite crimes, then faction work, then company work ---
 
 /** Starts or keeps the right kind of work. Returns { message, done }. */
 function workStep(ns, state, player) {
@@ -171,13 +191,27 @@ function workStep(ns, state, player) {
 
 	const companies = state.noCompany ? [] : companyWork.companies.filter((entry) =>
 		!joined.has(entry.faction) && ns.singularity.getCompanyRep(entry.company) < companyWork.repNeeded);
-	const done = hacking >= state.studyLevel && factionDone && companies.length === 0;
+	const done = hacking >= state.studyLevel && factionDone && companies.length === 0 && state.gangDone;
 
 	// 1. Study.
 	if (hacking < state.studyLevel) {
 		return { message: studyStep(ns, state, player, current, studying), done };
 	}
-	// 2. Faction work.
+	// 2. Crimes for the gang invite (BitNode 2). Stopped once workers/gang-invite.js says they're no longer needed.
+	const invite = state.gang;
+	if (invite?.applies && invite.crime) {
+		if (!(current?.type === "CRIME" && current.crimeType === invite.crime)) {
+			ns.singularity.commitCrime(invite.crime, state.focus); // repeats until other work replaces it
+			state.gangCrime = true;
+		}
+		return { message: `[gang-invite] ${invite.crime} for the ${invite.faction} invite: needs ${invite.missing.join(", ")}`, done };
+	}
+	if (state.gangCrime && current?.type === "CRIME") {
+		ns.singularity.stopAction();
+		current = null;
+	}
+	state.gangCrime = false;
+	// 3. Faction work.
 	if (goalFaction) {
 		const already = current?.type === "FACTION" && current.factionName === goalFaction;
 		if (!already && ns.singularity.workForFaction(goalFaction, factionWork.workType, state.focus)) {
@@ -190,7 +224,7 @@ function workStep(ns, state, player) {
 			done,
 		};
 	}
-	// 3. Company work, filling the gaps.
+	// 4. Company work, filling the gaps.
 	if (companies.length === 0) {
 		return { message: `${factionMessage}; ${state.noCompany ? "company work off (--no-company)" : "every megacorp faction is joined"}`, done };
 	}
