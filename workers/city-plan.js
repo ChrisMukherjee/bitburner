@@ -2,14 +2,14 @@
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts } from "/utils/aug-filter.js";
 
-// Port singularity/city-factions.js reads the plan from (20 darknet, 21 stock influence,
+// Port singularity/player-work.js reads the plan from (20 darknet, 21 stock influence,
 // 22 hacked total, 23 faction goals, 24 income rate).
 const PLAN_PORT = 25;
 const NEUROFLUX = "NeuroFlux Governor";
 
 /**
  * Works out which city factions still sell something worth having. Started by
- * singularity/city-factions.js with one JSON argument: { groups, otherSources }.
+ * singularity/player-work.js with one JSON argument: { groups, otherSources }.
  *
  * An augment counts as "needed" from a city faction when it is worth it, not owned and not
  * already bought (queued), and not sold by any faction in otherSources (the non-city
