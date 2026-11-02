@@ -8,12 +8,12 @@ import { isHackable, hasFormulas, preppedServer } from "/utils/targets.js";
 import { postIncomeRate } from "/utils/income.js";
 
 const WORKER_SCRIPTS = {
-	hack: "/workers/hack.js",
-	grow: "/workers/grow.js",
-	weaken: "/workers/weaken.js",
+	hack: "/hack/workers/hack.js",
+	grow: "/hack/workers/grow.js",
+	weaken: "/hack/workers/weaken.js",
 };
 // One-shot helper that measures targets with the 1GB analyze functions (only used without Formulas.exe)
-const STATS_SCRIPT = "/workers/target-stats.js";
+const STATS_SCRIPT = "/hack/workers/target-stats.js";
 const STATS_PORT = 27; // (26 is stock-trader.js summary)
 
 const CONFIG = {
@@ -39,7 +39,7 @@ const CONFIG = {
 	                       // overlap unevenly, so later ops of a batch would often find no RAM)
 	logMs: 10000,
 	incomeWindowMs: 60000, // income is reported as an average over this long (it arrives in bursts)
-	statsRefreshMs: 30000, // without Formulas.exe: how often workers/target-stats.js re-measures targets
+	statsRefreshMs: 30000, // without Formulas.exe: how often hack/workers/target-stats.js re-measures targets
 	statsRetryMs: 5000,    // ...and how soon to retry when it couldn't run
 	// Game constants (not BitNode-scaled), used instead of hackAnalyzeSecurity/growthAnalyzeSecurity (1GB each)
 	hackSecurityPerThread: 0.002,
@@ -47,7 +47,7 @@ const CONFIG = {
 	defaultWeakenPerThread: 0.05, // until target-stats.js has measured the real value (BitNode-scaled)
 };
 
-// workers/hack.js keeps a running total of money hacked on this port
+// hack/workers/hack.js keeps a running total of money hacked on this port
 const INCOME_PORT = 22;
 
 // Shortest time between consecutive batches' hack landings, per target (longer when RAM is short)
@@ -90,7 +90,7 @@ const WORKER_FILENAMES = Object.values(WORKER_SCRIPTS).map(stripSlash);
  *   - Prep is one combined weaken + grow + weaken wave instead of a weaken wave then a grow wave.
  *   - Hack fraction is sized per target: when its RAM share is bigger than 10% batches at full speed
  *     can use, it steals more per batch (up to maxHackFractionFormulas); when RAM is short, less.
- * Without it, workers/target-stats.js measures hack percent, chance and grow rate every 30s and the
+ * Without it, hack/workers/target-stats.js measures hack percent, chance and grow rate every 30s and the
  * batcher rescales them to min security (grow too, so prep and batches are sized for min security).
  *
  * RAM: no analyze functions in this file (they are 1GB each). Hack/grow security use the game's
@@ -365,7 +365,7 @@ function estimateAtMinSecurity(ns, target, ctx) {
 }
 
 /**
- * Runs workers/target-stats.js (one thread, a few GB, finishes at once) on free RAM and waits for its
+ * Runs hack/workers/target-stats.js (one thread, a few GB, finishes at once) on free RAM and waits for its
  * result on STATS_PORT. Returns the result, or null if it couldn't run or didn't answer in time.
  */
 async function measureTargets(ns, targets, ramPool, statsRam) {
@@ -708,7 +708,7 @@ function prepWaveFormulas(ns, target, ramPool, scriptRam, minSecurity, security,
 	}
 }
 
-// Money hacked so far by workers/hack.js (all runs; only differences between samples matter)
+// Money hacked so far by hack/workers/hack.js (all runs; only differences between samples matter)
 function hackedTotal(ns) {
 	return Number(ns.peek(INCOME_PORT)) || 0;
 }

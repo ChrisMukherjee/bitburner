@@ -1,8 +1,8 @@
 # Batcher
 
-[`../batcher.js`](../batcher.js) with workers [`../workers/hack.js`](../workers/hack.js),
-[`grow.js`](../workers/grow.js), [`weaken.js`](../workers/weaken.js) and, without Formulas.exe,
-[`target-stats.js`](../workers/target-stats.js).
+[`../hack/batcher.js`](../hack/batcher.js) with workers [`../hack/workers/hack.js`](../hack/workers/hack.js),
+[`grow.js`](../hack/workers/grow.js), [`weaken.js`](../hack/workers/weaken.js) and, without Formulas.exe,
+[`target-stats.js`](../hack/workers/target-stats.js).
 
 ## Decisions
 

@@ -4,7 +4,7 @@ const CONFIG = {
 	afterReset: "startup.js", // run on home after the install
 	planFile: "data/aug-plan.json",
 	planner: "singularity/buy-augs.js",
-	stockTrader: "stock-trader.js", // sold out before buying (the reset wipes held shares)
+	stockTrader: "stocks/stock-trader.js", // sold out before buying (the reset wipes held shares)
 	installer: "singularity/install-augs.js",
 };
 

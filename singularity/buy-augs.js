@@ -166,7 +166,7 @@ export async function main(ns) {
 		return;
 	}
 
-	if (stocks > 0) ns.tprint(`Note: ${money(stocks)} is in stocks and isn't spent here. Run stock-trader.js --liquidate first to use it.`);
+	if (stocks > 0) ns.tprint(`Note: ${money(stocks)} is in stocks and isn't spent here. Run /stocks/stock-trader.js --liquidate first to use it.`);
 	let bought = 0;
 	let progress = true;
 	while (progress && sellers.size > 0) {

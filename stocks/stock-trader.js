@@ -1,7 +1,7 @@
 // Design: docs/stocks.md
 import { loadConfig } from "/utils/config.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
-import { STOCK_INFLUENCE_PORT, SYMBOL_SERVERS } from "/utils/stock-servers.js";
+import { STOCK_INFLUENCE_PORT, SYMBOL_SERVERS } from "/stocks/stock-servers.js";
 import { HOME_PASSWORD_FILE, PHISH_SCRIPT } from "/darknet/config.js"; // constants only, no RAM
 // tools/status.js peeks a one-line summary here (ports: 20 darknet ... 25 city plan).
 const STOCK_SUMMARY_PORT = 26;
@@ -32,10 +32,10 @@ const CONFIG = {
 	// darkweb and the stasis-linked servers (the only darknet servers home can exec on), using the passwords
 	// darknet/dnet-manager.js saved. Phishing workers there are stopped as needed to make room; the crawler
 	// refills whatever RAM is left with phishing again.
-	promote: { script: "workers/promote-stock.js", targets: 2, retargetEveryTicks: 10 },
+	promote: { script: "stocks/workers/promote-stock.js", targets: 2, retargetEveryTicks: 10 },
 	// Buys the TIX API (and 4S with --buy-4s) in a one-shot helper, so the 2.5GB purchase calls
 	// aren't held by the trader all run.
-	accessScript: "workers/buy-market-access.js",
+	accessScript: "stocks/workers/buy-market-access.js",
 	// Without the TIX API, how often (ms) to check whether cash above the reserve covers it.
 	waitForTixMs: 10000,
 };

@@ -22,7 +22,7 @@ const SCRIPTS = [
 	// most of the free servers' RAM; everything else waits for the early stage (more home RAM).
 	{ stage: "start", script: "singularity/upgrade-home-ram.js" },
 	{ stage: "start", script: "singularity/buy-programs.js" },
-	{ stage: "start", script: "batcher.js" },
+	{ stage: "start", script: "hack/batcher.js" },
 	// Player work and invites from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.
 	{ stage: "start", script: "singularity/join-factions.js" },
 	{ stage: "start", script: "singularity/auto-backdoor.js" },
@@ -32,23 +32,23 @@ const SCRIPTS = [
 	// Mechanics, one folder each. Started only once their ready check says there is work.
 	{ stage: "start", script: "gang/gang-manager.js", ready: gangReady },
 	// Both keep $1m back for TOR and the port openers, so they buy nothing in the first minutes anyway.
-	{ stage: "early", script: "pserv-manager.js" },
-	{ stage: "early", script: "hacknet-manager.js" },
+	{ stage: "early", script: "pserv/pserv-manager.js" },
+	{ stage: "early", script: "hacknet/hacknet-manager.js" },
 	// Destroys w0r1d_d43m0n once The Red Pill is installed and hacking/ports allow, then enters the next BitNode.
 	{ stage: "early", script: "singularity/auto-destroy.js" },
 	// tools/track-income.js left out (2.7GB): the batcher, darknet and stock logs already show income. Run it by hand.
 	{ stage: "early", script: "go/ipvgo-bot.js", args: ["--opponent", "Netburners"], restartOnNewArgs: true, until: "mid" },
 	{ stage: "mid", script: "go/ipvgo-bot.js", args: ["--opponent", "The Black Hand"], restartOnNewArgs: true, until: "late" },
-	{ stage: "mid", script: "solve-contracts.js", homeOnly: true },
+	{ stage: "mid", script: "contracts/solve-contracts.js", homeOnly: true },
 	{ stage: "mid", script: "darknet/dnet-manager.js", homeOnly: true },
 	{ stage: "mid", script: "singularity/upgrade-home-cores.js" },
 	// Last in mid: it only runs during faction work and only on RAM the batcher leaves free.
-	{ stage: "mid", script: "share-manager.js", needsSF4: true },
+	{ stage: "mid", script: "share/share-manager.js", needsSF4: true },
 	// Buys and installs augs by itself when the reset rule in buy-augs.js says so; startup.js comes
 	// back afterwards. Add args: ["--dry"] to only log (restartOnNewArgs swaps a running copy).
 	{ stage: "mid", script: "singularity/auto-reset.js", args: [], restartOnNewArgs: true, homeOnly: true },
 	{ stage: "late", script: "go/ipvgo-bot.js", args: ["--opponent", "Daedalus"], restartOnNewArgs: true },
-	{ stage: "late", script: "stock-trader.js", args: ["--buy-4s", "--promote", 32], homeOnly: true },
+	{ stage: "late", script: "stocks/stock-trader.js", args: ["--buy-4s", "--promote", 32], homeOnly: true },
 ];
 const STAGES = ["start", "early", "mid", "late"];
 // Printed at the end when startup.js is run by hand (see the end of main).

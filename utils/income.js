@@ -4,7 +4,7 @@
  * ns.getTotalScriptIncome() only counts scripts that are still running, and the batcher's hack
  * workers exit the moment they pay out, so it reads close to $0/s even while the batcher earns
  * tens of millions per second. Instead batcher.js posts its own measured rate (from the running
- * total that workers/hack.js keeps on port 22) on INCOME_RATE_PORT every log interval, and other
+ * total that hack/workers/hack.js keeps on port 22) on INCOME_RATE_PORT every log interval, and other
  * scripts read it here. Port calls cost 0GB.
  *
  * If the batcher isn't running (or hasn't posted for maxAgeMs), this falls back to

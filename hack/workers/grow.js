@@ -12,7 +12,7 @@ export async function main(ns) {
 
 /**
  * True if stock-trader.js wants grows on this server to push its stock up (we hold it long).
- * It posts { grow: [hosts], hack: [hosts] } on port 21 (STOCK_INFLUENCE_PORT in utils/stock-servers.js;
+ * It posts { grow: [hosts], hack: [hosts] } on port 21 (STOCK_INFLUENCE_PORT in stocks/stock-servers.js;
  * not imported, so workers stay a single file). peek is 0GB, so this adds no RAM.
  */
 function influencesStock(ns, target) {

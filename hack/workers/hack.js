@@ -24,7 +24,7 @@ function addToIncomeTotal(ns, earned) {
 
 /**
  * True if stock-trader.js wants hacks on this server to push its stock down (we hold it short).
- * It posts { grow: [hosts], hack: [hosts] } on port 21 (STOCK_INFLUENCE_PORT in utils/stock-servers.js;
+ * It posts { grow: [hosts], hack: [hosts] } on port 21 (STOCK_INFLUENCE_PORT in stocks/stock-servers.js;
  * not imported, so workers stay a single file). peek is 0GB, so this adds no RAM.
  */
 function influencesStock(ns, target) {

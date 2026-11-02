@@ -2,10 +2,10 @@
 import { getAllServers } from "/utils/get-all-servers.js"
 import { notify } from "/utils/notify.js";
 
-// Finds coding contracts every 15 minutes and hands them to workers/contract-solver.js, which solves
+// Finds coding contracts every 15 minutes and hands them to contracts/workers/contract-solver.js, which solves
 // them and exits. The solver needs ~22GB (the codingcontract calls are expensive), so this loop only
 // holds ~3.5GB and the solver's RAM is only taken for a moment when there is something to solve.
-const SOLVER = "workers/contract-solver.js";
+const SOLVER = "contracts/workers/contract-solver.js";
 const FAILED_FILE = "data/failed-contracts.txt"; // "server:file" keys the solver got wrong, one per line
 
 export async function main(ns) {

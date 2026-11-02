@@ -22,14 +22,14 @@ reset by themselves.
   picked from home RAM) and works from a fresh 8GB home by running scripts on rooted servers.
   It is re-run automatically after home RAM upgrades, new port openers, augmentation installs
   and when entering a new BitNode.
-- **Multi-target JIT batcher** ([`batcher.js`](batcher.js)). Just-in-time HWGW batches across up to 25 targets,
+- **Multi-target JIT batcher** ([`batcher.js`](hack/batcher.js)). Just-in-time HWGW batches across up to 25 targets,
   using Formulas.exe when owned and a cheap stats helper when not. Picks the hack fraction with
   the best $/s per target and posts its income rate for other scripts to read.
 - **Full Singularity loop.** Studies, buys programs and home upgrades, backdoors servers,
   joins factions (including the right city factions), works for factions and companies toward
   real rep goals, plans augmentation purchases, decides when a reset is worth it, and destroys
   the BitNode by itself once The Red Pill is installed.
-- **Coding contracts.** [`workers/contract-solver.js`](workers/contract-solver.js) solves all 30 contract types in the game
+- **Coding contracts.** [`contracts/workers/contract-solver.js`](contracts/workers/contract-solver.js) solves all 30 contract types in the game
   (tested on 2000 random contracts per type against the game's own solvers).
 - **IPvGO bot** using Monte Carlo tree search (UCT + RAVE) at 0GB extra RAM. In-game record (as of 2026-11-02):
 
@@ -135,13 +135,13 @@ alias startup='run /startup.js'
 alias status='run /tools/status.js'
 alias config='run /tools/show-config.js'
 alias track-income='run /tools/track-income.js'
-alias hack-only='run /tools/track-income.js; run /batcher.js'
+alias hack-only='run /tools/track-income.js; run /hack/batcher.js'
 alias gobot='run /go/ipvgo-bot.js --opponent "The Black Hand"'
-alias solve-contracts='run /solve-contracts.js'
+alias solve-contracts='run /contracts/solve-contracts.js'
 alias list-backdoors='run /tools/list-backdoors.js'
 alias check-servers='run /tools/check-servers.js'
 alias darknet-phishing='run /darknet/dnet-manager.js'
-alias stock-trading='run /stock-trader.js'
+alias stock-trading='run /stocks/stock-trader.js'
 alias upgrade-home='run /singularity/upgrade-home-ram.js --once; run /singularity/upgrade-home-cores.js --once'
 alias auto-backdoor='run /singularity/auto-backdoor.js --once'
 alias augs='run /singularity/buy-augs.js --dry'
@@ -150,103 +150,30 @@ alias install-augs='run /singularity/install-augs.js /startup.js'
 alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compression.js; run /tools/exploits/prototype-tampering.js; run /tools/exploits/unclickable.js'
 ```
 
-## Layout
+## Folders
 
-| Path | What it does |
+Each folder's README lists its scripts with flags and RAM cost, and links its design note.
+
+| Folder | What it does |
 | --- | --- |
-| [`startup.js`](startup.js) | Stage-based launcher (see above) |
-| [`config.js`](config.js) | Default settings and presets for the choices that depend on your progress (see Settings) |
-| [`batcher.js`](batcher.js) | Multi-target JIT hack/grow/weaken batcher |
-| [`pserv-manager.js`](pserv-manager.js) | Buys and upgrades purchased servers |
-| [`hacknet-manager.js`](hacknet-manager.js) | Buys hacknet upgrades while they pay back fast enough for the current income |
-| [`share-manager.js`](share-manager.js) | Shares spare RAM for faction rep, only while doing faction work |
-| [`stock-trader.js`](stock-trader.js) | Stock market trading (`--buy-4s`, `--promote N`, `--no-influence`) |
-| [`solve-contracts.js`](solve-contracts.js) | Finds coding contracts and hands them to [`workers/contract-solver.js`](workers/contract-solver.js) |
-| [`singularity/`](singularity/) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, [`next-bitnode.js <n>`](singularity/next-bitnode.js) |
-| [`darknet/`](darknet/) | Darknet crawler, password solvers, phishing and stasis links ([`dnet-manager.js`](darknet/dnet-manager.js) is the entry point) |
-| [`gang/`](gang/) | Gang manager for BitNode 2 ([`gang-manager.js`](gang/gang-manager.js)), its ready check for startup and its workers in [`gang/workers/`](gang/workers/), see below |
-| [`go/`](go/) | IPvGO bot ([`ipvgo-bot.js`](go/ipvgo-bot.js)) and its move search ([`choose-move.js`](go/choose-move.js)) |
-| [`workers/`](workers/) | Small scripts exec'd by the core managers: hack/grow/weaken, contract solver, market access, stock promotion, share. A mechanic's workers live in its own folder (`singularity/workers/`, `gang/workers/`) |
-| [`utils/`](utils/) | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter, BitNode route, Singularity and gang checks, one-shot helper launcher |
-| [`tools/`](tools/) | Manual tools: status, settings ([`show-config.js`](tools/show-config.js)), state dump, income tracker, backdoor list, server checks |
-| [`tools/exploits/`](tools/exploits/) | One-shot scripts for the hidden "Exploit:" achievements (Source-File -1), see below |
-| [`docs/`](docs/) | Design notes: why the scripts work the way they do (start at [`docs/README.md`](docs/README.md)) |
-| [`archive/`](archive/) | Older versions of scripts, kept for history (not synced to the game) |
+| [`hack/`](hack/README.md) | Multi-target JIT hack/grow/weaken batcher and its workers |
+| [`pserv/`](pserv/README.md) | Buys and upgrades purchased servers |
+| [`hacknet/`](hacknet/README.md) | Buys hacknet upgrades while they pay back fast enough |
+| [`stocks/`](stocks/README.md) | Stock market trading |
+| [`contracts/`](contracts/README.md) | Finds and solves coding contracts |
+| [`share/`](share/README.md) | Shares spare RAM for faction rep during faction work |
+| [`singularity/`](singularity/README.md) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, next BitNode |
+| [`gang/`](gang/README.md) | Gang manager for BitNode 2 |
+| [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links |
+| [`go/`](go/README.md) | IPvGO bot |
+| [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks, exploit achievements |
+| [`utils/`](utils/README.md) | Shared helpers |
+| [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do |
+| [`archive/`](archive/README.md) | Older versions of scripts, kept for history (not synced to the game) |
 
-### Singularity scripts
+[`startup.js`](startup.js) (the stage-based launcher) and [`config.js`](config.js) (default settings and presets) stay at the root.
 
-> **Needs BitNode 4 or Source-File 4.** Everything in [`singularity/`](singularity/) uses the Singularity
-> API, which only works in BitNode 4 or with Source-File 4. Outside BitNode 4 every Singularity
-> function also costs more RAM: 16x at SF4.1, 4x at SF4.2 and the normal cost at SF4.3, so these
-> scripts may not fit in a small home until SF4.3.
->
-> Without it, [`startup.js`](startup.js) leaves out every Singularity script by itself (one line says how
-> many) and starts the rest: batcher, servers, hacknet, Go, contracts, darknet, stocks. Buy home RAM and
-> programs by hand and run `startup` again for the next stage. [`share-manager.js`](share-manager.js) can't see
-> faction work, so startup skips it; run it with `--always` to share anyway. [`tools/status.js`](tools/status.js)
-> shows work and faction goals as unknown. The check is in [`utils/singularity.js`](utils/singularity.js).
-> [`singularity/workers/faction-goals.js`](singularity/workers/faction-goals.js), [`singularity/workers/city-plan.js`](singularity/workers/city-plan.js) and
-> [`utils/aug-filter.js`](utils/aug-filter.js) also use the API, but only Singularity scripts run them.
-
-| Script | Role |
-| --- | --- |
-| [`player-work.js`](singularity/player-work.js) | The one script that moves the player: free CS course until hacking 75, then faction work for the next faction below its real rep goal (order in `factionWork`), megacorp jobs when no faction needs rep; in BitNode 2 crimes for the gang invite first (after study); also flies to get Tian Di Hui and the one city-faction group whose augs are still wanted (`--focus`, `--study N`, `--no-company`, `--plan` prints the city plan) |
-| [`buy-programs.js`](singularity/buy-programs.js) | TOR, port openers, DarkscapeNavigator.exe, Formulas.exe |
-| [`upgrade-home-ram.js`](singularity/upgrade-home-ram.js) / [`upgrade-home-cores.js`](singularity/upgrade-home-cores.js) | Home upgrades within the spending rules (`--once` for a single pass) |
-| [`auto-backdoor.js`](singularity/auto-backdoor.js) | Backdoors faction and company servers (`--daemon` also does w0r1d_d43m0n) |
-| [`join-factions.js`](singularity/join-factions.js) | Accepts invites; city ones only when they lock out no wanted city faction (same rival group already joined, or the city plan wants nothing), or all with `--cities` |
-| [`buy-augs.js`](singularity/buy-augs.js) | Plans and buys useful augs, most expensive first (`--dry` shows the plan and reset advice; what counts as useful is `augments` in the config). Reset rule: most augment value per hour of run, see [`docs/aug-reset.md`](docs/aug-reset.md) |
-| [`auto-reset.js`](singularity/auto-reset.js) | Watches the plan and, when the rule says reset, sells stocks, buys and installs augs; on by default in [`startup.js`](startup.js) mid stage (`--dry` only logs) |
-| [`install-augs.js`](singularity/install-augs.js) | Installs augs and runs a script afterwards; refuses unless the advice says RESET (or `--force`) |
-| [`next-bitnode.js <n>`](singularity/next-bitnode.js) | Destroys w0r1d_d43m0n and enters BitNode n |
-| [`auto-destroy.js`](singularity/auto-destroy.js) | Runs [`next-bitnode.js`](singularity/next-bitnode.js) by itself once The Red Pill is installed and hacking level and root allow; the next BitNode comes from `bitnodeRoute` in the config (BN4 until SF4.3, then BN2 once), then it waits for you (`--bn N` overrides, `--dry` only says) |
-
-### Gang (BitNode 2)
-
-> **Untested in game.** Written against the v3.0.0 Gang API before reaching BitNode 2. Tail
-> `gang/gang-manager.js` on the first run; every decision is logged.
-
-[`gang/gang-manager.js`](gang/gang-manager.js) runs the gang; settings are `gang` in the config. [`startup.js`](startup.js)
-starts it once [`gang/ready.js`](gang/ready.js) says there's work: a gang exists, or a gang faction is joined and a
-gang can be created (BitNode 2, or Source-File 2 with karma -54,000; that rule lives in [`utils/gang.js`](utils/gang.js)).
-The manager posts its status lines on port 28 and [`tools/status.js`](tools/status.js) shows them as they are. Its
-one-shot workers are in [`gang/workers/`](gang/workers/): the equipment list and the invite check for player-work.
-
-- **Combat or hacking.** The gang type comes from the faction it's created with, and can't be changed
-  later. The default is a combat gang with Slum Snakes: more money (Human Trafficking) and stronger in
-  territory clashes. The invite needs combat stats 30 and karma -9, so in BitNode 2
-  [`player-work.js`](singularity/player-work.js) commits crimes (Mug, later Homicide) after study until it
-  arrives. Set `gang.factions` to `["NiteSec", "The Black Hand"]` for a hacking gang instead: no crimes,
-  since the hacking scripts get the NiteSec invite anyway, but less money.
-- **Recruits** whenever respect allows; **ascends** a member once their main stat multiplier would grow
-  1.5x (`ascendAt`).
-- **Tasks:** members train until `trainLevel`; the rest earn respect until the gang is full (12), then
-  money. Each gets the task that pays them most, found by trying each task and reading the gain back.
-  Above a 5% wanted penalty the weakest earners do Vigilante Justice / Ethical Hacking until it's below 1%.
-- **Territory:** with a full gang, half the trained members do Territory Warfare. Clashes go on at a 55%
-  win chance against every gang still holding territory and off below 50%.
-- **Equipment:** once a minute, augmentations first (they survive ascension), then the cheapest useful
-  item, within the `gang.buying` spending stages. `--no-buy` and `--no-war` turn parts off.
-
-### Exploit scripts
-
-Each hidden "Exploit:" achievement also adds a level of Source-File -1. The `exploits` alias runs
-the first four below; the others need a hand.
-
-| Script | Achievement | Notes |
-| --- | --- | --- |
-| [`easy.js`](tools/exploits/easy.js) | undocumented, rainbow, bypass | Must stay at 1.6GB for bypass to count |
-| [`time-compression.js`](tools/exploits/time-compression.js) | time compression | Speeds up the game's 15s timer once, ~20s |
-| [`prototype-tampering.js`](tools/exploits/prototype-tampering.js) | prototype tampering | Waits for the game's 15-minute check, ~16 min |
-| [`unclickable.js`](tools/exploits/unclickable.js) | unclickable | Shows a red box; click it yourself |
-| [`dev-menu.js`](tools/exploits/dev-menu.js) | you're not meant to access this | Opens the hidden Dev menu |
-| [`alter-reality.js`](tools/exploits/alter-reality.js) | reality alteration | Needs a DevTools breakpoint, steps in the file |
-| [`edit-save.py`](tools/exploits/edit-save.py) | edit | Run on an exported save outside the game, then import it |
-
-Step-by-step instructions for every one, including the manual ones, are in
-[`tools/exploits/README.md`](tools/exploits/README.md).
-
-### Ports
+## Ports
 
 | Port | Data |
 | --- | --- |
@@ -274,7 +201,7 @@ Step-by-step instructions for every one, including the manual ones, are in
   [`config.js`](config.js); the core scripts stay the same everywhere. Details in [`AGENTS.md`](AGENTS.md).
 - **Static RAM.** The game charges RAM for any identifier that matches an NS function name,
   so helpers are never named `hack`, `grow`, `exec`, `attempt`, `window` and so on. Heavy
-  API calls live in one-shot [`workers/`](workers/) scripts so long-running managers stay small.
+  API calls live in one-shot scripts in each folder's `workers/` subfolder so long-running managers stay small.
 - **Income.** Read money income with [`utils/income.js`](utils/income.js), not `ns.getTotalScriptIncome`
   (batcher workers exit on payout, so that reads about $0).
 - **Notifications.** [`utils/notify.js`](utils/notify.js): FYI events are a short toast; things that need action

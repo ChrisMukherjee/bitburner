@@ -1,6 +1,6 @@
 # Agent rules for this repo
 
-Bitburner automation scripts. See [README.md](README.md) for what each script does, setup and aliases.
+Bitburner automation scripts. See [README.md](README.md) for setup, aliases and the folder list; each folder's README lists its scripts.
 
 ## API
 
@@ -21,10 +21,10 @@ Bitburner automation scripts. See [README.md](README.md) for what each script do
 
 Each BitNode adds a mechanic. These rules keep the scripts from growing a branch per BitNode.
 
-- **One folder per mechanic.** [`gang/`](gang/) is the model; later ones get their own (`bladeburner/`, `corp/`, `sleeves/` ...). The mechanic's manager, its helpers and its one-shot workers live in that folder, workers in a `workers/` subfolder ([`gang/workers/`](gang/workers/), [`singularity/workers/`](singularity/workers/)). The top-level [`workers/`](workers/) is only for the core scripts' workers. Its manager checks that the API is usable and exits cleanly (one message, no error) when it isn't. If it should only start once there's work, the folder exports a ready check that [`startup.js`](startup.js) imports, like [`gang/ready.js`](gang/ready.js).
+- **One folder per mechanic.** [`gang/`](gang/) is the model; later ones get their own (`bladeburner/`, `corp/`, `sleeves/` ...). The mechanic's manager, its helpers and its one-shot workers live in that folder, workers in a `workers/` subfolder ([`gang/workers/`](gang/workers/), [`singularity/workers/`](singularity/workers/)). The same goes for the core concepts ([`hack/`](hack/), [`stocks/`](stocks/), [`contracts/`](contracts/), [`share/`](share/), [`pserv/`](pserv/), [`hacknet/`](hacknet/)); there is no top-level `workers/`. Only [`startup.js`](startup.js) and [`config.js`](config.js) stay at the root. Helpers used by one concept live in its folder, shared ones in [`utils/`](utils/). Its manager checks that the API is usable and exits cleanly (one message, no error) when it isn't. If it should only start once there's work, the folder exports a ready check that [`startup.js`](startup.js) imports, like [`gang/ready.js`](gang/ready.js).
 - **Check what's available, not which BitNode you're in.** Ask "can this run use the Gang API?", never `currentNode === 2`. Capability checks live in one helper per API, like [`utils/singularity.js`](utils/singularity.js) and [`utils/gang.js`](utils/gang.js); scripts import it instead of reading `getResetInfo()` themselves. A real game rule that does depend on the BitNode number (e.g. no karma needed for a gang in BitNode 2) is written once, inside that helper.
 - **BitNode tuning only in [`config.js`](config.js).** Values that should differ between BitNodes go in its `bitnodes` section (keyed by BitNode number, applied automatically by `loadConfig`), never `if (bn === N)` in a script. Script `CONFIG` blocks are for engine timing and game constants only.
-- **Small, stable core.** The core ([`startup.js`](startup.js), [`batcher.js`](batcher.js), [`pserv-manager.js`](pserv-manager.js), [`hacknet-manager.js`](hacknet-manager.js), [`stock-trader.js`](stock-trader.js), [`tools/status.js`](tools/status.js), [`utils/`](utils/)) works the same in every BitNode and doesn't know about any one mechanic's details. A new mechanic adds a folder, one line (plus its ready-check import) to `startup.js`, and its summary port to `MECHANIC_PORTS` in `status.js`, where its manager posts `{ time, title, script, lines }`; no branches in the core. The one exception is player focus: a mechanic that needs the player (e.g. crimes for a gang invite) adds a step to [`singularity/player-work.js`](singularity/player-work.js).
+- **Small, stable core.** The core ([`startup.js`](startup.js), [`hack/batcher.js`](hack/batcher.js), [`pserv/pserv-manager.js`](pserv/pserv-manager.js), [`hacknet/hacknet-manager.js`](hacknet/hacknet-manager.js), [`stocks/stock-trader.js`](stocks/stock-trader.js), [`tools/status.js`](tools/status.js), [`utils/`](utils/)) works the same in every BitNode and doesn't know about any one mechanic's details. A new mechanic adds a folder, one line (plus its ready-check import) to `startup.js`, and its summary port to `MECHANIC_PORTS` in `status.js`, where its manager posts `{ time, title, script, lines }`; no branches in the core. The one exception is player focus: a mechanic that needs the player (e.g. crimes for a gang invite) adds a step to [`singularity/player-work.js`](singularity/player-work.js).
 
 ## Settings
 
@@ -41,8 +41,8 @@ Each BitNode adds a mechanic. These rules keep the scripts from growing a branch
 - **Ports** (keep unique; add new ones here and in README.md):
   20 darknet, 21 stock influence, 22 hacked total, 23 faction goals, 24 income rate, 25 city plan, 26 stock summary, 27 target stats, 28 gang summary, 29 gang equipment, 30 gang invite.
 - **Player focus:** only [`singularity/player-work.js`](singularity/player-work.js) starts or stops player work (study, gang-invite crimes, faction, company) or travels. Add new player activities to it rather than writing another script that fights it for the player.
-- Move heavy, rarely used NS calls into one-shot worker scripts (in [`workers/`](workers/) for the core, or the mechanic's own `workers/` subfolder) to keep manager RAM low.
-- After editing a batcher worker ([`workers/hack.js`](workers/hack.js), [`grow.js`](workers/grow.js), [`weaken.js`](workers/weaken.js)), the batcher must be restarted.
+- Move heavy, rarely used NS calls into one-shot worker scripts (in the concept's own `workers/` subfolder) to keep manager RAM low.
+- After editing a batcher worker ([`hack/workers/hack.js`](hack/workers/hack.js), [`grow.js`](hack/workers/grow.js), [`weaken.js`](hack/workers/weaken.js)), the batcher must be restarted.
 
 ## Sync to the game
 
@@ -68,7 +68,8 @@ Docs (including [`docs/`](docs/)), rules, script output and code comments should
 
 Update docs in the same change as the code, not later.
 
-- **[README.md](README.md)**: update it when a script is added, removed, renamed or moved, when its flags or behaviour change in a way the README describes, and when aliases, folders, ports or achievements (BitNode table, Go record) change.
+- **Folder READMEs**: every script must be listed in its folder's `README.md`, one line with what it does, its flags, its RAM cost and a link to its [`docs/`](docs/) note if it has one. Update the line in the same change when any of these change. A new folder gets a README and a row in the root README.
+- **[README.md](README.md)**: update it when folders, aliases, ports or achievements (BitNode table, Go record) change, or when a script's behaviour changes in a way it describes.
 - **[archive/README.md](archive/README.md)**: add a line (what the file did, what the next version changed) whenever a file is archived or removed.
 - **AGENTS.md**: update it when a project rule, convention or port changes.
 - **Links:** in docs (READMEs, AGENTS.md), write references to repo files and folders as relative Markdown links, relative to the doc they are in, so they work on GitHub: [`tools/exploits/README.md`](tools/exploits/README.md) from the root README, `../batcher.js` from `archive/README.md`. Only link paths that exist in the repo. Leave in-game commands (`run /tools/status.js`), code blocks and in-game files (`data/config.json`) as plain code.

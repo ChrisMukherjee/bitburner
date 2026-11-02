@@ -191,7 +191,7 @@ export async function main(ns) {
 
 	// --- Stocks ---
 	const stocks = peekJson(ns, STOCK_SUMMARY_PORT);
-	const trader = processes.find((proc) => proc.filename === "stock-trader.js");
+	const trader = processes.find((proc) => proc.filename === "stocks/stock-trader.js");
 	if (!trader) {
 		out.push("Stocks: stock-trader.js not running");
 	} else if (!stocks) {

@@ -1,7 +1,7 @@
 // Which server belongs to which stock's company, for steering prices with hack/grow { stock: true }.
 // No ns calls, so importing this costs no RAM. WDS (Watchdog Security) has no server.
 
-/** Port the trader posts { grow: [hosts], hack: [hosts] } on; workers/grow.js and hack.js peek it. */
+/** Port the trader posts { grow: [hosts], hack: [hosts] } on; hack/workers/grow.js and hack.js peek it. */
 export const STOCK_INFLUENCE_PORT = 21;
 
 export const SYMBOL_SERVERS = {

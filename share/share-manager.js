@@ -4,7 +4,7 @@ import { getAllServers } from "/utils/get-all-servers.js";
 import { buildRamPool, freeRamTotal } from "/utils/ram-pool.js";
 import { hasSingularity } from "/utils/singularity.js";
 
-const WORKER = "workers/share.js";
+const WORKER = "share/workers/share.js";
 
 const CONFIG = {
 	headroom: 0.15,          // fraction of the network's RAM (home included) always left free for the batcher
@@ -16,7 +16,7 @@ const CONFIG = {
 };
 
 /**
- * Fills RAM the batcher isn't using with workers/share.js while the player does faction work,
+ * Fills RAM the batcher isn't using with share/workers/share.js while the player does faction work,
  * which raises faction rep gain (ns.getSharePower()). Each worker shares once (~10s) and exits,
  * and the next wave only starts a second later, so the batcher always gets freed RAM back first
  * and share only ever gets the leftovers. A slice of the network (--headroom) is never touched.
@@ -25,11 +25,11 @@ const CONFIG = {
  * Home is used too (its cores raise share power), above a reserve of max(128GB, 5% of home).
  * Home is filled last, after the smaller servers.
  *
- *   run share-manager.js                     home + purchased + rooted servers, only during faction work
- *   run share-manager.js --no-home           leave home alone
- *   run share-manager.js --always            share even when not doing faction work
- *   run share-manager.js --headroom 0.3      leave 30% of network RAM free instead of 15%
- *   run share-manager.js --max-threads 500   cap threads per wave
+ *   run /share/share-manager.js                     home + purchased + rooted servers, only during faction work
+ *   run /share/share-manager.js --no-home           leave home alone
+ *   run /share/share-manager.js --always            share even when not doing faction work
+ *   run /share/share-manager.js --headroom 0.3      leave 30% of network RAM free instead of 15%
+ *   run /share/share-manager.js --max-threads 500   cap threads per wave
  *
  * Seeing faction work needs the Singularity API (BitNode 4 or Source-File 4). Without it, only
  * --always works (share all the time); otherwise it says so once and exits.

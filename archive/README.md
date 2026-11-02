@@ -25,7 +25,7 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`jit-batch-manager-v4.js`](jit-batch-manager-v4.js): single-target JIT batcher. Next (v5): multi-target, ranked by [`utils/targets.js`](../utils/targets.js) and fed from one shared RAM pool, best target first.
 - [`jit-batch-manager-v5.js`](jit-batch-manager-v5.js): multi-target batcher. Next (v6): uses Formulas.exe when owned (exact batch sizes, rank by money per GB per second, one combined prep wave) and reports income from port 22.
 - [`jit-batch-manager-v6.js`](jit-batch-manager-v6.js): see above. Next: [`batcher-v7.js`](batcher-v7.js) (renamed) execs each worker just before it starts, so batches only hold RAM while running (about 2.4x more batches), and rate-limits targets by a RAM budget.
-- [`batcher-v7.js`](batcher-v7.js): see above. Next: [`batcher.js`](../batcher.js) sizes hack fraction per target with Formulas (up to 50%), measures targets with [`workers/target-stats.js`](../workers/target-stats.js) without Formulas, and drops the analyze calls (about 6GB less RAM).
+- [`batcher-v7.js`](batcher-v7.js): see above. Next: [`batcher.js`](../hack/batcher.js) sizes hack fraction per target with Formulas (up to 50%), measures targets with [`hack/workers/target-stats.js`](../hack/workers/target-stats.js) without Formulas, and drops the analyze calls (about 6GB less RAM).
 - [`attempt-nuke.js`](attempt-nuke.js): opens ports and nukes one server. Replaced by [`utils/nuke-all.js`](../utils/nuke-all.js), which roots everything in one call.
 - [`startup.js`](startup.js): BN1 startup that launched hacknet-manager, pserv-manager and hack-manager. Next: [`startup-v2.js`](startup-v2.js).
 - [`startup-v2.js`](startup-v2.js): stage-tagged script list (early/mid/late by home RAM), home only. Next: [`startup.js`](../startup.js) also runs scripts on rooted servers when home is too small, uses absolute paths, adds city factions, and prints the status screen when typed by hand.
@@ -34,10 +34,10 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 
 - [`workers/hack-v1.js`](workers/hack-v1.js), [`grow-v1.js`](workers/grow-v1.js), [`weaken-v1.js`](workers/weaken-v1.js): one call on `args[0]`. Next (v2): optional sleep delay in `args[1]`.
 - [`workers/hack-v2.js`](workers/hack-v2.js), [`grow-v2.js`](workers/grow-v2.js), [`weaken-v2.js`](workers/weaken-v2.js): sleep, then act. Next (v3): the delay goes to the game as `additionalMsec`.
-- [`workers/hack-v3.js`](workers/hack-v3.js), [`grow-v3.js`](workers/grow-v3.js), [`weaken-v3.js`](workers/weaken-v3.js): `additionalMsec` delay. Next (v4 for hack/grow, current [`weaken.js`](../workers/weaken.js)): `args[1]` is an absolute landing time and the worker measures its own duration.
-- [`workers/hack-v4.js`](workers/hack-v4.js), [`grow-v4.js`](workers/grow-v4.js): absolute landing time. Next: [`hack.js`](../workers/hack.js) adds the hacked total on port 22 and both pass `stock: true` for servers the stock trader posts on port 21.
-- [`workers/contract-solver-v1.js`](workers/contract-solver-v1.js): solved 9 contract types. Next: [`contract-solver.js`](../workers/contract-solver.js) solves 30, catches solver crashes and wrong-format answers, and reports through [`utils/notify.js`](../utils/notify.js).
-- [`workers/buy-4s.js`](workers/buy-4s.js): one-shot that bought the 4S Market Data TIX API for [`stock-trader.js --buy-4s`](../stock-trader.js). Replaced by [`workers/buy-market-access.js`](../workers/buy-market-access.js), which buys the TIX API and (with `--4s`) 4S, each only above the cash reserve.
+- [`workers/hack-v3.js`](workers/hack-v3.js), [`grow-v3.js`](workers/grow-v3.js), [`weaken-v3.js`](workers/weaken-v3.js): `additionalMsec` delay. Next (v4 for hack/grow, current [`weaken.js`](../hack/workers/weaken.js)): `args[1]` is an absolute landing time and the worker measures its own duration.
+- [`workers/hack-v4.js`](workers/hack-v4.js), [`grow-v4.js`](workers/grow-v4.js): absolute landing time. Next: [`hack.js`](../hack/workers/hack.js) adds the hacked total on port 22 and both pass `stock: true` for servers the stock trader posts on port 21.
+- [`workers/contract-solver-v1.js`](workers/contract-solver-v1.js): solved 9 contract types. Next: [`contract-solver.js`](../contracts/workers/contract-solver.js) solves 30, catches solver crashes and wrong-format answers, and reports through [`utils/notify.js`](../utils/notify.js).
+- [`workers/buy-4s.js`](workers/buy-4s.js): one-shot that bought the 4S Market Data TIX API for [`stock-trader.js --buy-4s`](../stocks/stock-trader.js). Replaced by [`stocks/workers/buy-market-access.js`](../stocks/workers/buy-market-access.js), which buys the TIX API and (with `--4s`) 4S, each only above the cash reserve.
 
 ## Utils and tools
 
@@ -52,18 +52,18 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`tools/list-backdoors-v1.js`](tools/list-backdoors-v1.js): lists servers without a backdoor. Next: [`list-backdoors.js`](../tools/list-backdoors.js) ranks them by what the backdoor actually unlocks (faction invites, company rep, class discounts) and hides useless ones unless `--all`.
 - [`tools/status-v1.js`](tools/status-v1.js): one-screen run summary (stage, cash/income, work, faction goals with ETAs, reset advice, Go, city plan, stocks, scripts running). Next: [`status.js`](../tools/status.js) adds a BitNode section (Daedalus invite needs and rep against The Red Pill, `w0r1d_d43m0n` hacking level and root, next BitNode on the route).
 - [`tools/serverinfo.js`](tools/serverinfo.js): printed one server's details. Uses functions that no longer exist; no replacement.
-- [`solve-contracts-v1.js`](solve-contracts-v1.js): found and solved contracts itself (about 22GB all the time). Next: [`solve-contracts.js`](../solve-contracts.js) only finds them every 15 minutes (3.5GB) and launches [`workers/contract-solver.js`](../workers/contract-solver.js) briefly to solve them.
+- [`solve-contracts-v1.js`](solve-contracts-v1.js): found and solved contracts itself (about 22GB all the time). Next: [`solve-contracts.js`](../contracts/solve-contracts.js) only finds them every 15 minutes (3.5GB) and launches [`contracts/workers/contract-solver.js`](../contracts/workers/contract-solver.js) briefly to solve them.
 
 ## Servers and hacknet
 
 - [`purchase-servers-v1.js`](purchase-servers-v1.js): buys 8GB servers until the limit. Next (v2): keeps doubling RAM by deleting and re-buying servers.
 - [`purchase-servers-v2.js`](purchase-servers-v2.js): see above. Next: [`pserv-manager-v1.js`](pserv-manager-v1.js).
 - [`pserv-manager-v1.js`](pserv-manager-v1.js): buys and upgrades servers to the biggest tier with a 2x cash buffer. Next (v2): upgrades in place, smallest first, one per pass, within the shared spending budget; never deletes.
-- [`pserv-manager-v2.js`](pserv-manager-v2.js): see above. Next: [`pserv-manager.js`](../pserv-manager.js) also buys new servers in free slots (after a reset) and uses income stages.
+- [`pserv-manager-v2.js`](pserv-manager-v2.js): see above. Next: [`pserv-manager.js`](../pserv/pserv-manager.js) also buys new servers in free slots (after a reset) and uses income stages.
 - [`hacknet-manager-v1.js`](hacknet-manager-v1.js): bought the best gain/cost upgrade, capped at 12 nodes. Next (v2): buys by shortest payback from real production, within a budget and max payback time.
 - [`hacknet-manager-v2.js`](hacknet-manager-v2.js): see above. Next (v3): income stages for reserve and payback; exact new-node value with Formulas.exe.
 - [`hacknet-manager-v3.js`](hacknet-manager-v3.js): see above. Next (v4): prices a new node as a package with the upgrades worth putting on it, so new nodes actually get bought.
-- [`hacknet-manager-v4.js`](hacknet-manager-v4.js): see above. Next: [`hacknet-manager.js`](../hacknet-manager.js) uses shorter payback limits (suited to short runs between aug installs; the stages are now `hacknetBuying` in [`config.js`](../config.js)) and stops once hacknet is under 1% of income.
+- [`hacknet-manager-v4.js`](hacknet-manager-v4.js): see above. Next: [`hacknet-manager.js`](../hacknet/hacknet-manager.js) uses shorter payback limits (suited to short runs between aug installs; the stages are now `hacknetBuying` in [`config.js`](../config.js)) and stops once hacknet is under 1% of income.
 
 ## Stocks
 
@@ -71,7 +71,7 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`stock-trader-v2.js`](stock-trader-v2.js): see above. Next (v3): posts held companies on port 21 so batcher grows push longs up and hacks push shorts down.
 - [`stock-trader-v3.js`](stock-trader-v3.js): see above, last version with `--short`. Next (v4): longs only (shorts need BN8/SF8.2 and cost 5GB), buys 4S through a one-shot helper, cheaper price reads.
 - [`stock-trader-v4.js`](stock-trader-v4.js): see above. Next (v5): buys the TIX API itself through the helper when cash allows (`--no-buy-tix` to skip).
-- [`stock-trader-v5.js`](stock-trader-v5.js): see above. Next: [`stock-trader.js`](../stock-trader.js) runs promote workers on darkweb and stasis-linked darknet servers and posts a summary on port 26.
+- [`stock-trader-v5.js`](stock-trader-v5.js): see above. Next: [`stock-trader.js`](../stocks/stock-trader.js) runs promote workers on darkweb and stasis-linked darknet servers and posts a summary on port 26.
 
 ## Singularity
 
@@ -83,12 +83,12 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`singularity/buy-augs-v5.js`](singularity/buy-augs-v5.js): see above. Next (v6): only waits for upcoming augments you could still afford, and caps waiting with timers kept in the plan file.
 - `singularity/buy-augs-v6.js`: reset rule by augment count (5 ready, wait up to 60 min for affordable unlocks within 30 min, smaller resets after 3h). Next: [`buy-augs.js`](../singularity/buy-augs.js) resets at the moment with the most augment value per hour of run (weighted log multipliers, NeuroFlux, favor), plus a Daedalus favor rule ([`docs/aug-reset.md`](../docs/aug-reset.md)).
 - [`singularity/auto-reset-v1.js`](singularity/auto-reset-v1.js): reset once 5 augments (or a key one) were affordable. Next: [`auto-reset.js`](../singularity/auto-reset.js) uses the buy-augs reset rule, so `augs` and auto-reset always agree.
-- [`singularity/faction-work-v1.js`](singularity/faction-work-v1.js): worked factions in order to fixed rep goals. Next (v2): takes goals from [`workers/faction-goals.js`](../workers/faction-goals.js) (highest rep still needed for useful augments) and adds joined city factions last.
+- [`singularity/faction-work-v1.js`](singularity/faction-work-v1.js): worked factions in order to fixed rep goals. Next (v2): takes goals from [`workers/faction-goals.js`](../singularity/workers/faction-goals.js) (highest rep still needed for useful augments) and adds joined city factions last.
 - [`singularity/faction-work-v2.js`](singularity/faction-work-v2.js): see above. Next: [`player-work.js`](../singularity/player-work.js) does faction work the same way, as one of the parts of the single player-work script.
 - [`singularity/study.js`](singularity/study.js): free CS course until hacking 75, then left the class running. Merged into [`player-work.js`](../singularity/player-work.js), which starts the class once and then leaves it alone.
 - [`singularity/company-work.js`](singularity/company-work.js): megacorp Software jobs until their faction invites, waiting while faction work ran. Merged into [`player-work.js`](../singularity/player-work.js), which takes the jobs only when no faction needs rep.
 - [`singularity/get-tian-di-hui.js`](singularity/get-tian-di-hui.js): flew to Chongqing at hacking 50 and $1.2m and waited for the Tian Di Hui invite (join-factions accepted it). Merged into [`player-work.js`](../singularity/player-work.js), which also joins on the invite itself.
-- [`singularity/city-factions.js`](singularity/city-factions.js): flew to and joined the one city-faction group whose augments were still wanted, waiting for get-tian-di-hui first. Merged into [`player-work.js`](../singularity/player-work.js) (same plan from [`workers/city-plan.js`](../workers/city-plan.js); `--dry` became `--plan`), so study, travel and work no longer fight over the player.
+- [`singularity/city-factions.js`](singularity/city-factions.js): flew to and joined the one city-faction group whose augments were still wanted, waiting for get-tian-di-hui first. Merged into [`player-work.js`](../singularity/player-work.js) (same plan from [`workers/city-plan.js`](../singularity/workers/city-plan.js); `--dry` became `--plan`), so study, travel and work no longer fight over the player.
 
 ## Darknet
 

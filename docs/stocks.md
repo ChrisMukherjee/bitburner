@@ -1,7 +1,7 @@
 # Stocks
 
-[`../stock-trader.js`](../stock-trader.js), with [`../workers/buy-market-access.js`](../workers/buy-market-access.js)
-and [`../workers/promote-stock.js`](../workers/promote-stock.js).
+[`../stocks/stock-trader.js`](../stocks/stock-trader.js), with [`../stocks/workers/buy-market-access.js`](../stocks/workers/buy-market-access.js)
+and [`../stocks/workers/promote-stock.js`](../stocks/workers/promote-stock.js).
 
 ## Decisions
 
