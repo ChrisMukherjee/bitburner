@@ -37,6 +37,10 @@
   landing out of order when the game lags; the log's "dropped" and "worst" numbers show if it does.
   Long launch queues made this slow, so the queue is handled in one pass per tick and every server's
   process list is only re-read once a second (launches in between are counted as they happen).
+- **Second weaken covers the hack too.** It is sized for the grow's and the hack's security, so a hack that
+  lands late (after the first weaken) can't leave security raised. About 2% more RAM.
+- **Workers are temporary.** They're exec'd with `temporary: true`, so they aren't written to the save file;
+  thousands of short-lived workers made every autosave big and slow.
 - **Home cores.** Grow and weaken go on home first when the whole op fits there, with threads divided by
   1 + (cores - 1) / 16. Hack gets nothing from cores, so it goes elsewhere. The core count comes from the
   port 27 helper (`getServer` is 2GB), which therefore runs with Formulas.exe too.

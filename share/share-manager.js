@@ -100,7 +100,7 @@ export async function main(ns) {
 		for (const entry of ramPool) {
 			const threads = Math.min(threadsLeft, Math.floor(Math.min(entry.freeRam, budget) / workerRam + 1e-9));
 			if (threads <= 0) continue;
-			if (ns.exec(WORKER, entry.host, threads) === 0) continue;
+			if (ns.exec(WORKER, entry.host, { threads, temporary: true }) === 0) continue; // not saved: it lasts 10s
 			launched += threads;
 			threadsLeft -= threads;
 			budget -= threads * workerRam;
