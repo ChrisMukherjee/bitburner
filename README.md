@@ -31,16 +31,16 @@ reset by themselves.
   the BitNode by itself once The Red Pill is installed.
 - **Coding contracts.** [`workers/contract-solver.js`](workers/contract-solver.js) solves all 30 contract types in the game
   (tested on 2000 random contracts per type against the game's own solvers).
-- **IPvGO bot** using Monte Carlo tree search (UCT + RAVE) at 0GB extra RAM. In-game record:
+- **IPvGO bot** using Monte Carlo tree search (UCT + RAVE) at 0GB extra RAM. In-game record (as of 2026-11-02):
 
-  | Opponent | Wins |
-  | --- | --- |
-  | Netburners | 45 / 45 |
-  | Slum Snakes | 38 / 38 |
-  | The Black Hand | 39 / 39 |
-  | Tetrads | 26 / 30 |
-  | Daedalus | 173 / 180 |
-  | Illuminati (5x5) | 19 / 27 |
+  | Opponent | Wins | Best streak | Captured nodes | Bonus |
+  | --- | --- | --- | --- | --- |
+  | Netburners | 42 / 42 | 42 | 1202 | +17.97% hacknet production |
+  | Slum Snakes | 41 / 41 | 41 | 1162 | +22.0% crime success |
+  | The Black Hand | 52 / 53 | 44 | 1540 | +18.27% hacking money |
+  | Tetrads | 55 / 58 | 52 | 1541 | +16.90% combat stats |
+  | Daedalus | 196 / 198 | 171 | 5397 | +45.30% reputation gain |
+  | Illuminati (5x5) | 25 / 39 | 12 | 493 | +17.76% faster hack/grow/weaken |
 
 - **All 11 exploit achievements** (Source-File -1 level 11), mostly by script: see [`tools/exploits/`](tools/exploits/).
 - **Darknet automation.** Maps and cracks darknet servers from hints and feedback (including
