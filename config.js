@@ -212,6 +212,7 @@ export const DEFAULTS = {
 	// isn't reached yet (counting the level this destroy gives). When all are done it waits for you.
 	bitnodeRoute: [
 		{ bitNode: 4, level: 3 },
+		{ bitNode: 2, level: 1 }, // gangs (gang/gang-manager.js)
 	],
 };
 
