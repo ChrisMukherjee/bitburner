@@ -677,7 +677,9 @@ function makePlan(ns, target, hackPerThread, hackFraction, scriptRam, ctx, catch
 	const hackSecurityAdded = hackThreads * CONFIG.hackSecurityPerThread;
 	const growSecurityAdded = growThreads * CONFIG.growSecurityPerThread;
 	const hackWeakenThreads = Math.max(1, Math.ceil(hackSecurityAdded / weakenPerThread));
-	const growWeakenThreads = Math.max(1, Math.ceil(growSecurityAdded / weakenPerThread));
+	// The second weaken also covers the hack's security: if the hack lands after the first weaken (game
+	// lag), its security would otherwise stay raised and slow every later op
+	const growWeakenThreads = Math.max(1, Math.ceil((growSecurityAdded + hackSecurityAdded) / weakenPerThread));
 	// One batch's worth of extra security, relative to min, is how much longer an op can run if it starts mid-batch
 	const securityAdded = hackSecurityAdded + growSecurityAdded;
 	const durationSafety = 1 + securityAdded / ns.getServerMinSecurityLevel(target);
@@ -693,7 +695,9 @@ function launchAll(ns, assignments, target, batchId, ctx) {
 	let allLaunched = true;
 	for (const assignment of assignments) {
 		const { host, threads, operation } = assignment;
-		const pid = ns.exec(WORKER_SCRIPTS[operation.type], host, threads, target, operation.landTime, batchId);
+		// temporary: not written to the save file (thousands of short workers made saves big and slow)
+		const pid = ns.exec(WORKER_SCRIPTS[operation.type], host, { threads, temporary: true },
+			target, operation.landTime, batchId);
 		if (pid) {
 			noteLaunch(ctx.flight, target, threads * ctx.scriptRam[operation.type]);
 		} else {
