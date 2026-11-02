@@ -3,8 +3,8 @@ import { STAT_GROUPS, LOWER_IS_BETTER } from "/config.js";
 
 /**
  * What an augment does that this player wants, as text ("hack +10%, grow +5%"), or "" when it
- * isn't worth buying. The one "worth it" rule shared by buy-augs.js, workers/faction-goals.js
- * and workers/city-plan.js, driven by the `augments` section of the config (config.js). 0GB:
+ * isn't worth buying. The one "worth it" rule shared by buy-augs.js, singularity/workers/faction-goals.js
+ * and singularity/workers/city-plan.js, driven by the `augments` section of the config (config.js). 0GB:
  * the caller passes the stats from ns.singularity.getAugmentationStats.
  *   augName    - the augment's name
  *   stats      - its multipliers

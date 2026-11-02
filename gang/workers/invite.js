@@ -1,3 +1,4 @@
+import { gangAccess } from "/utils/gang.js";
 // Port singularity/player-work.js reads the answer from.
 const INVITE_PORT = 30;
 const COMBAT_SKILLS = ["strength", "defense", "dexterity", "agility"];
@@ -6,10 +7,12 @@ const COMBAT_SKILLS = ["strength", "defense", "dexterity", "agility"];
  * One-shot for singularity/player-work.js: should the player commit crimes for the gang invite,
  * and which crime? Kept apart so player-work.js doesn't pay for these Singularity calls in every
  * BitNode. Posts JSON on port 30, then exits:
- *   { time, applies: false }                         not BitNode 2, already in a gang, or a gang faction joined
+ *   { time, applies: false }                         a gang needs more than the invite here, already in a gang,
+ *                                                     or a gang faction joined
  *   { time, applies: true, faction, missing, crime } missing = unmet invite needs as text;
  *                                                     crime = what to commit, or null if crimes can't help
- * Only BitNode 2: elsewhere a gang also needs karma -54,000, a long grind of its own.
+ * Only where the invite is all a gang needs (BitNode 2): elsewhere it also needs karma -54,000,
+ * a long grind of its own.
  * UNTESTED IN GAME (written before reaching BitNode 2).
  *
  *   args: JSON {"factions": [...], "crimes": [...]} (gang.factions and gang.inviteCrimes in the config)
@@ -22,7 +25,9 @@ export async function main(ns) {
 		ns.writePort(INVITE_PORT, JSON.stringify({ time: Date.now(), ...data }));
 	};
 	const player = ns.getPlayer();
-	if (ns.getResetInfo().currentNode !== 2 || ns.gang.inGang() || factions.some((faction) => player.factions.includes(faction))) {
+	// Crimes only help where the invite is all a gang needs (no karma -54,000 grind; see utils/gang.js).
+	const access = gangAccess(ns);
+	if (!access.available || access.karmaNeeded < 0 || access.inGang || factions.some((faction) => player.factions.includes(faction))) {
 		post({ applies: false });
 		return;
 	}

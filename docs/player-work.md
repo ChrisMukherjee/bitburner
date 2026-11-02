@@ -1,9 +1,9 @@
 # Player work
 
 [`../singularity/player-work.js`](../singularity/player-work.js), with helpers
-[`../workers/faction-goals.js`](../workers/faction-goals.js) (port 23),
-[`../workers/city-plan.js`](../workers/city-plan.js) (port 25) and
-[`../workers/gang-invite.js`](../workers/gang-invite.js) (port 30).
+[`../singularity/workers/faction-goals.js`](../singularity/workers/faction-goals.js) (port 23),
+[`../singularity/workers/city-plan.js`](../singularity/workers/city-plan.js) (port 25) and
+[`../gang/workers/invite.js`](../gang/workers/invite.js) (port 30).
 Invites are accepted by [`../singularity/join-factions.js`](../singularity/join-factions.js).
 
 ## One script owns the player

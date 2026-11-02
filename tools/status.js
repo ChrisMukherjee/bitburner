@@ -2,6 +2,7 @@ import { loadConfig } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { readIncomeRate } from "/utils/income.js";
 import { nextRouteStep } from "/utils/bitnode-route.js";
+import { hasSingularity } from "/utils/singularity.js";
 
 /**
  * One-screen summary of the run, so you don't have to tail six logs.
@@ -11,15 +12,17 @@ import { nextRouteStep } from "/utils/bitnode-route.js";
  *
  * Shows: stage and home RAM, cash and income, current work, faction rep goals with ETAs, the
  * reset advice, how close the BitNode is to ending (Daedalus, The Red Pill, w0r1d_d43m0n and
- * the next BitNode on the route), Go progress, the city-faction plan, stocks, and which startup.js scripts run.
+ * the next BitNode on the route), Go progress, the city-faction plan, stocks, one block per mechanic (gang ...), and which
+ * startup.js scripts run.
  *
  * Cheap on purpose (about 5GB): almost everything comes from what the other scripts already
  * post, read with 0GB calls:
- *   port 23  faction rep goals        (workers/faction-goals.js, via player-work.js)
+ *   port 23  faction rep goals        (singularity/workers/faction-goals.js, via player-work.js)
  *   port 24  batcher income            (utils/income.js)
- *   port 25  city-faction plan         (workers/city-plan.js, via player-work.js)
+ *   port 25  city-faction plan         (singularity/workers/city-plan.js, via player-work.js)
  *   port 26  stock summary             (stock-trader.js, every 10 ticks)
- *   port 28  gang summary              (gang/gang-manager.js, every gang update)
+ *   port 28  gang summary              (gang/gang-manager.js, every gang update; any mechanic
+ *            manager listed in MECHANIC_PORTS posts ready-made lines the same way)
  *   data/aug-plan.json   reset advice + rep rates, Red Pill rep/price and Daedalus invite needs
  *                        (buy-augs.js --plan, every 10 min via auto-reset.js)
  *   data/go-bonus.json   Go bonus history (go/ipvgo-bot.js)
@@ -30,7 +33,8 @@ import { nextRouteStep } from "/utils/bitnode-route.js";
 const GOALS_PORT = 23;
 const CITY_PORT = 25;
 const STOCK_SUMMARY_PORT = 26;
-const GANG_PORT = 28;
+// Ports where mechanic managers post { time, title, script, lines }; add one per mechanic folder.
+const MECHANIC_PORTS = [28];
 const PLAN_FILE = "data/aug-plan.json";
 const GO_FILE = "data/go-bonus.json";
 const REP_FILE = "data/status-rep.json";
@@ -69,7 +73,7 @@ export async function main(ns) {
 	// --- Current work and faction goals ---
 	// Work and rep need the Singularity API (BitNode 4 or Source-File 4); without it those lines say so.
 	// No extra RAM: getResetInfo is already called above.
-	const sf4 = resetInfo.currentNode === 4 || (resetInfo.ownedSF.get(4) ?? 0) > 0;
+	const sf4 = hasSingularity(ns);
 	const work = sf4 ? ns.singularity.getCurrentWork() : null;
 	out.push(`Doing: ${sf4 ? describeWork(work) : "unknown (needs BitNode 4 or Source-File 4)"}`);
 
@@ -197,23 +201,17 @@ export async function main(ns) {
 			`(unrealized ${money(stocks.unrealized)}), profit since install ${money(stocks.earned)}`);
 	}
 
-	// --- Gang (only shown with a gang or in BitNode 2) ---
-	const gangPost = peekJson(ns, GANG_PORT);
-	const gangManager = processes.find((proc) => proc.filename === "gang/gang-manager.js");
-	if (gangPost && gangManager) {
-		const tasks = Object.entries(gangPost.tasks).map(([task, count]) => `${count} ${task}`).join(", ");
-		out.push(`Gang (${ago(gangPost.time)}): ${gangPost.faction} (${gangPost.isHacking ? "hacking" : "combat"}), ` +
-			`${gangPost.members}${gangPost.full ? " (full)" : ""} members, ${money(gangPost.moneyPerSecond)}/s, ` +
-			`respect ${ns.format.number(gangPost.respect)} (+${ns.format.number(gangPost.respectPerSecond)}/s), ` +
-			`wanted penalty ${ns.format.percent(gangPost.wantedPenalty)}${gangPost.cooling ? " (cooling)" : ""}`);
-		out.push(`  territory ${ns.format.percent(gangPost.territory)}, clashes ${gangPost.engaged ? "on" : "off"}` +
-			(gangPost.worstChance == null ? "" : ` (worst win chance ${ns.format.percent(gangPost.worstChance)})`) +
-			` | focus ${gangPost.focus} | ${tasks}`);
-	} else if (ns.gang.inGang()) {
-		out.push("Gang: exists, but gang/gang-manager.js isn't running (run `startup`)");
-	} else if (resetInfo.currentNode === 2) {
-		out.push(`Gang: none yet. Needs ${config.gang.factions[0]} joined (player-work.js commits crimes for the invite), ` +
-			`karma ${ns.format.number(player.karma)}`);
+	// --- Mechanics (gang/, later bladeburner/, corp/ ...): their managers post ready-made lines ---
+	for (const port of MECHANIC_PORTS) {
+		const post = peekJson(ns, port);
+		if (!post?.lines) continue;
+		const running = processes.some((proc) => proc.filename === post.script);
+		if (!running) {
+			out.push(`${post.title}: ${post.script} isn't running (run \`startup\`)`);
+			continue;
+		}
+		out.push(`${post.title} (${ago(post.time)}): ${post.lines[0]}`);
+		for (const line of post.lines.slice(1)) out.push(`  ${line}`);
 	}
 
 	// --- Scripts startup.js manages ---

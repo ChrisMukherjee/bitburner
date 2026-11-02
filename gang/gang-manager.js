@@ -3,11 +3,12 @@ import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { createPolicyTracker, getBudget, formatMoney } from "/utils/spending.js";
 import { startHelper } from "/utils/start-helper.js";
+import { gangAccess } from "/utils/gang.js";
 
 // Ports (see AGENTS.md / README.md).
 const SUMMARY_PORT = 28;   // this script's summary, read by tools/status.js
-const EQUIPMENT_PORT = 29; // equipment list from workers/gang-equipment.js
-const EQUIPMENT_HELPER = "workers/gang-equipment.js";
+const EQUIPMENT_PORT = 29; // equipment list from gang/workers/equipment.js
+const EQUIPMENT_HELPER = "gang/workers/equipment.js";
 const TAG = "[gang]";
 const COMBAT_STATS = ["str", "def", "dex", "agi"];
 // Game cycles are 200ms: the per-cycle rates in getGangInformation are times 5 for per second.
@@ -49,9 +50,8 @@ export async function main(ns) {
 	const flags = ns.flags([["no-buy", false], ["no-war", false]]);
 	const settings = loadConfig(ns).gang;
 
-	const info = ns.getResetInfo();
-	if (info.currentNode !== 2 && !info.ownedSF.has(2) && !ns.gang.inGang()) {
-		notify(ns, TAG, "the Gang API needs BitNode 2 or Source-File 2; exiting.", "warning", true);
+	if (!gangAccess(ns).available) {
+		ns.tprint(`${TAG} the Gang API isn't available in this run (needs BitNode 2 or Source-File 2); exiting.`);
 		return;
 	}
 
@@ -292,7 +292,7 @@ function buyEquipment(ns, settings, isHacking, state, policy) {
 	}
 }
 
-/** Equipment names, types and stats from workers/gang-equipment.js (run once; static data). */
+/** Equipment names, types and stats from gang/workers/equipment.js (run once; static data). */
 function readEquipment(ns) {
 	const posted = ns.peek(EQUIPMENT_PORT);
 	if (posted && typeof posted === "object" && Array.isArray(posted.items)) return posted.items;
@@ -305,22 +305,24 @@ function readEquipment(ns) {
 /** One summary for tools/status.js. */
 function postSummary(ns, state) {
 	const gang = ns.gang.getGangInformation();
+	const money = (amount) => "$" + ns.format.number(amount);
+	const tasks = Object.entries(state.tasks ?? {}).map(([task, count]) => `${count} ${task}`).join(", ");
+	const full = !(gang.respectForNextRecruit < Infinity);
+	// Ready-made lines in the shared mechanic summary format { time, title, script, lines } that
+	// tools/status.js shows as they are.
 	ns.clearPort(SUMMARY_PORT);
 	ns.writePort(SUMMARY_PORT, {
 		time: Date.now(),
-		faction: gang.faction,
-		isHacking: gang.isHacking,
-		members: state.members,
-		full: !(gang.respectForNextRecruit < Infinity),
-		respect: gang.respect,
-		respectPerSecond: gang.respectGainRate * CYCLES_PER_SECOND,
-		moneyPerSecond: gang.moneyGainRate * CYCLES_PER_SECOND,
-		wantedPenalty: 1 - gang.wantedPenalty,
-		cooling: state.cooling,
-		territory: gang.territory,
-		engaged: state.engaged,
-		worstChance: state.worstChance,
-		focus: state.focus,
-		tasks: state.tasks ?? {},
+		title: "Gang",
+		script: "gang/gang-manager.js",
+		lines: [
+			`${gang.faction} (${gang.isHacking ? "hacking" : "combat"}), ${state.members}${full ? " (full)" : ""} members, ` +
+				`${money(gang.moneyGainRate * CYCLES_PER_SECOND)}/s, respect ${ns.format.number(gang.respect)} ` +
+				`(+${ns.format.number(gang.respectGainRate * CYCLES_PER_SECOND)}/s), ` +
+				`wanted penalty ${ns.format.percent(1 - gang.wantedPenalty)}${state.cooling ? " (cooling)" : ""}`,
+			`territory ${ns.format.percent(gang.territory)}, clashes ${state.engaged ? "on" : "off"}` +
+				(state.worstChance == null ? "" : ` (worst win chance ${ns.format.percent(state.worstChance)})`) +
+				` | focus ${state.focus} | ${tasks}`,
+		],
 	});
 }

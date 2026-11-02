@@ -1,15 +1,8 @@
 import { runUpgradeLoop } from "/singularity/home-upgrade-loop.js";
+import { loadConfig } from "/utils/config.js";
 
 const CONFIG = {
-	// Home RAM is the best early buy (it is what every other manager runs on), so these
-	// stages spend more freely than pserv-manager's. Same rules: a stage applies once
-	// script income reaches minIncome ($/s) and never loosens until you restart.
-	stages: [
-		{ name: "early", minIncome: 0, reserve: 200e3, maxFraction: 0.90 },
-		{ name: "growing", minIncome: 1e5, reserve: 10e6, maxFraction: 0.75 },
-		{ name: "established", minIncome: 1e7, reserve: 100e6, maxFraction: 0.60 },
-		{ name: "late", minIncome: 1e8, reserve: 1e9, maxFraction: 0.50 },
-	],
+	// Spending stages are `homeRamBuying` in the config (config.js, data/config.json).
 	loopMs: 10_000,
 };
 
@@ -26,7 +19,7 @@ export async function main(ns) {
 	let relaunchPending = false;
 	await runUpgradeLoop(ns, {
 		label: "home-ram",
-		stages: CONFIG.stages,
+		stages: loadConfig(ns).homeRamBuying,
 		loopMs: CONFIG.loopMs,
 		costOf: () => ns.singularity.getUpgradeHomeRamCost(),
 		doUpgrade: () => ns.singularity.upgradeHomeRam(),

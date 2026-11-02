@@ -54,7 +54,7 @@ export const DEFAULTS = {
 
 	augments: {
 		// Stat groups (STAT_GROUPS above) that make an augment worth buying. Used by buy-augs.js,
-		// and through it by player-work.js (rep goals via workers/faction-goals.js, cities via workers/city-plan.js).
+		// and through it by player-work.js (rep goals via singularity/workers/faction-goals.js, cities via singularity/workers/city-plan.js).
 		wantStats: ["hacking", "rep", "hacknet", "darknet"],
 		// Always worth buying, whatever they boost, with the reason shown in `augs`.
 		special: {
@@ -154,7 +154,8 @@ export const DEFAULTS = {
 		otherSources: ["CyberSec", "Tian Di Hui", "NiteSec", "The Black Hand", "BitRunners", "Netburners", "Daedalus"],
 	},
 
-	// Spending stages for hacknet-manager.js, pserv-manager.js and stock-trader.js. A stage
+	// Spending stages for hacknet-manager.js, pserv-manager.js, stock-trader.js and the home
+	// upgrades (singularity/upgrade-home-ram.js, upgrade-home-cores.js). A stage
 	// applies once script income reaches minIncome ($/s) and never loosens until restart.
 	//   reserve           - cash the manager never touches
 	//   maxFraction       - largest share of current cash spent in one pass (hacknet, stocks)
@@ -180,6 +181,20 @@ export const DEFAULTS = {
 		{ name: "growing", minIncome: 1e5, reserve: 50e6, maxFraction: 0.9 },
 		{ name: "established", minIncome: 1e7, reserve: 500e6, maxFraction: 0.9 },
 		{ name: "late", minIncome: 1e8, reserve: 2e9, maxFraction: 0.9 },
+	],
+	// Home RAM is the best early buy (every other manager runs on it), so it spends more freely
+	// than the servers. Cores only speed up grow/weaken on home and cost a lot, so more carefully.
+	homeRamBuying: [
+		{ name: "early", minIncome: 0, reserve: 200e3, maxFraction: 0.90 },
+		{ name: "growing", minIncome: 1e5, reserve: 10e6, maxFraction: 0.75 },
+		{ name: "established", minIncome: 1e7, reserve: 100e6, maxFraction: 0.60 },
+		{ name: "late", minIncome: 1e8, reserve: 1e9, maxFraction: 0.50 },
+	],
+	homeCoresBuying: [
+		{ name: "early", minIncome: 0, reserve: 1e6, maxFraction: 0.50 },
+		{ name: "growing", minIncome: 1e5, reserve: 30e6, maxFraction: 0.40 },
+		{ name: "established", minIncome: 1e7, reserve: 300e6, maxFraction: 0.30 },
+		{ name: "late", minIncome: 1e8, reserve: 1e9, maxFraction: 0.25 },
 	],
 
 	// startup.js: home RAM (GB) at which "auto" picks each stage, and scripts it never starts
@@ -227,9 +242,16 @@ export const DEFAULTS = {
 		{ bitNode: 4, level: 3 },
 		{ bitNode: 2, level: 1 }, // gangs (gang/gang-manager.js)
 	],
+
+	// Per-BitNode overrides, keyed by BitNode number: laid over the settings above only while
+	// in that BitNode (startup.js records which one). Same merge rules as data/config.json, which
+	// (like a preset) can have its own `bitnodes` section. This is where BitNode tuning goes,
+	// never `if (bitNode === N)` in a script. For example:
+	//   "2": { augments: { wantStats: ["hacking", "rep", "combat", "crime"] } },
+	bitnodes: {},
 };
 
-// Named sets of overrides, applied over DEFAULTS before data/config.json. Pick one with
+// Named sets of overrides, applied over DEFAULTS (and its `bitnodes` entry) before data/config.json. Pick one with
 // "profile" in data/config.json. Add your own; only list what differs from DEFAULTS.
 export const PRESETS = {
 	"hacking": {},

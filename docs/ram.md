@@ -8,8 +8,9 @@ Scripts are charged RAM up front by a static check, so RAM shapes the design mor
   script and every imported function it reaches. A local helper called `attempt` cost 10GB; the bare word
   `window` (or `document`) costs 25GB. Never name helpers `hack`, `grow`, `weaken`, `exec`, `run`, `kill`,
   `scan`, `share`, `spawn`, `attempt`, `window` and so on. Object-literal keys are not charged.
-- **Heavy, rare calls go into one-shot helpers** in [`../workers/`](../workers/): the contract solver,
-  buying market access, faction goals, the city plan, target stats. The long-running manager stays small and
+- **Heavy, rare calls go into one-shot helpers** in [`../workers/`](../workers/) for the core scripts
+  (the contract solver, buying market access, target stats) or a mechanic's own `workers/` folder
+  ([`../singularity/workers/`](../singularity/workers/): faction goals, the city plan; [`../gang/workers/`](../gang/workers/)). The long-running manager stays small and
   pays the helper's RAM only for the moment it runs. Helpers report back on a port (list in
   [`../AGENTS.md`](../AGENTS.md)) and are started by path, never imported, or their cost would be charged
   to the caller.

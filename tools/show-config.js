@@ -21,7 +21,8 @@ export async function main(ns) {
 	}
 	const section = flags._[0] === undefined ? null : String(flags._[0]);
 	const own = ns.read(USER_CONFIG_FILE).trim() ? USER_CONFIG_FILE : "none (defaults only)";
-	ns.tprint(`profile "${config.profile}", your overrides: ${own}`);
+	const node = config.bitnode === null ? "BitNode unknown (run startup.js once)" : `BitNode ${config.bitnode}`;
+	ns.tprint(`profile "${config.profile}", ${node} (its \`bitnodes\` entry applied if any), your overrides: ${own}`);
 	if (section && !(section in config)) {
 		ns.tprint(`ERROR no section "${section}". Sections: ${Object.keys(config).join(", ")}`);
 		return;

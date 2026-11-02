@@ -1,15 +1,18 @@
 // Design: docs/startup.md
-import { loadConfig, USER_CONFIG_FILE } from "/utils/config.js";
+import { loadConfig, USER_CONFIG_FILE, BITNODE_FILE } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 import { singularityInfo } from "/utils/singularity.js";
+// Mechanic folders: each one's "is there work for its manager?" check (see AGENTS.md).
+import { gangReady } from "/gang/ready.js";
 
 // Every long-running script, in priority order: earlier entries get RAM first.
 // A stage starts everything tagged with that stage or an earlier one.
 //   restartOnNewArgs: if a copy with different args is running (anywhere), kill it first
 //                     (otherwise two go bots would fight over the same board).
 //   homeOnly:         reads or writes data files on its own server, so it must run on home.
-//   skip:             (ns, config) => true leaves it out this time.
+//   ready:            (ns, config) => false leaves it out this time. For a mechanic's manager,
+//                     imported from its folder, so startup.js knows nothing about the mechanic.
 //   needsSF4:         needs the Singularity API (BitNode 4 or Source-File 4). Every script in
 //                     singularity/ counts as this too; without the API they are all left out.
 // Scripts listed in `startupSkip` in the config (config.js, data/config.json) are never started.
@@ -26,9 +29,8 @@ const SCRIPTS = [
 	// The one script that moves the player: study to studying.hackLevel, faction work to the real rep
 	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. Exits when all is done.
 	{ stage: "start", script: "singularity/player-work.js" },
-	// BitNode 2's money and augments. Only once a gang exists or a gang faction is joined (player-work.js
-	// gets the invite in BitNode 2), so its ~33GB isn't held while waiting. See gangReady below.
-	{ stage: "start", script: "gang/gang-manager.js", skip: (ns, config) => !gangReady(ns, config) },
+	// Mechanics, one folder each. Started only once their ready check says there is work.
+	{ stage: "start", script: "gang/gang-manager.js", ready: gangReady },
 	// Both keep $1m back for TOR and the port openers, so they buy nothing in the first minutes anyway.
 	{ stage: "early", script: "pserv-manager.js" },
 	{ stage: "early", script: "hacknet-manager.js" },
@@ -77,6 +79,8 @@ const MAX_OFF_HOME_SHARE = 0.65;
 /** @param {NS} ns */
 export async function main(ns) {
 	const requested = String(ns.args[0] ?? "auto");
+	// For loadConfig's per-BitNode settings (`bitnodes` in config.js). getResetInfo is already paid for below.
+	ns.write(BITNODE_FILE, String(ns.getResetInfo().currentNode), "w");
 	const config = loadConfig(ns);
 	const stageMinHomeRam = config.startupStages;
 	const homeRam = ns.getServerMaxRam("home");
@@ -114,7 +118,7 @@ export async function main(ns) {
 
 	const started = [], alreadyRunning = [], noRoom = [], missing = [];
 	for (const entry of wanted) {
-		if (entry.skip && entry.skip(ns, config)) continue;
+		if (entry.ready && !entry.ready(ns, config)) continue;
 		const args = entry.args ?? [];
 		const label = [entry.script, ...args].join(" ");
 		if (!ns.fileExists(entry.script, "home")) {
@@ -169,17 +173,6 @@ export async function main(ns) {
 	}
 }
 
-/**
- * True when gang/gang-manager.js has something to do: a gang exists, or a faction from gang.factions
- * is joined and a gang can be created (BitNode 2, or Source-File 2 with karma -54,000).
- */
-function gangReady(ns, config) {
-	if (ns.gang.inGang()) return true; // 0GB, works without the Gang API
-	if (!config.gang.factions.some((faction) => ns.getPlayer().factions.includes(faction))) return false;
-	const info = ns.getResetInfo();
-	return info.currentNode === 2 || (info.ownedSF.has(2) && ns.heart.break() <= -54_000);
-}
-
 function freeRam(ns, host) {
 	return ns.getServerMaxRam(host) - ns.getServerUsedRam(host);
 }
@@ -191,7 +184,7 @@ function placeOffHome(ns, script, args, ram, hosts) {
 		.sort((first, second) => freeRam(ns, first) - freeRam(ns, second));
 	const files = withImports(ns, script);
 	// The player's own settings, so loadConfig sees them there too.
-	if (ns.fileExists(USER_CONFIG_FILE, "home")) files.push(USER_CONFIG_FILE);
+	for (const file of [USER_CONFIG_FILE, BITNODE_FILE]) if (ns.fileExists(file, "home")) files.push(file);
 	for (const host of fitting) {
 		if (!ns.scp(files, host, "home")) continue;
 		if (ns.exec(script, host, 1, ...args) !== 0) return host;

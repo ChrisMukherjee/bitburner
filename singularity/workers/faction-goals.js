@@ -6,7 +6,7 @@ export const GOALS_PORT = 23;
 const NEUROFLUX = "NeuroFlux Governor";
 
 // "Worth it" is the shared rule in utils/aug-filter.js (same as buy-augs.js and
-// workers/city-plan.js), driven by `augments` in the config (config.js, data/config.json).
+// singularity/workers/city-plan.js), driven by `augments` in the config (config.js, data/config.json).
 
 /**
  * Works out the real rep goal of each faction passed as an argument (in priority order):

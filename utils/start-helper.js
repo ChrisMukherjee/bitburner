@@ -3,6 +3,7 @@ import { getAllServers } from "/utils/get-all-servers.js";
 
 // The player's own settings, copied along so loadConfig sees them on another server too.
 const USER_CONFIG_FILE = "data/config.json";
+const BITNODE_FILE = "data/bitnode.txt"; // read by loadConfig for the per-BitNode settings
 
 /**
  * Starts a one-shot helper script wherever it fits: home first, then the calling script's
@@ -14,7 +15,7 @@ export function startHelper(ns, script, files, ...args) {
 	const ramNeeded = ns.getScriptRam(script, "home");
 	const here = ns.getHostname();
 	const copies = [script, ...files];
-	if (ns.fileExists(USER_CONFIG_FILE, "home")) copies.push(USER_CONFIG_FILE);
+	for (const file of [USER_CONFIG_FILE, BITNODE_FILE]) if (ns.fileExists(file, "home")) copies.push(file);
 
 	const others = getAllServers(ns)
 		.filter((host) => host !== "home" && host !== here && ns.hasRootAccess(host))

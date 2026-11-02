@@ -93,7 +93,7 @@ keeps at most a quarter of home (up to 64GB) free for typed commands.
 
 The choices that depend on where you are in the game live in [`config.js`](config.js): which augment
 stats are worth buying, the reset rule, faction and company order, study target, city-faction
-groups, hacknet/server/stock spending stages, [`startup.js`](startup.js) stage thresholds and scripts to
+groups, hacknet/server/stock/home-upgrade spending stages, [`startup.js`](startup.js) stage thresholds and scripts to
 skip, and the BitNode route for [`auto-destroy.js`](singularity/auto-destroy.js). The defaults suit a hacking run with no
 gang (for example BitNode 4).
 
@@ -119,6 +119,11 @@ Stat groups: `hacking`, `rep`, `hacknet`, `darknet`, `combat`, `charisma`, `work
 `run /tools/show-config.js [section]` prints what the scripts will use, and
 `run /tools/show-config.js --example` prints a starter `data/config.json` with your current
 values to paste into `nano data/config.json`.
+
+Settings that should differ by BitNode go in a `bitnodes` section keyed by BitNode number, in
+[`config.js`](config.js) or in `data/config.json` (e.g. `"bitnodes": { "2": { "augments": { ... } } }`). The
+current BitNode's entry applies automatically; [`startup.js`](startup.js) records which BitNode you're in
+(`data/bitnode.txt`), so run it once in a new BitNode before relying on them.
 
 ### Aliases
 
@@ -159,10 +164,10 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 | [`solve-contracts.js`](solve-contracts.js) | Finds coding contracts and hands them to [`workers/contract-solver.js`](workers/contract-solver.js) |
 | [`singularity/`](singularity/) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, [`next-bitnode.js <n>`](singularity/next-bitnode.js) |
 | [`darknet/`](darknet/) | Darknet crawler, password solvers, phishing and stasis links ([`dnet-manager.js`](darknet/dnet-manager.js) is the entry point) |
-| [`gang/`](gang/) | Gang manager for BitNode 2 ([`gang-manager.js`](gang/gang-manager.js)), see below |
+| [`gang/`](gang/) | Gang manager for BitNode 2 ([`gang-manager.js`](gang/gang-manager.js)), its ready check for startup and its workers in [`gang/workers/`](gang/workers/), see below |
 | [`go/`](go/) | IPvGO bot ([`ipvgo-bot.js`](go/ipvgo-bot.js)) and its move search ([`choose-move.js`](go/choose-move.js)) |
-| [`workers/`](workers/) | Small scripts exec'd by managers: hack/grow/weaken, contract solver, faction goals, market access, share, gang equipment and gang invite |
-| [`utils/`](utils/) | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter, BitNode route, Singularity check, one-shot helper launcher |
+| [`workers/`](workers/) | Small scripts exec'd by the core managers: hack/grow/weaken, contract solver, market access, stock promotion, share. A mechanic's workers live in its own folder (`singularity/workers/`, `gang/workers/`) |
+| [`utils/`](utils/) | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter, BitNode route, Singularity and gang checks, one-shot helper launcher |
 | [`tools/`](tools/) | Manual tools: status, settings ([`show-config.js`](tools/show-config.js)), state dump, income tracker, backdoor list, server checks |
 | [`tools/exploits/`](tools/exploits/) | One-shot scripts for the hidden "Exploit:" achievements (Source-File -1), see below |
 | [`docs/`](docs/) | Design notes: why the scripts work the way they do (start at [`docs/README.md`](docs/README.md)) |
@@ -180,7 +185,7 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 > programs by hand and run `startup` again for the next stage. [`share-manager.js`](share-manager.js) can't see
 > faction work, so startup skips it; run it with `--always` to share anyway. [`tools/status.js`](tools/status.js)
 > shows work and faction goals as unknown. The check is in [`utils/singularity.js`](utils/singularity.js).
-> [`workers/faction-goals.js`](workers/faction-goals.js), [`workers/city-plan.js`](workers/city-plan.js) and
+> [`singularity/workers/faction-goals.js`](singularity/workers/faction-goals.js), [`singularity/workers/city-plan.js`](singularity/workers/city-plan.js) and
 > [`utils/aug-filter.js`](utils/aug-filter.js) also use the API, but only Singularity scripts run them.
 
 | Script | Role |
@@ -202,7 +207,10 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 > `gang/gang-manager.js` on the first run; every decision is logged.
 
 [`gang/gang-manager.js`](gang/gang-manager.js) runs the gang; settings are `gang` in the config. [`startup.js`](startup.js)
-starts it once a gang exists or a gang faction is joined (BitNode 2, or Source-File 2 with karma -54,000).
+starts it once [`gang/ready.js`](gang/ready.js) says there's work: a gang exists, or a gang faction is joined and a
+gang can be created (BitNode 2, or Source-File 2 with karma -54,000; that rule lives in [`utils/gang.js`](utils/gang.js)).
+The manager posts its status lines on port 28 and [`tools/status.js`](tools/status.js) shows them as they are. Its
+one-shot workers are in [`gang/workers/`](gang/workers/): the equipment list and the invite check for player-work.
 
 - **Combat or hacking.** The gang type comes from the faction it's created with, and can't be changed
   later. The default is a combat gang with Slum Snakes: more money (Human Trafficking) and stronger in

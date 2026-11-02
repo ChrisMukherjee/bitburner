@@ -1,8 +1,8 @@
 # Gang
 
-[`../gang/gang-manager.js`](../gang/gang-manager.js), with [`../workers/gang-equipment.js`](../workers/gang-equipment.js)
+[`../gang/gang-manager.js`](../gang/gang-manager.js), with [`../gang/workers/equipment.js`](../gang/workers/equipment.js)
 (port 29) and the invite step in [`../singularity/player-work.js`](../singularity/player-work.js)
-(via [`../workers/gang-invite.js`](../workers/gang-invite.js), port 30). Settings are `gang` in
+(via [`../gang/workers/invite.js`](../gang/workers/invite.js), port 30). Settings are `gang` in
 [`../config.js`](../config.js).
 
 **Untested in game.** It was written against the v3.0.0 Gang API before reaching BitNode 2. Tail it on
@@ -23,8 +23,12 @@ the first run and tune; every decision is logged.
 - **Territory:** with a full gang, half the trained members build power; clashes go on at 55% win chance
   against every gang with territory and off below 50% (the gap stops flapping).
 - **Equipment:** augmentations first since they survive ascension, within the `gang.buying` spending stages.
-- **Started only when useful.** [`../startup.js`](../startup.js) starts it once a gang exists or a gang
-  faction is joined, so its RAM isn't held while waiting for the invite.
+- **Started only when useful.** [`../startup.js`](../startup.js) starts it once
+  [`../gang/ready.js`](../gang/ready.js) says a gang exists or a gang faction is joined and a gang can be created,
+  so its RAM isn't held while waiting for the invite.
+- **No BitNode-number checks.** Whether the Gang API works and whether a gang needs karma -54,000 (everywhere
+  but BitNode 2) is decided once, in [`../utils/gang.js`](../utils/gang.js). The manager posts ready-made status
+  lines on port 28, so [`../tools/status.js`](../tools/status.js) knows nothing about gangs.
 
 ## Open
 

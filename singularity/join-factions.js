@@ -2,7 +2,7 @@ import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 // City factions lock you out of their rivals, so they are only joined when that costs nothing (see below).
 const CITY_FACTIONS = new Set(["Sector-12", "Aevum", "Volhaven", "Chongqing", "New Tokyo", "Ishima"]);
-// Port singularity/player-work.js posts its city plan on (from workers/city-plan.js).
+// Port singularity/player-work.js posts its city plan on (from singularity/workers/city-plan.js).
 const CITY_PLAN_PORT = 25;
 const LOOP_MS = 30_000;
 

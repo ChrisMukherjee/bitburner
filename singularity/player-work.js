@@ -5,9 +5,9 @@ import { startHelper } from "/utils/start-helper.js";
 
 // Ports the one-shot helpers write to (not imported: the static RAM check would charge their
 // Singularity calls to this script too).
-const GOALS_PORT = 23; // workers/faction-goals.js: rep goal per faction
-const PLAN_PORT = 25;  // workers/city-plan.js: which city factions still sell something wanted
-const GANG_PORT = 30;  // workers/gang-invite.js: crimes for the gang invite (BitNode 2)
+const GOALS_PORT = 23; // singularity/workers/faction-goals.js: rep goal per faction
+const PLAN_PORT = 25;  // singularity/workers/city-plan.js: which city factions still sell something wanted
+const GANG_PORT = 30;  // gang/workers/invite.js: crimes for the gang invite (BitNode 2)
 
 // City factions are worked only once joined, never waited for (the city part decides which to join).
 const CITY_FACTIONS = ["Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven"];
@@ -29,11 +29,12 @@ const CONFIG = {
 	loopMs: 30_000,
 	refreshMs: 10 * 60_000,    // re-read goals and city plan this often (catches augments bought meanwhile)
 	travelCost: 200e3,
-	goalsHelper: "workers/faction-goals.js",
+	goalsHelper: "singularity/workers/faction-goals.js",
 	goalsImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
-	planHelper: "workers/city-plan.js",
+	planHelper: "singularity/workers/city-plan.js",
 	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
-	gangHelper: "workers/gang-invite.js",
+	gangHelper: "gang/workers/invite.js",
+	gangImports: ["utils/gang.js"],
 	gangRefreshMs: 2 * 60_000, // re-check the gang invite needs (and the best crime) this often
 };
 
@@ -48,9 +49,9 @@ const CONFIG = {
  *      better below takes over.
  *   2. Gang invite (BitNode 2 only, no gang yet): crimes from gang.inviteCrimes until the karma and
  *      combat stats for gang.factions[0] (Slum Snakes) are met; join-factions.js accepts the invite
- *      and gang/gang-manager.js creates the gang. Asked of workers/gang-invite.js every 2 minutes.
+ *      and gang/gang-manager.js creates the gang. Asked of gang/workers/invite.js every 2 minutes.
  *   3. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
- *      below its real rep goal, from workers/faction-goals.js on port 23: the highest rep needed
+ *      below its real rep goal, from singularity/workers/faction-goals.js on port 23: the highest rep needed
  *      among the augments still worth buying there (utils/aug-filter.js), with the BitNode's
  *      rep-cost multiplier. When a faction reaches its goal, its work stops.
  *   4. Company work: when no faction needs rep, a companyWork.field job at the first megacorp
@@ -60,7 +61,7 @@ const CONFIG = {
  * Travel and joining, alongside the work:
  *   - Tian Di Hui first: once you have hacking 50 and $1.2m, flies to Chongqing and joins on the invite.
  *   - Then the city factions that still sell augments worth having, one rival group per run
- *     (`cities` in the config; plan from workers/city-plan.js on port 25): Sector-12 + Aevum
+ *     (`cities` in the config; plan from singularity/workers/city-plan.js on port 25): Sector-12 + Aevum
  *     (CashRoot, PCMatrix), then Chongqing (Neuregen) in a later run. Flies there once you have
  *     the invite money plus the $200k flight and joins only factions with something left to buy,
  *     never a rival. Says once (toast + terminal) which city invites not to accept by hand.
@@ -120,7 +121,7 @@ export async function main(ns) {
 
 		if (!state.gangDone && Date.now() - state.gangAt >= CONFIG.gangRefreshMs) {
 			const arg = JSON.stringify({ factions: config.gang.factions, crimes: config.gang.inviteCrimes });
-			const fresh = await runHelper(ns, CONFIG.gangHelper, [], GANG_PORT, arg);
+			const fresh = await runHelper(ns, CONFIG.gangHelper, CONFIG.gangImports, GANG_PORT, arg);
 			if (fresh) {
 				// Just joined the gang faction: startup.js starts gang/gang-manager.js now that it has work.
 				if (state.gang?.applies && !fresh.applies && ns.exec("startup.js", "home") === 0) {
@@ -198,7 +199,7 @@ function workStep(ns, state, player) {
 	if (hacking < state.studyLevel) {
 		return { message: studyStep(ns, state, player, current, studying), done };
 	}
-	// 2. Crimes for the gang invite (BitNode 2). Stopped once workers/gang-invite.js says they're no longer needed.
+	// 2. Crimes for the gang invite (BitNode 2). Stopped once gang/workers/invite.js says they're no longer needed.
 	const invite = state.gang;
 	if (invite?.applies && invite.crime) {
 		if (!(current?.type === "CRIME" && current.crimeType === invite.crime)) {
@@ -383,13 +384,13 @@ function printPlan(ns, plan, joined) {
 
 // --- Helpers that run for a moment on home, else on any server with room ---
 
-/** Runs workers/faction-goals.js and returns its goals, or null if it couldn't run. */
+/** Runs singularity/workers/faction-goals.js and returns its goals, or null if it couldn't run. */
 async function refreshGoals(ns, order) {
 	const result = await runHelper(ns, CONFIG.goalsHelper, CONFIG.goalsImports, GOALS_PORT, ...order);
 	return result?.goals ?? null;
 }
 
-/** Runs workers/city-plan.js and returns the plan, or null if it couldn't run. */
+/** Runs singularity/workers/city-plan.js and returns the plan, or null if it couldn't run. */
 async function refreshPlan(ns, cities) {
 	const arg = JSON.stringify({ groups: cities.groups, otherSources: cities.otherSources });
 	const result = await runHelper(ns, CONFIG.planHelper, CONFIG.planImports, PLAN_PORT, arg);
