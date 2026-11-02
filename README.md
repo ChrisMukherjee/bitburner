@@ -167,6 +167,17 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 
 ### Singularity scripts
 
+> **Needs BitNode 4 or Source-File 4.** Everything in [`singularity/`](singularity/) uses the Singularity
+> API, which only works in BitNode 4 or with Source-File 4. Outside BitNode 4 every Singularity
+> function also costs more RAM: 16x at SF4.1, 4x at SF4.2 and the normal cost at SF4.3, so these
+> scripts may not fit in a small home until SF4.3.
+>
+> A few scripts outside [`singularity/`](singularity/) call it too: [`startup.js`](startup.js) launches the
+> Singularity scripts (list any you can't run in `startupSkip` in the config), [`tools/status.js`](tools/status.js)
+> and [`share-manager.js`](share-manager.js) read the current work (and faction rep), and
+> [`workers/faction-goals.js`](workers/faction-goals.js), [`workers/city-plan.js`](workers/city-plan.js) and
+> [`utils/aug-filter.js`](utils/aug-filter.js) read augmentation data.
+
 | Script | Role |
 | --- | --- |
 | [`study.js`](singularity/study.js) | Free CS course until hacking 75 (`studying` in the config) |
