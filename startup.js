@@ -11,15 +11,18 @@ import { nukeAllServers } from "/utils/nuke-all.js";
 // Scripts listed in `startupSkip` in the config (config.js, data/config.json) are never started.
 // Everything else may run on a rooted server when home is too small (see main below).
 const SCRIPTS = [
-	{ stage: "early", script: "singularity/upgrade-home-ram.js" },
-	{ stage: "early", script: "singularity/buy-programs.js" },
+	// "start": a fresh BitNode or a small home. Only what earns money or levels, so the batcher gets
+	// most of the free servers' RAM; everything else waits for the early stage (more home RAM).
+	{ stage: "start", script: "singularity/upgrade-home-ram.js" },
+	{ stage: "start", script: "singularity/buy-programs.js" },
 	// study.js exits by itself past its target (studying.hackLevel); skipping it here keeps its 6GB free for later entries.
-	{ stage: "early", script: "singularity/study.js", skip: (ns, config) => ns.getHackingLevel() >= config.studying.hackLevel },
-	{ stage: "early", script: "batcher.js" },
+	{ stage: "start", script: "singularity/study.js", skip: (ns, config) => ns.getHackingLevel() >= config.studying.hackLevel },
+	{ stage: "start", script: "batcher.js" },
 	// Player work and invites from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.
-	{ stage: "early", script: "singularity/join-factions.js" },
-	{ stage: "early", script: "singularity/auto-backdoor.js" },
-	{ stage: "early", script: "singularity/faction-work.js" },
+	{ stage: "start", script: "singularity/join-factions.js" },
+	{ stage: "start", script: "singularity/auto-backdoor.js" },
+	{ stage: "start", script: "singularity/faction-work.js" },
+	// Both keep $1m back for TOR and the port openers, so they buy nothing in the first minutes anyway.
 	{ stage: "early", script: "pserv-manager.js" },
 	{ stage: "early", script: "singularity/get-tian-di-hui.js", skip: (ns) => ns.getPlayer().factions.includes("Tian Di Hui") },
 	// After Tian Di Hui: flies to and joins the city factions whose augments are still wanted, one rival group per run.
@@ -42,7 +45,7 @@ const SCRIPTS = [
 	{ stage: "late", script: "go/ipvgo-bot.js", args: ["--opponent", "Daedalus"], restartOnNewArgs: true },
 	{ stage: "late", script: "stock-trader.js", args: ["--buy-4s", "--promote", 32], homeOnly: true },
 ];
-const STAGES = ["early", "mid", "late"];
+const STAGES = ["start", "early", "mid", "late"];
 // Printed at the end when startup.js is run by hand (see the end of main).
 const STATUS_SCRIPT = "/tools/status.js";
 // Home RAM at which "auto" picks each stage: `startupStages` in the config.
@@ -57,6 +60,8 @@ const MAX_OFF_HOME_SHARE = 0.65;
  *   run /startup.js mid      start everything up to the mid stage
  *   alias startup='run /startup.js'   (absolute path, so it works from any directory)
  *
+ * At the "start" stage (home below startupStages.early, e.g. a fresh BitNode) only the scripts that
+ * earn or level run, so the batcher has RAM to hack with; the rest follow after a home upgrade.
  * Home first. When home is too small (a fresh 8GB start), it roots every server it can and
  * runs the script on a rooted server instead, copying the script and its imports there.
  * The free servers alone (n00dles, foodnstuff, joesguns, ...) have about 100GB.

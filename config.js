@@ -171,7 +171,7 @@ export const DEFAULTS = {
 
 	// startup.js: home RAM (GB) at which "auto" picks each stage, and scripts it never starts
 	// (paths as in its list, e.g. "darknet/dnet-manager.js").
-	startupStages: { early: 0, mid: 128, late: 256 },
+	startupStages: { start: 0, early: 64, mid: 128, late: 256 },
 	startupSkip: [],
 
 	// Where auto-destroy.js goes after w0r1d_d43m0n: the first entry whose Source-File level

@@ -16,12 +16,16 @@ const STATS_SCRIPT = "/workers/target-stats.js";
 const STATS_PORT = 27; // (26 is stock-trader.js summary)
 
 const CONFIG = {
-	homeReservedRam: 64,
+	homeReservedRam: 64,   // RAM on home the batcher never uses (for startup.js, status and typed commands)...
+	homeReservedShare: 0.25, // ...but at most this share of home, so a small home (fresh BitNode) still helps
 	gapMs: 100,            // time between the four landings inside one batch
 	hackFraction: 0.10,    // fraction of max money stolen per batch (shrinks automatically if RAM is tiny)
 	maxHackFractionFormulas: 0.5, // with Formulas.exe a top target may steal up to this much per batch
 	                       // when RAM is plentiful, instead of handing the RAM to worse targets
 	growSafety: 1.05,      // extra grow threads as a safety margin
+	batchFromMoney: 0.5,   // start batching once at min security and this share of max money (not waiting for 100%):
+	                       // batches earn straight away and each one grows a bit extra until money is back at max
+	catchUpPerBatch: 1.25, // ...at most this money multiplier of extra growth per batch
 	retargetMs: 60000,     // how often the set of active targets is recalculated
 	stickiness: 1.25,      // a target already active ranks as if its score were this much higher
 	maxTargets: 25,        // upper bound on targets batched at once
@@ -138,7 +142,7 @@ export async function main(ns) {
 		}
 
 		const { ramPool, totalRam } = buildRamPool(ns, allServers, {
-			homeReservedRam: CONFIG.homeReservedRam,
+			homeReservedRam: Math.min(CONFIG.homeReservedRam, ns.getServerMaxRam("home") * CONFIG.homeReservedShare),
 			minFreeRam: minScriptRam,
 		});
 		const inFlightByTarget = countInFlight(ns, allServers);
@@ -265,6 +269,8 @@ function chooseTargets(ns, allServers, scriptRam, totalRam, currentlyActive, ctx
 		} else {
 			score = (maxMoney * estimate.chance) / estimate.weaken;
 		}
+		// A target that is nearly prepped earns sooner (matters after a restart or on a fresh BitNode)
+		score *= 0.5 + 0.5 * Math.min(1, ns.getServerMoneyAvailable(target) / maxMoney);
 		if (currentlyActive.has(target)) score *= CONFIG.stickiness;
 		// Game ratios: hack time = weaken / 4, grow time = weaken x 0.8
 		const timings = { hack: estimate.weaken / 4, grow: estimate.weaken * 0.8, weaken: estimate.weaken };
@@ -302,7 +308,7 @@ function chooseTargets(ns, allServers, scriptRam, totalRam, currentlyActive, ctx
  * ones win (fewer grow threads per dollar), until the 1-thread minimums on each op make them wasteful.
  * Returns { plan, ramMs } or null if nothing fits.
  */
-function pickPlan(ns, target, hackPerThread, timings, budget, scriptRam, ctx) {
+function pickPlan(ns, target, hackPerThread, timings, budget, scriptRam, ctx, catchUp = 1) {
 	const fractions = ctx.fx ? [0.5, 0.4, 0.3, 0.2, 0.15] : [];
 	for (let fraction = CONFIG.hackFraction; fraction >= 0.0005; fraction /= 2) fractions.push(fraction);
 	const maxFraction = ctx.fx ? CONFIG.maxHackFractionFormulas : CONFIG.hackFraction;
@@ -311,7 +317,7 @@ function pickPlan(ns, target, hackPerThread, timings, budget, scriptRam, ctx) {
 	let lastHackThreads = 0;
 	for (const fraction of fractions) {
 		if (fraction > maxFraction) continue;
-		const plan = makePlan(ns, target, hackPerThread, fraction, scriptRam, ctx);
+		const plan = makePlan(ns, target, hackPerThread, fraction, scriptRam, ctx, catchUp);
 		if (plan.hackThreads === lastHackThreads) continue; // already down to the same batch
 		lastHackThreads = plan.hackThreads;
 		if (plan.ramCost > budget * CONFIG.maxBatchShare) continue; // too big a slice: try smaller
@@ -388,6 +394,7 @@ function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft,
 	const money = ns.getServerMoneyAvailable(target);
 	const atMinSecurity = security <= minSecurity + 0.01;
 	const atMaxMoney = money >= maxMoney * 0.999;
+	const batchable = money >= maxMoney * CONFIG.batchFromMoney;
 
 	if (state.mode === "batch") {
 		state.minMoneyPercent = Math.min(state.minMoneyPercent, 100 * money / maxMoney);
@@ -415,7 +422,7 @@ function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft,
 	}
 
 	// Mode latch: enter batch only when fully prepped and idle; leave only if badly desynced
-	if (state.mode === "prep" && inFlight === 0 && state.pending.length === 0 && atMinSecurity && atMaxMoney
+	if (state.mode === "prep" && inFlight === 0 && state.pending.length === 0 && atMinSecurity && batchable
 		&& state.timings && state.timings.hackPerThread > 0) {
 		state.mode = "batch";
 		state.lastLandTime = 0;
@@ -444,7 +451,9 @@ function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft,
 	if (!state.timings) return { batchId, ramUsed: 0 };
 
 	// Hack fraction sized to this target's RAM share (see pickPlan)
-	const picked = pickPlan(ns, target, state.timings.hackPerThread, state.timings, budgetLeft, scriptRam, ctx);
+	// Below max money each batch grows a bit extra (catch-up), so money climbs back while it earns
+	const catchUp = atMaxMoney ? 1 : Math.min(CONFIG.catchUpPerBatch, maxMoney / Math.max(1, money));
+	const picked = pickPlan(ns, target, state.timings.hackPerThread, state.timings, budgetLeft, scriptRam, ctx, catchUp);
 	if (!picked) return { batchId, ramUsed: 0 };
 	const { plan, ramMs } = picked;
 	state.lastPlan = plan;
@@ -565,7 +574,8 @@ function withRamCap(ramPool, cap, fn) {
 	return used;
 }
 
-function makePlan(ns, target, hackPerThread, hackFraction, scriptRam, ctx) {
+/** catchUp: extra money multiplier the grow should add on top of regrowing what the hack took (1 = none). */
+function makePlan(ns, target, hackPerThread, hackFraction, scriptRam, ctx, catchUp = 1) {
 	const fx = ctx.fx;
 	const weakenPerThread = ctx.weakenPerThread;
 	const hackThreads = Math.max(1, Math.floor(hackFraction / hackPerThread));
@@ -574,11 +584,11 @@ function makePlan(ns, target, hackPerThread, hackFraction, scriptRam, ctx) {
 	// Without it, target-stats.js grow rate rescaled to min security (ignores grow's small +1$ per thread).
 	let growThreadsExact;
 	if (fx) {
-		const afterHack = preppedServer(ns, target, ns.getServerMaxMoney(target) * (1 - stolen));
+		const afterHack = preppedServer(ns, target, ns.getServerMaxMoney(target) * (1 - stolen) / catchUp);
 		growThreadsExact = ns.formulas.hacking.growThreads(afterHack, fx.player, afterHack.moneyMax);
 	} else {
 		const estimate = estimateAtMinSecurity(ns, target, ctx);
-		growThreadsExact = estimate ? estimate.growPerLn * Math.log(1 / (1 - stolen)) : Infinity;
+		growThreadsExact = estimate ? estimate.growPerLn * Math.log(catchUp / (1 - stolen)) : Infinity;
 	}
 	const growThreads = Math.max(1, Math.ceil(growThreadsExact * CONFIG.growSafety));
 	const hackSecurityAdded = hackThreads * CONFIG.hackSecurityPerThread;

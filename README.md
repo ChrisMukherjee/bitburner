@@ -18,7 +18,7 @@ reset by themselves.
 
 ### Highlights
 
-- **One-command startup.** [`startup.js`](startup.js) launches everything for the current stage (early, mid, late,
+- **One-command startup.** [`startup.js`](startup.js) launches everything for the current stage (start, early, mid, late,
   picked from home RAM) and works from a fresh 8GB home by running scripts on rooted servers.
   It is re-run automatically after home RAM upgrades, new port openers, augmentation installs
   and when entering a new BitNode.
@@ -71,7 +71,7 @@ Files the game writes (anything in `data/`) never come back to disk.
 ## Running it
 
 ```text
-run /startup.js          # pick the stage from home RAM (mid >= 128GB, late >= 256GB)
+run /startup.js          # pick the stage from home RAM (early >= 64GB, mid >= 128GB, late >= 256GB)
 run /startup.js mid      # force a stage
 run /tools/status.js     # one-screen summary of the whole run
 ```
@@ -83,6 +83,10 @@ numbers come from `data/aug-plan.json`, which [`auto-reset.js`](singularity/auto
 
 [`startup.js`](startup.js) holds one priority-ordered list of long-running scripts, each tagged with the
 stage it starts in. It skips anything already running and exits once everything is launched.
+Below 64GB home (a fresh BitNode) it is in the `start` stage: only the home/program buyers, study,
+the batcher and faction scripts run, so the batcher gets the free servers' RAM; the Go bot, hacknet,
+server buying, city factions and auto-destroy follow after the first home upgrades. The batcher
+keeps at most a quarter of home (up to 64GB) free for typed commands.
 
 ### Settings for your point in the game
 
