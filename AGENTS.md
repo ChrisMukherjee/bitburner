@@ -17,13 +17,20 @@ Bitburner automation scripts. See README.md for what each script does, setup and
 
 - Use absolute script paths starting with `/`, single quotes outside, plain double quotes inside: `alias status='run /tools/status.js'`.
 
+## Settings
+
+- Choices that depend on the player's progress (aug stats worth buying, reset rule, faction/company order, study target, city groups, spending stages, startup stages, BitNode route) belong in `config.js` (`DEFAULTS`, `PRESETS`), read with `loadConfig(ns)` from `utils/config.js` (0GB). Don't hardcode new ones in scripts.
+- Each player's overrides are in-game `data/config.json`, merged over the defaults (objects merge, lists replace). Never assume it exists.
+- "Worth buying" for augments is `wantedBoosts` in `utils/aug-filter.js`; buy-augs, faction-goals and city-plan all use it.
+- Workers that load the config and are copied to another server need `config.js`, `utils/config.js`, `utils/notify.js` (and `utils/aug-filter.js`) copied too.
+
 ## Coding gotchas
 
 - **RAM check matches names.** The static RAM checker charges any identifier named like an NS function (a local helper `attempt` cost 10GB, `window` 25GB). Never name helpers `attempt`, `hack`, `grow`, `weaken`, `spawn`, `exec`, `run`, `kill`, `scan`, `share`, `window`, etc.
 - **Income:** never use `ns.getTotalScriptIncome` for money income (batcher hack workers exit on payout, so it reads ~$0). Use `readIncomeRate(ns)` from `utils/income.js`.
 - **Alerts:** use `notify(ns, tag, message, variant, terminal)` from `utils/notify.js` (0GB). FYI/good news = toast only. Things the user must act on = `terminal = true` (sticky toast + terminal line + log). Routine chatter = `ns.print` only. Announce once, or only on change.
 - **Ports** (keep unique; add new ones here and in README.md):
-  20 darknet, 21 stock influence, 22 hacked total, 23 faction goals, 24 income rate, 25 city plan, 26 stock summary.
+  20 darknet, 21 stock influence, 22 hacked total, 23 faction goals, 24 income rate, 25 city plan, 26 stock summary, 27 target stats.
 - Move heavy, rarely used NS calls into one-shot `workers/` scripts to keep manager RAM low.
 - After editing a batcher worker (`workers/hack.js`, `grow.js`, `weaken.js`), the batcher must be restarted.
 

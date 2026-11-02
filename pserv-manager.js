@@ -1,18 +1,10 @@
+import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
 
 const CONFIG = {
-	// Spending rules get stricter as income grows. A stage applies once your running
-	// scripts earn at least minIncome ($/s); it never loosens again until you restart.
-	//   reserve     - cash this manager never touches (raise it above what you're saving for,
-	//                 e.g. HTTPWorm.exe / SQLInject.exe, so they are never blocked)
-	//   maxFraction - largest share of current cash one purchase may cost
-	stages: [
-		{ name: "early", minIncome: 0, reserve: 1e6, maxFraction: 0.75 },
-		{ name: "growing", minIncome: 1e5, reserve: 30e6, maxFraction: 0.50 },
-		{ name: "established", minIncome: 1e7, reserve: 300e6, maxFraction: 0.40 },
-		{ name: "late", minIncome: 1e8, reserve: 1e9, maxFraction: 0.25 },
-	],
+	// Spending stages (reserve, maxFraction, ... by income) are `serverBuying` in the config
+	// (config.js, data/config.json).
 	// Time between passes. At most one server is bought or upgraded per pass.
 	loopMs: 10_000,
 	// After a prestige your servers are gone, so free slots get refilled first.
@@ -29,7 +21,7 @@ const CONFIG = {
  */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	const getPolicy = createPolicyTracker(CONFIG.stages);
+	const getPolicy = createPolicyTracker(loadConfig(ns).serverBuying);
 	let lastStageName = "";
 	let lastIdleMessage = "";
 

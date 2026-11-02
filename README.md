@@ -42,6 +42,7 @@ reset by themselves.
   | Daedalus | 173 / 180 |
   | Illuminati (5x5) | 19 / 27 |
 
+- **All 11 exploit achievements** (Source-File -1 level 11), mostly by script: see `tools/exploits/`.
 - **Darknet automation.** Maps and cracks darknet servers from hints and feedback (including
   Factori-Os prime factoring), phishes for money and keeps stasis links on the best servers.
 - **Stock trader** using TIX with 4S data when available (estimates otherwise), buys market
@@ -77,6 +78,37 @@ run /tools/status.js     # one-screen summary of the whole run
 `startup.js` holds one priority-ordered list of long-running scripts, each tagged with the
 stage it starts in. It skips anything already running and exits once everything is launched.
 
+### Settings for your point in the game
+
+The choices that depend on where you are in the game live in `config.js`: which augment
+stats are worth buying, the reset rule, faction and company order, study target, city-faction
+groups, hacknet/server/stock spending stages, `startup.js` stage thresholds and scripts to
+skip, and the BitNode route for `auto-destroy.js`. The defaults suit a hacking run with no
+gang (for example BitNode 4).
+
+To change them, don't edit `config.js`: create `data/config.json` in the game
+(`nano data/config.json`) with just what you want different. Objects merge key by key; lists
+and single values replace the default. It stays in the game, so git and filesync never
+overwrite it and each player keeps their own. For example, a player who wants combat and
+crime augs too, bigger reset batches, and BitNode 5 after SF4.3:
+
+```json
+{
+  "augments": {
+    "wantStats": ["hacking", "rep", "hacknet", "darknet", "combat", "crime"],
+    "resetRule": { "minAugs": 8 }
+  },
+  "bitnodeRoute": [{ "bitNode": 4, "level": 3 }, { "bitNode": 5, "level": 1 }]
+}
+```
+
+Stat groups: `hacking`, `rep`, `hacknet`, `darknet`, `combat`, `charisma`, `work`, `crime`,
+`bladeburner`. `"profile"` picks a named preset from `PRESETS` in `config.js` first (only
+`hacking` so far). Scripts read the settings when they start, so restart them after a change.
+`run /tools/show-config.js [section]` prints what the scripts will use, and
+`run /tools/show-config.js --example` prints a starter `data/config.json` with your current
+values to paste into `nano data/config.json`.
+
 ### Aliases
 
 Aliases always use absolute paths starting with `/` so they work from any directory.
@@ -85,6 +117,7 @@ Single quotes outside, plain double quotes inside.
 ```text
 alias startup='run /startup.js'
 alias status='run /tools/status.js'
+alias config='run /tools/show-config.js'
 alias track-income='run /tools/track-income.js'
 alias hack-only='run /tools/track-income.js; run /batcher.js'
 alias gobot='run /go/ipvgo-bot.js --opponent "The Black Hand"'
@@ -98,6 +131,7 @@ alias auto-backdoor='run /singularity/auto-backdoor.js --once'
 alias augs='run /singularity/buy-augs.js --dry'
 alias buy-augs='run /singularity/buy-augs.js'
 alias install-augs='run /singularity/install-augs.js /startup.js'
+alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compression.js; run /tools/exploits/prototype-tampering.js; run /tools/exploits/unclickable.js'
 ```
 
 ## Layout
@@ -105,6 +139,7 @@ alias install-augs='run /singularity/install-augs.js /startup.js'
 | Path | What it does |
 | --- | --- |
 | `startup.js` | Stage-based launcher (see above) |
+| `config.js` | Default settings and presets for the choices that depend on your progress (see Settings) |
 | `batcher.js` | Multi-target JIT hack/grow/weaken batcher |
 | `pserv-manager.js` | Buys and upgrades purchased servers |
 | `hacknet-manager.js` | Buys hacknet upgrades while they pay back fast enough for the current income |
@@ -115,27 +150,46 @@ alias install-augs='run /singularity/install-augs.js /startup.js'
 | `darknet/` | Darknet crawler, password solvers, phishing and stasis links (`dnet-manager.js` is the entry point) |
 | `go/` | IPvGO bot (`ipvgo-bot.js`) and its move search (`choose-move.js`) |
 | `workers/` | Small scripts exec'd by managers: hack/grow/weaken, contract solver, faction goals, market access, share |
-| `utils/` | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts |
-| `tools/` | Manual tools: status, state dump, income tracker, backdoor list, server checks |
+| `utils/` | Shared helpers: server list, nuking, RAM pool, target scoring, spending rules, income rate, toasts, config loading, aug filter |
+| `tools/` | Manual tools: status, settings (`show-config.js`), state dump, income tracker, backdoor list, server checks |
+| `tools/exploits/` | One-shot scripts for the hidden "Exploit:" achievements (Source-File -1), see below |
 | `archive/` | Older versions of scripts, kept for history (not synced to the game) |
 
 ### Singularity scripts
 
 | Script | Role |
 | --- | --- |
-| `study.js` | Free CS course until hacking 75 |
+| `study.js` | Free CS course until hacking 75 (`studying` in the config) |
 | `buy-programs.js` | TOR, port openers, DarkscapeNavigator.exe, Formulas.exe |
 | `upgrade-home-ram.js` / `upgrade-home-cores.js` | Home upgrades within the spending rules (`--once` for a single pass) |
 | `auto-backdoor.js` | Backdoors faction and company servers (`--daemon` also does w0r1d_d43m0n) |
 | `join-factions.js` | Accepts invites (city factions only with `--cities`) |
 | `get-tian-di-hui.js` / `city-factions.js` | Travels to get Tian Di Hui and the one city-faction group whose augs are still wanted |
-| `faction-work.js` | Hacking contracts for the next faction below its real rep goal |
+| `faction-work.js` | Hacking contracts for the next faction below its real rep goal (order in `factionWork`) |
 | `company-work.js` | Megacorp jobs until their faction invites arrive |
-| `buy-augs.js` | Plans and buys useful augs, most expensive first (`--dry` shows the plan and reset advice) |
+| `buy-augs.js` | Plans and buys useful augs, most expensive first (`--dry` shows the plan and reset advice; what counts as useful is `augments` in the config) |
 | `auto-reset.js` | Watches the plan and buys + installs augs when a reset pays off; on by default in `startup.js` mid stage (`--dry` only logs) |
 | `install-augs.js` | Installs augs and runs a script afterwards; refuses unless the advice says RESET (or `--force`) |
 | `next-bitnode.js <n>` | Destroys w0r1d_d43m0n and enters BitNode n |
-| `auto-destroy.js` | Runs `next-bitnode.js` by itself once The Red Pill is installed and hacking level and root allow; the next BitNode comes from its `ROUTE` list (BN4 until SF4.3), then it waits for you (`--bn N` overrides, `--dry` only says) |
+| `auto-destroy.js` | Runs `next-bitnode.js` by itself once The Red Pill is installed and hacking level and root allow; the next BitNode comes from `bitnodeRoute` in the config (BN4 until SF4.3), then it waits for you (`--bn N` overrides, `--dry` only says) |
+
+### Exploit scripts
+
+Each hidden "Exploit:" achievement also adds a level of Source-File -1. The `exploits` alias runs
+the first four below; the others need a hand.
+
+| Script | Achievement | Notes |
+| --- | --- | --- |
+| `easy.js` | undocumented, rainbow, bypass | Must stay at 1.6GB for bypass to count |
+| `time-compression.js` | time compression | Speeds up the game's 15s timer once, ~20s |
+| `prototype-tampering.js` | prototype tampering | Waits for the game's 15-minute check, ~16 min |
+| `unclickable.js` | unclickable | Shows a red box; click it yourself |
+| `dev-menu.js` | you're not meant to access this | Opens the hidden Dev menu |
+| `alter-reality.js` | reality alteration | Needs a DevTools breakpoint, steps in the file |
+| `edit-save.py` | edit | Run on an exported save outside the game, then import it |
+
+Step-by-step instructions for every one, including the manual ones, are in
+`tools/exploits/README.md`.
 
 ### Ports
 

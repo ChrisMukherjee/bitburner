@@ -51,12 +51,12 @@ async function spread(ns, { self, port, earn, stasis, passwords, opened, failed 
 		if (password === undefined && known !== undefined) {
 			const result = await login(ns, neighbour, known);
 			if (result.verdict === "ok") password = known;
-			else if (result.verdict === "later") { retryLater(ns, neighbour, result); continue; }
+			else if (result.verdict === "later") { retryLater(ns, port, neighbour, result); continue; }
 		}
 		let attempts = [];
 		if (password === undefined) {
 			const cracked = await crack(ns, neighbour, details);
-			if (cracked.later) { retryLater(ns, neighbour, cracked.later); continue; }
+			if (cracked.later) { retryLater(ns, port, neighbour, cracked.later); continue; }
 			({ password, attempts } = cracked);
 		}
 		if (password === undefined) {
@@ -114,9 +114,13 @@ async function crack(ns, host, details) {
 	return { password: undefined, attempts };
 }
 
-/** Note in this crawler's log why a neighbour was skipped this round; the next re-check tries it again. */
-function retryLater(ns, host, result) {
+/**
+ * Note why a neighbour was skipped this round (the next re-check tries it again): in this crawler's log, and to
+ * the manager, which counts skips by code in its summary line.
+ */
+function retryLater(ns, port, host, result) {
 	ns.print(`${host}: ${result.code} ${result.message}, retrying on the next re-check`);
+	report(ns, port, { kind: "retry", host, code: result.code, message: result.message });
 }
 
 /**

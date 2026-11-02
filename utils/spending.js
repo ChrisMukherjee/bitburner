@@ -30,7 +30,7 @@ export function getBudget(ns, policy) {
 /**
  * Stage-based policy: strict rules hurt right after a prestige (cash is tiny, so a big
  * reserve blocks everything) and matter less once the batcher prints money. Each manager
- * lists its stages in its own CONFIG, ordered by minIncome ($/s, from utils/income.js: the
+ * has its own stages (hacknet, servers and stocks in config.js; home upgrades in their own CONFIG), ordered by minIncome ($/s, from utils/income.js: the
  * batcher's measured income, or running scripts' income when the batcher isn't running).
  *
  *   stages: [{ name, minIncome, reserve, maxFraction, ...anything else the manager needs }]

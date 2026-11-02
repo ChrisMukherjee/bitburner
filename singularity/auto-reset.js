@@ -1,3 +1,4 @@
+import { loadConfig } from "/utils/config.js";
 const CONFIG = {
 	checkMinutes: 10,
 	afterReset: "startup.js", // run on home after the install
@@ -31,7 +32,7 @@ const CONFIG = {
  */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	const flags = ns.flags([["min-augs", 5], ["dry", false]]);
+	const flags = ns.flags([["min-augs", loadConfig(ns).augments.resetRule.minAugs], ["dry", false]]);
 
 	let lastReason = "";
 	let seen = null;          // augments already ready (bought or affordable); null until the first plan

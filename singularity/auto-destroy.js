@@ -1,3 +1,4 @@
+import { loadConfig } from "/utils/config.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 import { notify } from "/utils/notify.js";
 
@@ -5,12 +6,10 @@ const DAEMON = "w0r1d_d43m0n";
 const DESTROYER = "singularity/next-bitnode.js";
 const LOOP_MS = 60_000;
 
-// Which BitNode to go to next: the first entry whose Source-File level isn't reached yet,
-// counting the level this destroy is about to give. Edit this when the plan changes.
-// When every entry is done, it waits for you to pick (run next-bitnode.js, or use --bn).
-const ROUTE = [
-	{ bitNode: 4, level: 3 }, // replay The Singularity up to SF4.3
-];
+// Which BitNode to go to next: `bitnodeRoute` in the config (config.js, data/config.json),
+// a list of { bitNode, level }. The first entry whose Source-File level isn't reached yet wins,
+// counting the level this destroy is about to give. When every entry is done, it waits for
+// you to pick (run next-bitnode.js, or use --bn).
 
 /**
  * Destroys w0r1d_d43m0n as soon as it can, so the BitNode ends without anyone at the keyboard.
@@ -21,7 +20,7 @@ const ROUTE = [
  *
  * Small (about 5GB) and cheap to leave running: until the daemon exists it only checks once a minute.
  *
- *   run singularity/auto-destroy.js           next BitNode from ROUTE above
+ *   run singularity/auto-destroy.js           next BitNode from bitnodeRoute in the config
  *   run singularity/auto-destroy.js --bn 5    go to BitNode 5 instead
  *   run singularity/auto-destroy.js --dry     only say what it would do
  */
@@ -29,6 +28,7 @@ const ROUTE = [
 export async function main(ns) {
 	ns.disableLog("ALL");
 	const flags = ns.flags([["bn", 0], ["dry", false]]);
+	const route = loadConfig(ns).bitnodeRoute;
 
 	let lastWaiting = "";
 	let toldReady = false;
@@ -41,9 +41,9 @@ export async function main(ns) {
 			continue;
 		}
 
-		const nextBN = flags.bn > 0 ? flags.bn : routeNext(ns);
+		const nextBN = flags.bn > 0 ? flags.bn : routeNext(ns, route);
 		if (nextBN === null) {
-			if (!toldReady) notify(ns, "[daemon]", `${DAEMON} is ready to destroy, but ROUTE in auto-destroy.js is done. Pick the next BitNode: run /singularity/next-bitnode.js <n>`, "warning", true);
+			if (!toldReady) notify(ns, "[daemon]", `${DAEMON} is ready to destroy, but bitnodeRoute in the config is done. Pick the next BitNode: run /singularity/next-bitnode.js <n>`, "warning", true);
 			toldReady = true;
 			await ns.sleep(LOOP_MS);
 			continue;
@@ -78,11 +78,11 @@ function waitingOn(ns) {
 	return "";
 }
 
-/** The first ROUTE BitNode still short of its level after this destroy, or null when ROUTE is done. */
-function routeNext(ns) {
+/** The first route BitNode still short of its level after this destroy, or null when the route is done. */
+function routeNext(ns, route) {
 	const info = ns.getResetInfo();
 	const levels = new Map(info.ownedSF);
 	levels.set(info.currentNode, (levels.get(info.currentNode) ?? 0) + 1); // what destroying now gives
-	const next = ROUTE.find((step) => (levels.get(step.bitNode) ?? 0) < step.level);
+	const next = route.find((step) => (levels.get(step.bitNode) ?? 0) < step.level);
 	return next ? next.bitNode : null;
 }

@@ -1,3 +1,4 @@
+import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 
@@ -12,13 +13,9 @@ const PLAN_PORT = 25;
 //   Chongqing: Neuregen Gene Modification (37.5k rep)
 //   New Tokyo, Ishima, Volhaven: nothing that NiteSec, Tian Di Hui, The Black Hand or CyberSec
 //   don't sell too, so the plan skips them (Volhaven is listed in case that ever changes).
-const GROUPS = [
-	["Sector-12", "Aevum"],
-	["Chongqing", "New Tokyo", "Ishima"],
-	["Volhaven"],
-];
-// Non-city factions the scripts join anyway: an augment they also sell isn't a reason to pick a city.
-const OTHER_SOURCES = ["CyberSec", "Tian Di Hui", "NiteSec", "The Black Hand", "BitRunners", "Netburners", "Daedalus"];
+// The groups, in the order tried, and the non-city factions the scripts join anyway (an augment
+// they also sell isn't a reason to pick a city) are `cities.groups` and `cities.otherSources`
+// in the config (config.js, data/config.json). "Worth having" is `augments` there too.
 // Invite rules (v3.0.0 FactionInfo.tsx): be in the faction's city with this much money.
 const INVITE_MONEY = {
 	"Sector-12": 15e6, "Aevum": 40e6, "Chongqing": 20e6, "New Tokyo": 20e6, "Ishima": 30e6, "Volhaven": 50e6,
@@ -29,7 +26,7 @@ const CONFIG = {
 	loopMs: 30_000,
 	refreshMs: 10 * 60_000,    // re-read the plan this often (catches augments bought meanwhile)
 	helper: "workers/city-plan.js",
-	helperImports: ["workers/faction-goals.js"],
+	helperImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	tianDiHuiScript: "singularity/get-tian-di-hui.js",
 };
 
@@ -58,6 +55,7 @@ const CONFIG = {
 export async function main(ns) {
 	ns.disableLog("ALL");
 	const flags = ns.flags([["dry", false]]);
+	const cities = loadConfig(ns).cities;
 	let plan = null;
 	let planAt = 0;
 	let lastMessage = "";
@@ -65,7 +63,7 @@ export async function main(ns) {
 
 	while (true) {
 		if (!plan || Date.now() - planAt >= CONFIG.refreshMs) {
-			const fresh = await refreshPlan(ns);
+			const fresh = await refreshPlan(ns, cities);
 			if (fresh) {
 				plan = fresh;
 				planAt = Date.now();
@@ -185,9 +183,9 @@ function tianDiHuiRunning(ns) {
 }
 
 /** Runs the helper (home first, else this server) and returns the plan, or null if it couldn't run. */
-async function refreshPlan(ns) {
+async function refreshPlan(ns, cities) {
 	const askedAt = Date.now();
-	const arg = JSON.stringify({ groups: GROUPS, otherSources: OTHER_SOURCES });
+	const arg = JSON.stringify({ groups: cities.groups, otherSources: cities.otherSources });
 	let pid = ns.exec(CONFIG.helper, "home", 1, arg);
 	const here = ns.getHostname();
 	if (pid === 0 && here !== "home") {

@@ -1,39 +1,38 @@
+import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
+// Where to study and up to which hacking level: `studying` in the config (config.js, data/config.json).
 const CONFIG = {
-	city: "Sector-12",
-	university: "Rothman University",
-	course: "Computer Science", // the free course
-	targetLevel: 75,
 	checkMs: 10_000,
 };
 
 /**
- * Studies Computer Science at Rothman University until your hacking level reaches the
+ * Studies (by default Computer Science at Rothman University) until your hacking level reaches the
  * target, then exits and LEAVES THE CLASS RUNNING, so you keep gaining hacking exp until
  * faction-work.js (or you) picks something better. Replaces the old auto-study.js.
  *
- *   run singularity/study.js           study until hacking 75
+ *   run singularity/study.js           study until studying.hackLevel in the config (75)
  *   run singularity/study.js 100       study until hacking 100
  *   run singularity/study.js --focus   focus on the class (faster, but takes over the screen)
  */
 export async function main(ns) {
 	ns.disableLog("ALL");
 	const flags = ns.flags([["focus", false]]);
-	const targetLevel = Number(flags._[0] ?? CONFIG.targetLevel);
+	const { hackLevel, city, university, course } = loadConfig(ns).studying;
+	const targetLevel = Number(flags._[0] ?? hackLevel);
 
 	if (ns.getHackingLevel() >= targetLevel) {
 		ns.tprint(`Hacking is already ${ns.getHackingLevel()} (target ${targetLevel}), not studying.`);
 		return;
 	}
-	if (ns.getPlayer().city !== CONFIG.city && !ns.singularity.travelToCity(CONFIG.city)) {
-		ns.tprint(`Couldn't travel to ${CONFIG.city} (needs $200k).`);
+	if (ns.getPlayer().city !== city && !ns.singularity.travelToCity(city)) {
+		ns.tprint(`Couldn't travel to ${city} (needs $200k).`);
 		return;
 	}
-	if (!ns.singularity.universityCourse(CONFIG.university, CONFIG.course, flags.focus)) {
-		ns.tprint(`Couldn't start ${CONFIG.course} at ${CONFIG.university}.`);
+	if (!ns.singularity.universityCourse(university, course, flags.focus)) {
+		ns.tprint(`Couldn't start ${course} at ${university}.`);
 		return;
 	}
-	ns.print(`Studying ${CONFIG.course} until hacking ${targetLevel}...`);
+	ns.print(`Studying ${course} until hacking ${targetLevel}...`);
 
 	while (ns.getHackingLevel() < targetLevel) {
 		await ns.sleep(CONFIG.checkMs);

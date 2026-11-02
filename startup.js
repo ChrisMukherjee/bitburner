@@ -1,3 +1,4 @@
+import { loadConfig, USER_CONFIG_FILE } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 
@@ -6,13 +7,14 @@ import { nukeAllServers } from "/utils/nuke-all.js";
 //   restartOnNewArgs: if a copy with different args is running (anywhere), kill it first
 //                     (otherwise two go bots would fight over the same board).
 //   homeOnly:         reads or writes data files on its own server, so it must run on home.
-//   skip:             (ns) => true leaves it out this time.
+//   skip:             (ns, config) => true leaves it out this time.
+// Scripts listed in `startupSkip` in the config (config.js, data/config.json) are never started.
 // Everything else may run on a rooted server when home is too small (see main below).
 const SCRIPTS = [
 	{ stage: "early", script: "singularity/upgrade-home-ram.js" },
 	{ stage: "early", script: "singularity/buy-programs.js" },
-	// study.js exits by itself past its target (75); skipping it here keeps its 6GB free for later entries.
-	{ stage: "early", script: "singularity/study.js", skip: (ns) => ns.getHackingLevel() >= 75 },
+	// study.js exits by itself past its target (studying.hackLevel); skipping it here keeps its 6GB free for later entries.
+	{ stage: "early", script: "singularity/study.js", skip: (ns, config) => ns.getHackingLevel() >= config.studying.hackLevel },
 	{ stage: "early", script: "batcher.js" },
 	// Player work and invites from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.
 	{ stage: "early", script: "singularity/join-factions.js" },
@@ -43,8 +45,7 @@ const SCRIPTS = [
 const STAGES = ["early", "mid", "late"];
 // Printed at the end when startup.js is run by hand (see the end of main).
 const STATUS_SCRIPT = "/tools/status.js";
-// Home RAM at which "auto" picks each stage.
-const STAGE_MIN_HOME_RAM = { early: 0, mid: 128, late: 256 };
+// Home RAM at which "auto" picks each stage: `startupStages` in the config.
 // Scripts placed off home may use at most this share of the other rooted servers' RAM,
 // so the batcher always keeps the rest for hack/grow/weaken threads.
 const MAX_OFF_HOME_SHARE = 0.65;
@@ -68,9 +69,11 @@ const MAX_OFF_HOME_SHARE = 0.65;
 /** @param {NS} ns */
 export async function main(ns) {
 	const requested = String(ns.args[0] ?? "auto");
+	const config = loadConfig(ns);
+	const stageMinHomeRam = config.startupStages;
 	const homeRam = ns.getServerMaxRam("home");
 	const stage = requested === "auto"
-		? STAGES.filter((name) => homeRam >= STAGE_MIN_HOME_RAM[name]).pop()
+		? STAGES.filter((name) => homeRam >= (stageMinHomeRam[name] ?? Infinity)).pop()
 		: requested;
 	if (!STAGES.includes(stage)) {
 		ns.tprint(`ERROR startup: unknown stage "${requested}". Use auto, ${STAGES.join(", ")}.`);
@@ -79,7 +82,8 @@ export async function main(ns) {
 	const level = STAGES.indexOf(stage);
 	const wanted = SCRIPTS.filter((entry) =>
 		STAGES.indexOf(entry.stage) <= level &&
-		(!entry.until || STAGES.indexOf(entry.until) > level)
+		(!entry.until || STAGES.indexOf(entry.until) > level) &&
+		!config.startupSkip.includes(entry.script)
 	);
 
 	nukeAllServers(ns);
@@ -96,7 +100,7 @@ export async function main(ns) {
 
 	const started = [], alreadyRunning = [], noRoom = [], missing = [];
 	for (const entry of wanted) {
-		if (entry.skip && entry.skip(ns)) continue;
+		if (entry.skip && entry.skip(ns, config)) continue;
 		const args = entry.args ?? [];
 		const label = [entry.script, ...args].join(" ");
 		if (!ns.fileExists(entry.script, "home")) {
@@ -154,6 +158,8 @@ function placeOffHome(ns, script, args, ram, hosts) {
 		.filter((host) => freeRam(ns, host) >= ram)
 		.sort((first, second) => freeRam(ns, first) - freeRam(ns, second));
 	const files = withImports(ns, script);
+	// The player's own settings, so loadConfig sees them there too.
+	if (ns.fileExists(USER_CONFIG_FILE, "home")) files.push(USER_CONFIG_FILE);
 	for (const host of fitting) {
 		if (!ns.scp(files, host, "home")) continue;
 		if (ns.exec(script, host, 1, ...args) !== 0) return host;

@@ -1,24 +1,10 @@
+import { loadConfig } from "/utils/config.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
 import { readIncomeRate } from "/utils/income.js";
 
 const CONFIG = {
-	// Spending rules get stricter as income grows. A stage applies once your running
-	// scripts earn at least minIncome ($/s); it never loosens again until you restart.
-	//   reserve           - cash this manager never touches (raise it above what you're
-	//                       saving for, e.g. HTTPWorm.exe / SQLInject.exe)
-	//   maxFraction       - largest share of current cash spent in one pass
-	//   maxPaybackSeconds - only buy if cost / extra $ per second is below this. Kept short:
-	//                       money only counts if it pays back before the next aug install,
-	//                       and in BN4 home RAM, servers and augs are a better use of cash.
-	//                       0 turns buying off.
-	//   minShareOfIncome  - stop buying once hacknet makes less than this share of script
-	//                       income; at that point it barely matters. 0 turns the check off.
-	stages: [
-		{ name: "early", minIncome: 0, reserve: 1e6, maxFraction: 0.50, maxPaybackSeconds: 30 * 60, minShareOfIncome: 0 },
-		{ name: "growing", minIncome: 1e5, reserve: 30e6, maxFraction: 0.25, maxPaybackSeconds: 15 * 60, minShareOfIncome: 0.01 },
-		{ name: "established", minIncome: 1e7, reserve: 300e6, maxFraction: 0.10, maxPaybackSeconds: 5 * 60, minShareOfIncome: 0.01 },
-		{ name: "late", minIncome: 1e8, reserve: 1e9, maxFraction: 0.02, maxPaybackSeconds: 0, minShareOfIncome: 0.01 },
-	],
+	// Spending stages (reserve, maxFraction, ... by income) are `hacknetBuying` in the config
+	// (config.js, data/config.json).
 	loopMs: 10_000,
 	// Safety valve; the budget normally ends a pass long before this.
 	maxPurchasesPerPass: 25,
@@ -50,7 +36,7 @@ export async function main(ns) {
 		return;
 	}
 
-	const getPolicy = createPolicyTracker(CONFIG.stages);
+	const getPolicy = createPolicyTracker(loadConfig(ns).hacknetBuying);
 	let lastStageName = "";
 	let lastIdleMessage = "";
 	let formulasWasOn = null; // null so the first pass always reports the mode

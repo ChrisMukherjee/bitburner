@@ -1,3 +1,4 @@
+import { loadConfig } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { readIncomeRate } from "/utils/income.js";
 
@@ -45,7 +46,8 @@ export async function main(ns) {
 
 	// --- Stage, RAM, money ---
 	const startupText = ns.read("startup.js");
-	const thresholds = parseThresholds(startupText);
+	const config = loadConfig(ns);
+	const thresholds = config.startupStages;
 	const homeRam = ns.getServerMaxRam("home");
 	const stageNames = Object.keys(thresholds);
 	const stage = stageNames.filter((name) => homeRam >= thresholds[name]).pop() ?? "?";
@@ -143,7 +145,8 @@ export async function main(ns) {
 	// --- Scripts startup.js manages ---
 	const entries = parseStartupScripts(startupText);
 	const level = stageNames.indexOf(stage);
-	const inStage = entries.filter((entry) =>
+	const skipped = new Set(config.startupSkip); // turned off in the config: not "stopped"
+	const inStage = entries.filter((entry) => !skipped.has(entry.script) &&
 		stageNames.indexOf(entry.stage) <= level && (!entry.until || stageNames.indexOf(entry.until) > level));
 	const running = [];
 	const stopped = [];
@@ -209,13 +212,6 @@ function goProgress(entry) {
 	if (results.filter(Boolean).length / results.length < minWinRate) return "losing";
 	const recent = entry.gains.slice(-span).reduce((sum, gain) => sum + gain, 0) / span;
 	return recent < entry.peak * levelOff ? "levelled" : "climbing";
-}
-
-/** { early: 0, mid: 128, late: 256 } from startup.js's STAGE_MIN_HOME_RAM. */
-function parseThresholds(text) {
-	const body = text.match(/STAGE_MIN_HOME_RAM\s*=\s*\{([^}]*)\}/)?.[1] ?? "";
-	const pairs = [...body.matchAll(/(\w+)\s*:\s*(\d+)/g)].map((match) => [match[1], Number(match[2])]);
-	return pairs.length ? Object.fromEntries(pairs) : { early: 0, mid: 128, late: 256 };
 }
 
 /** [{ stage, script, until }] from startup.js's SCRIPTS list. */

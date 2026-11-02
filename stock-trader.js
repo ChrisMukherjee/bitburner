@@ -1,3 +1,4 @@
+import { loadConfig } from "/utils/config.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
 import { STOCK_INFLUENCE_PORT, SYMBOL_SERVERS } from "/utils/stock-servers.js";
 import { HOME_PASSWORD_FILE, PHISH_SCRIPT } from "/darknet/config.js"; // constants only, no RAM
@@ -5,16 +6,8 @@ import { HOME_PASSWORD_FILE, PHISH_SCRIPT } from "/darknet/config.js"; // consta
 const STOCK_SUMMARY_PORT = 26;
 
 const CONFIG = {
-	// Cash the trader leaves alone, by income stage (same idea as hacknet/pserv). Money in
-	// stocks isn't spent, but it isn't available to the other managers either.
-	//   reserve     - cash never put into stocks
-	//   maxFraction - largest share of cash invested in one tick
-	stages: [
-		{ name: "early", minIncome: 0, reserve: 5e6, maxFraction: 0.9 },
-		{ name: "growing", minIncome: 1e5, reserve: 50e6, maxFraction: 0.9 },
-		{ name: "established", minIncome: 1e7, reserve: 500e6, maxFraction: 0.9 },
-		{ name: "late", minIncome: 1e8, reserve: 2e9, maxFraction: 0.9 },
-	],
+	// Spending stages (reserve, maxFraction, ... by income) are `stockTrading` in the config
+	// (config.js, data/config.json).
 	// Each buy and sell costs a flat commission (~$100k), so tiny trades lose money.
 	// A buy smaller than this many commissions is skipped.
 	minTradeCommissions: 50,
@@ -81,7 +74,7 @@ export async function main(ns) {
 	]);
 
 	const constants = ns.stock.getConstants();
-	const getPolicy = createPolicyTracker(CONFIG.stages);
+	const getPolicy = createPolicyTracker(loadConfig(ns).stockTrading);
 	if (!ns.stock.hasTixApiAccess()) {
 		if (flags["no-buy-tix"]) {
 			ns.tprint("[stocks] no TIX API access; buy it at the WSE first.");

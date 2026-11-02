@@ -62,7 +62,7 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - `hacknet-manager-v1.js`: bought the best gain/cost upgrade, capped at 12 nodes. Next (v2): buys by shortest payback from real production, within a budget and max payback time.
 - `hacknet-manager-v2.js`: see above. Next (v3): income stages for reserve and payback; exact new-node value with Formulas.exe.
 - `hacknet-manager-v3.js`: see above. Next (v4): prices a new node as a package with the upgrades worth putting on it, so new nodes actually get bought.
-- `hacknet-manager-v4.js`: see above. Next: `hacknet-manager.js` shortens payback limits for BN4 and stops once hacknet is under 1% of income.
+- `hacknet-manager-v4.js`: see above. Next: `hacknet-manager.js` uses shorter payback limits (suited to short runs between aug installs; the stages are now `hacknetBuying` in `config.js`) and stops once hacknet is under 1% of income.
 
 ## Stocks
 

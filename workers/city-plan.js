@@ -1,5 +1,6 @@
-// Same "worth it" filter as faction-work.js and buy-augs.js (via workers/faction-goals.js).
-import { worthIt } from "/workers/faction-goals.js";
+// Same "worth it" rule as buy-augs.js and workers/faction-goals.js, from the config.
+import { loadConfig } from "/utils/config.js";
+import { wantedBoosts } from "/utils/aug-filter.js";
 
 // Port singularity/city-factions.js reads the plan from (20 darknet, 21 stock influence,
 // 22 hacked total, 23 faction goals, 24 income rate).
@@ -21,6 +22,7 @@ const NEUROFLUX = "NeuroFlux Governor";
 /** @param {NS} ns */
 export async function main(ns) {
 	const { groups, otherSources } = JSON.parse(String(ns.args[0]));
+	const augConfig = loadConfig(ns).augments;
 	const owned = new Set(ns.singularity.getOwnedAugmentations(true)); // true: bought-but-not-installed too
 	const elsewhere = new Set(otherSources.flatMap((faction) => ns.singularity.getAugmentationsFromFaction(faction)));
 
@@ -29,7 +31,7 @@ export async function main(ns) {
 		const needs = {};
 		for (const faction of factions) {
 			needs[faction] = ns.singularity.getAugmentationsFromFaction(faction).filter((aug) =>
-				aug !== NEUROFLUX && !owned.has(aug) && !elsewhere.has(aug) && !claimed.has(aug) && worthIt(ns, aug));
+				aug !== NEUROFLUX && !owned.has(aug) && !elsewhere.has(aug) && !claimed.has(aug) && wantedBoosts(aug, ns.singularity.getAugmentationStats(aug), augConfig));
 			needs[faction].forEach((aug) => claimed.add(aug));
 		}
 		return { factions, needs };

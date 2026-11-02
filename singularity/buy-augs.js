@@ -1,48 +1,24 @@
 import { readIncomeRate } from "/utils/income.js";
+import { loadConfig } from "/utils/config.js";
+import { wantedBoosts } from "/utils/aug-filter.js";
 const NEUROFLUX = "NeuroFlux Governor";
 const PLAN_FILE = "data/aug-plan.json";
 const PRICE_MULT = 1.9; // every purchase multiplies the price of the rest
 
-// Stats that matter for a hacking run. Rep gain is in because it speeds up every later aug.
-const HACKING_STATS = {
-	hacking: "hack", hacking_exp: "hack exp", hacking_chance: "hack chance", hacking_speed: "hack speed",
-	hacking_money: "hack money", hacking_grow: "grow", faction_rep: "faction rep", company_rep: "company rep",
-	hacknet_node_money: "hacknet money", dnet_money: "darknet money",
-};
-// Lower is better for these (hacknet costs).
-const COST_STATS = {
-	hacknet_node_purchase_cost: "hacknet node cost", hacknet_node_ram_cost: "hacknet RAM cost",
-	hacknet_node_core_cost: "hacknet core cost", hacknet_node_level_cost: "hacknet level cost",
-};
-// No multipliers, but always worth it.
-const SPECIAL = {
-	"The Red Pill": "lets you destroy the BitNode",
-	"Neuroreceptor Manager": "no penalty for unfocused work",
-	"CashRoot Starter Kit": "$1m and BruteSSH.exe after every reset",
-};
-
-// When to reset (used by --dry and --plan, so `augs` and auto-reset.js always agree).
-const RESET_RULE = {
-	keyAugs: ["The Red Pill", "Neuroreceptor Manager"], // reset as soon as one of these is ready
-	minAugs: 5,          // a normal reset: at least this many useful augments ready...
-	soonMinutes: 30,     // ...unless another one you could afford unlocks within this long (then wait for it)
-	maxWaitMinutes: 60,  // ...but once a batch is ready, wait at most this long IN TOTAL for more
-	plentyAugs: 10,      // ...and with this many ready, don't wait for anything
-	stallMinAugs: 2,     // a smaller reset is fine when progress has stalled: this many ready,
-	minRunHours: 3,      //   the run is at least this old,
-	stallHours: 4,       //   and either nothing you could afford unlocks within this long
-	maxSmallWaitHours: 3, //  or you've already waited this long for the batch to grow
-	minRateGapMs: 120_000, // rep rates need two snapshots at least 2 minutes apart
-	maxRateGapMs: 3 * 3600_000,
-};
+// Which augments are worth buying, and when to reset, come from the config (config.js,
+// data/config.json): `augments.wantStats`, `augments.special`, `augments.never` and
+// `augments.resetRule`. Set at the start of main.
+let AUG_CONFIG = null;
+let RESET_RULE = null;
 
 /**
  * Buys the augments worth having (by default: ones that help hacking, hacknet, darknet or
  * rep gain, plus The Red Pill, Neuroreceptor Manager and CashRoot) that you have the rep
  * for, most expensive first (each purchase raises the price of the rest by 1.9x, so the
- * big ones go first), then spends what's left on NeuroFlux Governor levels. Combat,
- * charisma, crime and Bladeburner augments are skipped, since they'd only make the useful
- * ones dearer. It doesn't install them: run install-augs.js for that.
+ * big ones go first), then spends what's left on NeuroFlux Governor levels. By default
+ * combat, charisma, crime and Bladeburner augments are skipped, since they'd only make the
+ * useful ones dearer; `augments.wantStats` in the config changes that (see config.js).
+ * It doesn't install them: run install-augs.js for that.
  *
  * Prerequisites aren't looked up (getAugmentationPrereq would cost another 5GB). A
  * purchase that fails is retried after the next one succeeds, so e.g. Cranial Signal
@@ -59,13 +35,15 @@ const RESET_RULE = {
  *   run singularity/buy-augs.js --plan           buy nothing; write what it could buy and
  *                                                whether to reset to data/aug-plan.json
  *                                                (used by auto-reset.js)
- *   --min-augs N   with --dry/--plan: the batch size for a normal reset (default 5)
+ *   --min-augs N   with --dry/--plan: the batch size for a normal reset (default: resetRule.minAugs, 5)
  *
  * --dry and --plan both end with the same reset decision (see decideReset), so what
  * `augs` tells you is exactly what auto-reset.js will do.
  */
 export async function main(ns) {
 	ns.disableLog("ALL");
+	AUG_CONFIG = loadConfig(ns).augments;
+	RESET_RULE = AUG_CONFIG.resetRule;
 	const flags = ns.flags([["dry", false], ["all", false], ["no-neuroflux", false], ["reserve", 0], ["plan", false], ["min-augs", RESET_RULE.minAugs]]);
 	const cash = () => ns.getServerMoneyAvailable("home") - flags.reserve;
 	const money = (amount) => "$" + ns.format.number(amount);
@@ -157,7 +135,7 @@ export async function main(ns) {
 	if (sellers.size > 0) ns.tprint(`Left for later (money or prerequisites): ${[...sellers.keys()].join(", ")}`);
 
 	let neuroflux = 0;
-	if (!flags["no-neuroflux"]) {
+	if (AUG_CONFIG.neuroflux && !flags["no-neuroflux"]) {
 		// Buy from the joined faction with the most rep, since its rep requirement climbs per level.
 		const best = factions.reduce((top, faction) => (rep.get(faction) > (rep.get(top) ?? -1) ? faction : top), null);
 		while (best && rep.get(best) >= ns.singularity.getAugmentationRepReq(NEUROFLUX)
@@ -171,18 +149,9 @@ export async function main(ns) {
 	if (bought + neuroflux > 0) ns.tprint("Run singularity/install-augs.js when you're ready to install them (this resets the run).");
 }
 
-/** "hack +10%, grow +5%" for the stats that matter, or "" if none. */
+/** "hack +10%, grow +5%" for the stats the config wants, or "" if none (utils/aug-filter.js). */
 function describeBoosts(ns, aug) {
-	if (SPECIAL[aug]) return SPECIAL[aug];
-	const stats = ns.singularity.getAugmentationStats(aug);
-	const parts = [];
-	for (const [key, label] of Object.entries(HACKING_STATS)) {
-		if (stats[key] > 1) parts.push(`${label} +${Math.round((stats[key] - 1) * 100)}%`);
-	}
-	for (const [key, label] of Object.entries(COST_STATS)) {
-		if (stats[key] < 1) parts.push(`${label} -${Math.round((1 - stats[key]) * 100)}%`);
-	}
-	return parts.join(", ");
+	return wantedBoosts(aug, ns.singularity.getAugmentationStats(aug), AUG_CONFIG);
 }
 
 /**

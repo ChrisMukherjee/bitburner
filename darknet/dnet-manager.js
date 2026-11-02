@@ -7,6 +7,7 @@ import {
 
 const RESEED_INTERVAL = 10000; // ms between checks that the crawler is still alive on darkweb
 const TERMINAL_INTERVAL = 5 * 60 * 1000; // ms between summaries in the terminal; the script log gets one every check
+const RETRY_WINDOW = 10 * 60 * 1000; // ms of crawler skips (timeouts, moved, offline) counted in the summary
 
 // Runs on home. Seeds a crawler onto darkweb, then collects what every crawler reports: a map of the
 // darknet, the passwords found, which server models stump the hint interpreter, and earnings. Exits
@@ -33,7 +34,7 @@ export async function main(ns) {
 	const map = loadJson(ns, MAP_FILE);
 	const passwords = loadJson(ns, HOME_PASSWORD_FILE);
 	// Phishing and cache money land in the "darknet" money source; we measure income from where it started.
-	const earnings = { phish: 0, caches: 0, startMoney: darknetMoney(ns), startTime: Date.now() };
+	const earnings = { phish: 0, caches: 0, startMoney: darknetMoney(ns), startTime: Date.now(), retries: [] };
 	const unsolved = {};
 	const port = ns.getPortHandle(REPORT_PORT);
 	if (!ns.fileExists(STASIS_TARGET_FILE, "home")) ns.write(STASIS_TARGET_FILE, "[]", "w");
@@ -181,6 +182,7 @@ function drain(ns, port, state) {
 			delete state.unsolved[message.host]; // another crawler may have solved it after one gave up
 		}
 		else if (message.kind === "unsolved") state.unsolved[message.host] = message;
+		else if (message.kind === "retry") state.earnings.retries.push({ at: message.at, code: message.code, host: message.host });
 		else if (message.kind === "phish" && message.success) state.earnings.phish++;
 		else if (message.kind === "cache" && message.success) state.earnings.caches++;
 		else if (message.kind === "stasis" || message.kind === "unlink") {
@@ -243,9 +245,24 @@ function printSummary(ns, { map, passwords, earnings }, toTerminal = false) {
 		`${earnings.phish} phishes, ${earnings.caches} caches, ` +
 		`$${ns.format.number(earned)} earned ($${ns.format.number(perSecond)}/s), ` +
 		`${linked}/${ns.dnet.getStasisLinkLimit()} stasis-linked` +
-		(earnings.stasisNote ? ` (last: ${earnings.stasisNote}).` : ".");
+		(earnings.stasisNote ? ` (last: ${earnings.stasisNote})` : "") + retrySummary(earnings) + ".";
 	ns.print(line);
 	if (toTerminal) ns.tprint(line);
+}
+
+/**
+ * Logins the crawlers skipped in the last 10 minutes because the server didn't answer "wrong password"
+ * (408 timeout, 351 moved away, 503 offline, 451 charisma), grouped by code, e.g. ", retrying (10m): 3 (408 x2, 351 x1)".
+ * Each one is retried on that crawler's next re-check. Empty when there were none.
+ */
+function retrySummary(earnings) {
+	const cutoff = Date.now() - RETRY_WINDOW;
+	earnings.retries = earnings.retries.filter((skip) => skip.at >= cutoff);
+	if (!earnings.retries.length) return "";
+	const byCode = {};
+	for (const skip of earnings.retries) byCode[skip.code] = (byCode[skip.code] ?? 0) + 1;
+	const parts = Object.entries(byCode).sort((a, b) => b[1] - a[1]).map(([code, count]) => `${code} x${count}`);
+	return `, retrying (10m): ${earnings.retries.length} (${parts.join(", ")})`;
 }
 
 /** Money from phishing and caches since the last augmentation install. */
