@@ -98,7 +98,7 @@ export async function main(ns) {
 			const rate = rates.perSecond[faction] ?? 0;
 			const eta = rate > 0 ? `ETA ~${ns.format.time((missing / rate) * 1000)} at ${ns.format.number(rate * 60)}/min` : "no rate yet";
 			out.push(`  ${faction === working ? "*" : " "} ${faction}: ${ns.format.number(rep[faction])} / ${ns.format.number(goal.rep)} ` +
-				`for ${goal.aug} (${goal.count} left) | ${eta}`);
+				`for ${goal.aug} (${goal.count} left${goal.skipped ? `, ${goal.skipped} out of reach` : ""}) | ${eta}`);
 		}
 		if (open.length > 5) out.push(`    ...and ${open.length - 5} more`);
 	}

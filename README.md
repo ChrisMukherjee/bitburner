@@ -29,8 +29,8 @@ reset by themselves.
   joins factions (including the right city factions), works for factions and companies toward
   real rep goals, plans augmentation purchases, decides when a reset is worth it, and destroys
   the BitNode by itself once The Red Pill is installed.
-- **Coding contracts.** [`contracts/workers/contract-solver.js`](contracts/workers/contract-solver.js) solves all 30 contract types in the game
-  (tested on 2000 random contracts per type against the game's own solvers).
+- **Coding contracts.** [`contracts/workers/contract-solver.js`](contracts/workers/contract-solver.js) solves all 30 contract types in the game,
+  including contracts left on darknet servers (tested on 2000 random contracts per type against the game's own solvers).
 - **IPvGO bot** using Monte Carlo tree search (UCT + RAVE) at 0GB extra RAM. In-game record (as of 2026-11-02):
 
   | Opponent | Wins | Best streak | Captured nodes | Bonus |
@@ -190,6 +190,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | 29 | Gang equipment list |
 | 30 | Gang invite crimes (for player-work) |
 | 31 | Batcher RAM claim (free RAM its batches still need; share-manager leaves it alone) |
+| 32 | Contract wrong answers (solver to solve-contracts) |
 
 ## Conventions
 

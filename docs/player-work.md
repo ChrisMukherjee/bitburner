@@ -19,9 +19,30 @@ faction work, then megacorp jobs when no faction needs rep.
 ## Real rep goals
 
 A faction is worked until its **goal**: the highest rep needed among the augments still worth buying there
-(not owned, not queued), with the BitNode's rep multiplier. Fixed goals (75k everywhere) kept the player
-grinding factions that had nothing left to sell. An aug sold by several factions counts for the first joined
-one in `factionWork.order`. Until the goals helper has run once, no faction work happens.
+(not owned, not queued) **that this run can get**, with the BitNode's rep multiplier. Fixed goals (75k
+everywhere) kept the player grinding factions that had nothing left to sell. An aug sold by several factions
+counts for the first joined one in `factionWork.order`. Until the goals helper has run once, no faction work
+happens.
+
+"Can get" means two budgets over the reset rule's horizon (`resetRule.horizonHours`, see
+[`aug-reset.md`](aug-reset.md)):
+
+- **Money:** cash + stocks + income x horizon must cover the picked set bought most expensive first, each
+  purchase making the rest 1.9x dearer (as buy-augs does).
+- **Time:** the rep still missing, summed over factions (they're worked one at a time), at the measured rep
+  rate (from `data/aug-plan.json`; factions not worked yet get the best rate seen). Skipped until a rate
+  is measured.
+
+Augments are picked best value per dollar first (`augValue`, the reset rule's value), each with the
+prerequisites it still needs. The Red Pill (`resetRule.keyAugs`) always counts, so Daedalus keeps its goal for
+the Daedalus favor rule. The rest are "out of reach" for now; the goals refresh every 10 minutes, so they come
+back as income and rep rate grow.
+
+Why: rep-only goals ground to the dearest wanted aug even when it and the markup were far beyond what the run
+would earn; that rep only became favor. Tradeoffs: value per dollar is a greedy pick, not the best possible
+set; the goals move with income (a big spend can lower them); rep rate ignores favor differences between
+factions. Rejected: using the reset rule's best moment as the horizon (it changes every check and would make
+goals jumpy).
 
 ## City factions
 
@@ -39,6 +60,6 @@ City factions come in rival groups: joining one locks the others out for that ru
 
 ## Helpers
 
-The goals and plan helpers are big (about 22GB and 17GB) but run only for a moment, on home or any rooted
+The goals and plan helpers are big (about 29GB and 17GB) but run only for a moment, on home or any rooted
 server with room (see [`ram.md`](ram.md)). They're not imported, so their Singularity calls aren't charged
 to this script.

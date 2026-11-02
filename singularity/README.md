@@ -27,5 +27,5 @@ Player automation. Design: [`docs/player-work.md`](../docs/player-work.md) and [
 | [`install-augs.js`](install-augs.js) | Installs augs and runs a script afterwards; refuses unless the advice says RESET | `--force` | 8.2GB (83.2GB at SF4.1, 23.2GB at SF4.2) |
 | [`next-bitnode.js`](next-bitnode.js) | Destroys w0r1d_d43m0n and enters BitNode n | arg: n | about 34GB |
 | [`auto-destroy.js`](auto-destroy.js) | Runs next-bitnode.js by itself once The Red Pill is installed and hacking level and root allow; the next BitNode comes from `bitnodeRoute` in the config | `--bn N`, `--dry` | about 6GB |
-| [`workers/faction-goals.js`](workers/faction-goals.js) | One-shot: real rep goal per faction, on port 23 | args: factions | about 20GB, for a moment |
+| [`workers/faction-goals.js`](workers/faction-goals.js) | One-shot: real rep goal per faction, on port 23, counting only augments this run can afford and reach in time ([`docs/player-work.md`](../docs/player-work.md)) | arg: JSON { factions, rates, ratesTime } | 29.3GB, for a moment |
 | [`workers/city-plan.js`](workers/city-plan.js) | One-shot: which city factions still sell something wanted, on port 25 | arg: JSON | about 17GB, for a moment |

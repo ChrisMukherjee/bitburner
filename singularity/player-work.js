@@ -8,6 +8,7 @@ import { startHelper } from "/utils/start-helper.js";
 const GOALS_PORT = 23; // singularity/workers/faction-goals.js: rep goal per faction
 const PLAN_PORT = 25;  // singularity/workers/city-plan.js: which city factions still sell something wanted
 const GANG_PORT = 30;  // gang/workers/invite.js: crimes for the gang invite (BitNode 2)
+const AUG_PLAN_FILE = "data/aug-plan.json"; // buy-augs.js --plan: rep rates for the goals helper
 
 // City factions are worked only once joined, never waited for (the city part decides which to join).
 const CITY_FACTIONS = ["Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven"];
@@ -30,7 +31,7 @@ const CONFIG = {
 	refreshMs: 10 * 60_000,    // re-read goals and city plan this often (catches augments bought meanwhile)
 	travelCost: 200e3,
 	goalsHelper: "singularity/workers/faction-goals.js",
-	goalsImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
+	goalsImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js", "utils/income.js"],
 	planHelper: "singularity/workers/city-plan.js",
 	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	gangHelper: "gang/workers/invite.js",
@@ -52,8 +53,9 @@ const CONFIG = {
  *      and gang/gang-manager.js creates the gang. Asked of gang/workers/invite.js every 2 minutes.
  *   3. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
  *      below its real rep goal, from singularity/workers/faction-goals.js on port 23: the highest rep needed
- *      among the augments still worth buying there (utils/aug-filter.js), with the BitNode's
- *      rep-cost multiplier. When a faction reaches its goal, its work stops.
+ *      among the augments worth buying there (utils/aug-filter.js) that this run can afford and reach
+ *      within the reset rule's horizon, with the BitNode's rep-cost multiplier. When a faction reaches
+ *      its goal, its work stops.
  *   4. Company work: when no faction needs rep, a companyWork.field job at the first megacorp
  *      whose faction you haven't joined, until its invite (companyWork.repNeeded). Asks for a
  *      promotion every pass. Left alone while you do faction work you started yourself.
@@ -222,7 +224,7 @@ function workStep(ns, state, player) {
 		const goal = state.goals[goalFaction];
 		const rep = ns.singularity.getFactionRep(goalFaction);
 		return {
-			message: `[faction-work] ${goalFaction}: ${ns.format.number(rep)} / ${ns.format.number(goal.rep)} rep (for ${goal.aug}, ${goal.count} augment(s) left there)`,
+			message: `[faction-work] ${goalFaction}: ${ns.format.number(rep)} / ${ns.format.number(goal.rep)} rep (for ${goal.aug}, ${goal.count} augment(s) left there${goal.skipped ? `, ${goal.skipped} out of reach this run` : ""})`,
 			done,
 		};
 	}
@@ -386,7 +388,19 @@ function printPlan(ns, plan, joined) {
 
 /** Runs singularity/workers/faction-goals.js and returns its goals, or null if it couldn't run. */
 async function refreshGoals(ns, order) {
-	const result = await runHelper(ns, CONFIG.goalsHelper, CONFIG.goalsImports, GOALS_PORT, ...order);
+	// Rep rates from buy-augs.js --plan (auto-reset), so the helper can drop augments whose rep
+	// can't be reached in time. Missing file (or not on home): it checks money only.
+	let rates = {};
+	let ratesTime = 0;
+	try {
+		const plan = JSON.parse(ns.read(AUG_PLAN_FILE));
+		rates = plan.perSecond ?? {};
+		ratesTime = plan.time ?? 0;
+	} catch {
+		// no plan yet
+	}
+	const arg = JSON.stringify({ factions: order, rates, ratesTime });
+	const result = await runHelper(ns, CONFIG.goalsHelper, CONFIG.goalsImports, GOALS_PORT, arg);
 	return result?.goals ?? null;
 }
 

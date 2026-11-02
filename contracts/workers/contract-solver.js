@@ -1,8 +1,11 @@
 import { notify } from "/utils/notify.js";
+import { findPath } from "/utils/find-path.js";
+import { CONTRACT_PORT } from "/contracts/config.js";
 /** @param {NS} ns **/
-// One-shot: solves the contracts solve-contracts.js found, then exits so its ~22GB is freed.
-// Arg: JSON list of [server, file] pairs. Wrong answers are added to FAILED_FILE so they're never retried.
-const FAILED_FILE = "data/failed-contracts.txt";
+// One-shot: solves the contracts solve-contracts.js found, then exits so its ~22GB is freed. It may run on a
+// server other than home, so it writes nothing to disk: each wrong answer goes to CONTRACT_PORT as
+// "server:file" and solve-contracts.js records it so it's never retried.
+// Arg: JSON list of [server, file] pairs.
 
 export async function main(ns) {
   ns.disableLog("ALL");
@@ -10,39 +13,62 @@ export async function main(ns) {
   let solvedCount = 0;
 
   for (const [server, file] of contracts) {
-    const type = ns.codingcontract.getContractType(file, server);
-    const data = ns.codingcontract.getData(file, server);
+    let type, data;
+    try {
+      type = ns.codingcontract.getContractType(file, server);
+      data = ns.codingcontract.getData(file, server);
+    } catch (err) {
+      // Usually a darknet server that went offline since the scan. It's tried again next scan.
+      ns.print(`Couldn't read ${file} on ${server}, skipping it this run: ${err}`);
+      continue;
+    }
 
     ns.print(`Found contract: [ ${type} ] on ${server}`);
     let solution = null;
     try {
       solution = solveContract(type, data);
     } catch (err) {
-      notify(ns, "[contracts]", `solver for "${type}" on ${server} crashed: ${err}. Skipping it this run.`, "error", true);
+      notify(ns, "[contracts]", `solver for "${type}" on ${server} crashed: ${err}. Skipping it this run.${byHand(ns, server, file)}`, "error", true);
       continue;
     }
 
-    if (solution !== null) {
-      let result = "";
-      try {
-        result = ns.codingcontract.attempt(solution, file, server);
-      } catch (err) {
-        // The game throws (instead of returning "") when the answer is in the wrong format
-        notify(ns, "[contracts]", `game rejected the answer format for "${type}" on ${server}: ${err}`, "warning", true);
-      }
-      if (result) {
-        notify(ns, "[contracts]", `solved "${type}" on ${server}. Reward: ${result}`, "success");
-        solvedCount++;
-      } else {
-        notify(ns, "[contracts]", `wrong answer for "${type}" on ${server}. Won't retry it.`, "warning", true);
-        ns.write(FAILED_FILE, `${server}:${file}\n`, "a");
-      }
+    if (solution === null) {
+      notify(ns, "[contracts]", `no solver written yet for "${type}" on ${server}.${byHand(ns, server, file)}`, "warning", true);
+      continue;
+    }
+
+    let result = "";
+    try {
+      result = ns.codingcontract.attempt(solution, file, server);
+    } catch (err) {
+      // The game throws (instead of returning "") when the answer is in the wrong format. That doesn't use a
+      // try, but the same solver would give the same answer, so it isn't retried either.
+      notify(ns, "[contracts]", `game rejected the answer format for "${type}" on ${server}: ${err}. Won't retry it.${byHand(ns, server, file)}`, "warning", true);
+      ns.writePort(CONTRACT_PORT, `${server}:${file}`);
+      continue;
+    }
+    if (result) {
+      notify(ns, "[contracts]", `solved "${type}" on ${server}. Reward: ${result}`, "success");
+      solvedCount++;
+    } else if (!ns.fileExists(file, server)) {
+      notify(ns, "[contracts]", `wrong answer for "${type}" on ${server}. That was the last try and the contract is gone.`, "warning", true);
     } else {
-      notify(ns, "[contracts]", `no solver written yet for "${type}" on ${server}`, "warning", true);
+      notify(ns, "[contracts]", `wrong answer for "${type}" on ${server}. Won't retry it.${byHand(ns, server, file)}`, "warning", true);
+      ns.writePort(CONTRACT_PORT, `${server}:${file}`);
     }
   }
 
   ns.tprint(`Contract scan finished. Checked ${contracts.length} contracts, successfully solved ${solvedCount}.`);
+}
+
+/** How to reach the contract and solve it by hand from the terminal. */
+function byHand(ns, server, file) {
+  const path = findPath(ns, server);
+  if (path.length === 0) {
+    return ` To solve it by hand: ${server} is on the darknet, so connect to it from a neighbouring darknet server, then run ${file}.`;
+  }
+  const hops = path.slice(1).map((host) => `connect ${host}`);
+  return ` To solve it by hand, paste this into the terminal: ${["home", ...hops, `run ${file}`].join("; ")}`;
 }
 
 // --- MASTER ROUTER ---
