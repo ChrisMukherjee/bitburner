@@ -1,0 +1,80 @@
+// Singularity: ONE pass of the two "extra" player steps, then exit. Ported from the repo's singularity/player-work.js
+// (company work and Tian Di Hui), kept as its own short script so faction-pass.js stays small.
+//   1. Tian Di Hui: joins it when the invite is there; flies to Chongqing for it once hacking is past the study target
+//      (flying earlier would interrupt the free class) and you have $1m + the flight.
+//   2. Company work: when no joined faction needs rep, takes a job at the first megacorp whose faction you have not joined
+//      (config companyWork) and works it until the faction's invite rep (companyWork.repNeeded). Applies for promotions each pass.
+// It never replaces faction work, classes or program creation. It writes company-wanted.txt ("1" while it wants the player),
+// which faction-pass.js reads so that crime does not take the player back. City factions are NOT handled here.
+import { loadConfig } from "/utils/config.js";
+
+const GOALS_PORT = 23;
+const TDH = { faction: "Tian Di Hui", city: "Chongqing", inviteCities: ["Chongqing", "New Tokyo", "Ishima"], minHacking: 50, minMoney: 1e6 };
+const FLIGHT_COST = 200e3;
+const KEEP = new Set(["COMPANY"]);   // the only kind of work this script may replace or keep
+
+const WHY = [];
+const say = (m) => WHY.push(m);
+
+/** @param {NS} ns */
+async function pass(ns) {
+    ns.disableLog("ALL");
+    if (!String(ns.read("sing-info.txt")).startsWith("1")) { say("Singularity not available"); return; }
+    const config = loadConfig(ns);
+    const player = ns.getPlayer();
+    const studyTarget = config.studying.hackLevel;
+    const wasWorking = ns.read("company-wanted.txt") === "1";   // did this script put the player on a job last time?
+    ns.write("company-wanted.txt", "0", "w");
+
+    // --- Tian Di Hui ---
+    if (!player.factions.includes(TDH.faction)) {
+        if (ns.singularity.joinFaction(TDH.faction)) { ns.toast(`Joined ${TDH.faction}`, "success", 15000); ns.tprint(`[player] joined ${TDH.faction}`); }
+        else if (TDH.inviteCities.includes(player.city)) say(`tdh: in ${player.city}, waiting for the invite (needs $1m and hacking ${TDH.minHacking})`);
+        else if (player.skills.hacking < Math.max(TDH.minHacking, studyTarget)) say(`tdh: waiting for hacking ${Math.max(TDH.minHacking, studyTarget)} (now ${player.skills.hacking})`);
+        else if (player.money < TDH.minMoney + FLIGHT_COST) say(`tdh: waiting for $${ns.format.number(TDH.minMoney + FLIGHT_COST)}`);
+        else if (ns.singularity.travelToCity(TDH.city)) { say(`tdh: flew to ${TDH.city}`); ns.tprint(`[player] flew to ${TDH.city} for ${TDH.faction}`); }
+        else say("tdh: flight failed");
+    } else say("tdh: joined");
+
+    // --- Company work: only when nothing earlier wants the player ---
+    const current = ns.singularity.getCurrentWork();
+    // Hands the player back (stops a job this script started) so faction-pass.js can pick the next activity
+    const release = () => { if (wasWorking && current?.type === "COMPANY") { ns.singularity.stopAction(); say("company: job stopped, handing the player back"); } };
+    if (player.skills.hacking < studyTarget) { say(`company: waiting for hacking ${studyTarget} (study first)`); return; }
+    if (current && !KEEP.has(current.type) && current.type !== "CRIME") { say(`company: leaving ${current.type} alone`); return; }
+
+    let goals = null;
+    try { goals = JSON.parse(ns.peek(GOALS_PORT)).goals; } catch { }
+    if (!goals) { say("company: no faction goals on port 23 yet"); return; }
+    const joined = new Set(ns.getPlayer().factions);
+    const needRep = config.factionWork.order.some(f => joined.has(f) && goals[f]?.rep > 0 && ns.singularity.getFactionRep(f) < goals[f].rep);
+    if (needRep) { release(); say("company: a joined faction still needs rep, faction work comes first"); return; }
+
+    const { companies, field, repNeeded } = config.companyWork;
+    const open = companies.filter(c => !joined.has(c.faction) && ns.singularity.getCompanyRep(c.company) < repNeeded);
+    if (open.length === 0) { release(); say("company: every megacorp faction is joined or at its rep target"); return; }
+    const target = open[0];
+
+    const job = ns.singularity.applyToCompany(target.company, field);   // hires or promotes; false if nothing changed
+    if (job) say(`company: ${target.company} now ${job}`);
+    if (!(target.company in ns.getPlayer().jobs) && !job) { say(`company: ${target.company} will not hire for ${field} yet (needs more hacking/charisma)`); return; }
+
+    const working = current?.type === "COMPANY" && current.companyName === target.company;
+    let holding = working && !job;   // the flag says "1" only while the player really is on this job (faction-pass skips crime on it)
+    if (!holding) {
+        if (ns.singularity.workForCompany(target.company, config.playerFocus !== false)) { holding = true; ns.toast(`Working at ${target.company}`, "info", 15000); ns.tprint(`[player] started: company work at ${target.company}`); }
+        else say("company: workForCompany refused");
+    }
+    ns.write("company-wanted.txt", holding ? "1" : "0", "w");
+    say(`company: ${target.company} rep ${ns.format.number(ns.singularity.getCompanyRep(target.company))} / ${ns.format.number(repNeeded)}`);
+}
+
+/** Entry point. Results go back to home when this runs on another server. */
+export async function main(ns) {
+    if (["train", "run"].includes(String(ns.read("bb-state.txt")))) { ns.write("company-wanted.txt", "0", "w"); return; }   // Bladeburner has the player: a job would cancel its action
+    try { await pass(ns); }
+    finally {
+        ns.write("company-why.txt", `${new Date().toLocaleTimeString()} on ${ns.getHostname()}\n${WHY.join("\n")}\n`, "w");
+        if (ns.getHostname() !== "home") ns.scp(["company-why.txt", "company-wanted.txt"].filter(f => ns.fileExists(f)), "home");
+    }
+}

@@ -1,0 +1,6 @@
+/** One-shot: writes gang-ready.txt (1 when you are in a gang, else 0). Kept separate so the orchestrator doesn't pay for the gang API. @param {NS} ns */
+export async function main(ns) {
+    let inGang = false;
+    try { inGang = ns.gang.inGang(); } catch { }
+    ns.write("gang-ready.txt", inGang ? "1" : "0", "w");
+}

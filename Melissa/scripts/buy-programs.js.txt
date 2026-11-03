@@ -1,0 +1,50 @@
+// Singularity: ONE pass of buying TOR and darkweb programs, then exits (so it holds no RAM while you wait for cash).
+// Writes programs-next.txt = the cash needed before the next purchase is worth a pass; the orchestrator reads it.
+// Writes programs-done.txt (reset stamp) once everything is owned. Ported from ChrisMukherjee/bitburner singularity/buy-programs.js.
+// maxFraction caps the share of current cash one purchase may take, so hacknet and servers keep getting money.
+const PROGRAMS = [
+    { name: "BruteSSH.exe", maxFraction: 1.0 },
+    { name: "FTPCrack.exe", maxFraction: 1.0 },
+    { name: "relaySMTP.exe", maxFraction: 1.0 },
+    { name: "HTTPWorm.exe", maxFraction: 0.9 },
+    { name: "SQLInject.exe", maxFraction: 0.8 },
+    { name: "DarkscapeNavigator.exe", maxFraction: 0.8 },
+    { name: "Formulas.exe", maxFraction: 0.5 },
+];
+const TOR_COST = 200e3;
+// TOR is bought as soon as it is affordable (it is cheap and the first program follows right after); the thresholds come from live costs.
+
+/** @param {NS} ns */
+async function pass(ns) {
+    ns.disableLog("ALL");
+    if (!String(ns.read("sing-info.txt")).startsWith("1")) return;
+    const cash = () => ns.getServerMoneyAvailable("home");
+    let next = TOR_COST;
+
+    if (!ns.hasTorRouter() && cash() >= TOR_COST && ns.singularity.purchaseTor()) ns.toast("Bought the TOR router", "success", 15000);
+
+    if (ns.hasTorRouter()) {
+        next = 0;
+        const missing = PROGRAMS.filter(p => !ns.fileExists(p.name, "home"));
+        if (missing.length === 0) { ns.write("programs-done.txt", String(ns.read("reset-info.txt")), "w"); return; }
+        // Stop at the first one we can't afford, so a cheaper later item never jumps ahead of a port opener
+        for (const p of missing) {
+            let cost = -1;
+            try { cost = ns.singularity.getDarkwebProgramCost(p.name); } catch { }
+            if (cost < 0) continue;
+            if (cost > cash() * p.maxFraction) { next = cost / p.maxFraction; break; }
+            if (!ns.singularity.purchaseProgram(p.name)) { next = cost / p.maxFraction; break; }
+            ns.toast(`Bought ${p.name} for $${ns.format.number(cost)}`, "success", 15000);
+        }
+    }
+    ns.write("programs-next.txt", String(Math.ceil(next)), "w");
+    ns.write("programs-next-stamp.txt", String(ns.read("reset-info.txt")), "w");   // the orchestrator ignores a threshold left over from an earlier reset
+}
+
+/** Entry point. When this runs on another server (see offHome in the orchestrator), results go back to home. */
+export async function main(ns) {
+    try { await pass(ns); }
+    finally {
+        if (ns.getHostname() !== "home") ns.scp(["programs-next.txt", "programs-next-stamp.txt", "programs-done.txt"].filter(f => ns.fileExists(f)), "home");
+    }
+}

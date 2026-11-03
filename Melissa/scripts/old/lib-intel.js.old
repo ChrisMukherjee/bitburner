@@ -1,0 +1,113 @@
+export const VAULT = "passwords.json";
+export const FOUND = "vault_found.txt";
+const DEFAULT_DICTIONARY = ["", "password", "admin", "102"];
+const OWN_FILES = ["scout_nodes.txt", "scout_error.txt", FOUND];
+
+/** Reads a vault-shaped JSON file from the CURRENT server (ns.read can't read other servers). */
+export function loadVault(ns, file = VAULT) {
+    let v = {};
+    try {
+        const raw = ns.read(file);
+        if (raw && raw.trim() !== "") v = JSON.parse(raw);
+    } catch (e) {}
+    if (!v.servers) v.servers = {};
+    if (!v.models) v.models = {};
+    if (!v.dictionary) v.dictionary = [...DEFAULT_DICTIONARY];
+    return v;
+}
+
+/** Saves a key locally: passwords.json so this node uses it now, vault_found.txt so home can collect it. */
+export function recordKey(ns, hostname, key) {
+    for (const file of [VAULT, FOUND]) {
+        const v = loadVault(ns, file);
+        v.servers[hostname] = key;
+        if (!v.dictionary.includes(key)) v.dictionary.push(key);
+        ns.write(file, JSON.stringify(v, null, 2), "w");
+    }
+}
+
+/** Saves a possible password to the dictionary only, never as a server's key (a hint is not a confirmed password). */
+export function recordWord(ns, word) {
+    for (const file of [VAULT, FOUND]) {
+        const v = loadVault(ns, file);
+        if (v.dictionary.includes(word)) continue;
+        v.dictionary.push(word);
+        ns.write(file, JSON.stringify(v, null, 2), "w");
+    }
+}
+
+/** Reads text files on a server for possible passwords. Returns the words found.
+ * @param {NS} ns 
+ * @param {string} hostname 
+ */
+export async function harvestIntel(ns, hostname) {
+    const found = [];
+    if (hostname === "home") return found;
+    const here = ns.getHostname();
+    const isRemote = hostname !== here;
+
+    const allFiles = ns.ls(hostname);
+    const files = allFiles.filter(file => 
+        (file.endsWith('.lit') || file.endsWith('.txt') || file.endsWith('.data') || file.endsWith('.msg') || (file.endsWith('.cache') && !file.endsWith('.d.cache'))) && 
+        !file.startsWith('intel_') &&
+        !OWN_FILES.includes(file)
+    );
+    
+    if (files.length === 0) return found;
+
+    for (const file of files) {
+        // Don't overwrite a local file that has the same name
+        if (isRemote && ns.fileExists(file, here)) continue;
+
+        try {
+            // ns.read only reads the current server, so copy remote files here first
+            if (isRemote && !ns.scp(file, here, hostname)) continue;
+            let content = ns.read(file);
+            if (isRemote) ns.rm(file, here);
+
+            if (!content || content.trim() === "") continue;
+
+            // CHECK IF IT'S RAW BINARY: If it consists entirely of 0s, 1s, and whitespace
+            const cleanContent = content.trim();
+            if (/^[01\s]+$/.test(cleanContent) && cleanContent.length >= 8) {
+                ns.print(`[Binary Detected] Decoding raw binary stream in ${file} on ${hostname}...`);
+                content = decodeBinaryString(ns, cleanContent);
+            }
+
+            const lines = content.split('\n');
+
+            for (const line of lines) {
+                if (line.toLowerCase().includes("hint:") || line.toLowerCase().includes("key is") || line.toLowerCase().includes("password:")) {
+                    const match = line.match(/(?:key|password|hint)\s*(?:is|:|=)?\s*["']?([a-zA-Z0-9_-]+)["']?/i);
+                    if (match && match[1]) {
+                        const extracted = match[1].trim();
+                        if (extracted) {
+                            recordWord(ns, extracted);
+                            found.push(extracted);
+                            ns.print(`[Vault Update] Captured possible password from ${hostname}: "${extracted}"`);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            ns.print(`[Intel Error] Failed to process ${file} on ${hostname}: ${e.message || e}`);
+        }
+    }
+    return found;
+}
+
+/** Helper function to decode binary strings */
+export function decodeBinaryString(ns, binaryStr) {
+    const cleanBin = binaryStr.replace(/\s+/g, '');
+    let decodedText = "";
+
+    for (let i = 0; i < cleanBin.length; i += 8) {
+        const byte = cleanBin.substr(i, 8);
+        if (byte.length === 8) {
+            decodedText += String.fromCharCode(parseInt(byte, 2));
+        }
+    }
+    
+    ns.print(`[Binary Decoded Result]: ${decodedText}`);
+    return decodedText;
+}

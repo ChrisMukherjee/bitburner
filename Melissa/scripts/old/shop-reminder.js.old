@@ -1,0 +1,45 @@
+const ANNOUNCED_FILE = "shop-announced.txt";
+
+/** One-shot, run by the orchestrator every minute. Remembers what it announced in a file. @param {NS} ns */
+export async function main(ns) {
+    let list = [];
+    try { list = JSON.parse(ns.read(ANNOUNCED_FILE) || "[]"); } catch { }
+    const announced = new Set(list);
+    const before = announced.size;
+    remindPrograms(ns, announced);
+    if (announced.size !== before) ns.write(ANNOUNCED_FILE, JSON.stringify([...announced]), "w");
+}
+
+// Darkweb prices (approximate, from the game's defaults). Scripts can't buy these without Source-File 4.
+const PROGRAMS = [
+    ["BruteSSH.exe", 500e3], ["FTPCrack.exe", 1.5e6], ["relaySMTP.exe", 5e6],
+    ["HTTPWorm.exe", 30e6], ["SQLInject.exe", 250e6], ["Formulas.exe", 5e9],
+];
+
+/** Pops up a reminder when you can afford TOR or programs you don't own yet. Each item is announced once. */
+function remindPrograms(ns, announced) {
+    const money = ns.getServerMoneyAvailable("home");
+    let affordable;
+    if (!ns.hasTorRouter()) {
+        affordable = money >= 200e3 ? "TOR router" : "";
+    } else {
+        let budget = money;
+        const names = [];
+        for (const [name, cost] of PROGRAMS) {
+            if (ns.fileExists(name, "home") || budget < cost) continue;
+            names.push(name);
+            budget -= cost;
+        }
+        affordable = names.join(", ");
+    }
+
+    if (affordable && !affordable.split(", ").every(n => announced.has(n))) {
+        affordable.split(", ").forEach(n => announced.add(n));
+        const msg = affordable === "TOR router"
+            ? "You can afford a TOR router (Alpha Enterprises), then run: buy -a"
+            : `Programs available: ${affordable}. Run: buy -a`;
+        ns.tprint(`[Shop] ${msg}`);
+        ns.toast(msg, "info", 15000);
+    }
+}
+

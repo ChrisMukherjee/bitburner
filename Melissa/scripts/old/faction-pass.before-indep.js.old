@@ -1,0 +1,234 @@
+// Singularity: ONE pass of "decide what the player should be doing and start it", then exit. The work keeps running in the game
+// after this script exits, so a pass only has to start it. The orchestrator runs a pass every few minutes off home.
+// Replaces the repo's long-running singularity/player-work.js (too big for a 32 GB home), with a different shape: an ordered list.
+//
+// Activities, tried in the order of `playerActivity` in the config (default below; override in data/config.json):
+//   programs  create the port openers you can make but don't own yet (free, takes a while)
+//   study     the free university course until hacking reaches studying.hackLevel (75), flying to its city first
+//   faction   join invites, then work for the first joined faction still below its rep goal (goals from faction-goals.js, port 23)
+//   company   megacorp jobs and Tian Di Hui are handled by company-pass.js; this entry only holds crime back while it works
+//   crime     karma for a gang (only while karma is above -54000)
+// A pass leaves your own work alone: it only replaces classes, crimes, faction work and program creation, never a company job.
+import { wantedBoosts, augValue } from "/utils/aug-filter.js";
+import { loadConfig } from "/utils/config.js";
+
+const DEFAULT_ORDER = ["programs", "study", "faction", "company", "crime"];
+// City factions lock you out of their rivals, so they are never accepted automatically (join them by hand if you want them).
+const CITY_FACTIONS = new Set(["Sector-12", "Aevum", "Volhaven", "Chongqing", "New Tokyo", "Ishima"]);
+const GOALS_PORT = 23;
+const PROGRAMS = [["BruteSSH.exe", 50], ["FTPCrack.exe", 100], ["relaySMTP.exe", 250], ["HTTPWorm.exe", 500], ["SQLInject.exe", 750]];
+const GANG_KARMA = -54000;
+const CRIMES = ["Homicide", "Mug", "Shoplift"];   // best karma first; the first with a decent chance is used
+const FLIGHT_COST = 200e3;
+const OURS = new Set(["CLASS", "CRIME", "FACTION", "CREATE_PROGRAM"]);   // COMPANY work is company-pass.js's: left alone
+
+/** @param {NS} ns */
+// Focused work earns the full rate (and the game shows the work screen). Turn it off with "playerFocus": false in data/config.json.
+const focusOn = (config) => config.playerFocus !== false;
+
+// createProgram (5 GB) and the crime calls (10 GB) would make this script 33 GB, so program-pass.js and crime-pass.js do those.
+// This script only decides, writes player-do.txt ("programs" or "crime"), and the orchestrator runs the matching small script.
+let HANDOFF = "";
+const handOff = (what, message) => { HANDOFF = what; WHY.push(message); return "busy"; };
+
+const WHY = [];
+const why = (m) => { WHY.push(m); return "skip"; };
+
+async function pass(ns) {
+    ns.disableLog("ALL");
+    if (!String(ns.read("sing-info.txt")).startsWith("1")) { why("Singularity not available (sing-info.txt)"); return; }
+    const config = loadConfig(ns);
+    // Bladeburner comes first when it is available (bb-manage.js decides bb-state.txt from the live Source-Files): "train" = gym, "run" = hands off
+    const order = ["bladeburner", "combat", ...(config.playerActivity ?? DEFAULT_ORDER)];
+
+    // Invites are always accepted, whatever else is going on (CyberSec, NiteSec, The Black Hand, BitRunners come from auto-backdoor.js)
+    for (const faction of ns.singularity.checkFactionInvitations()) {
+        if (CITY_FACTIONS.has(faction)) continue;   // city factions are decided together below: joining one bars its enemies
+        if (ns.singularity.joinFaction(faction)) { ns.toast(`Joined ${faction}`, "success", 15000); ns.tprint(`[player] joined ${faction}`); }
+    }
+    joinBestCity(ns, config);
+
+    const player = ns.getPlayer();
+    const current = ns.singularity.getCurrentWork();
+    WHY.push(`current work: ${current ? current.type : "none"}`);
+    // Bladeburner (bb-manage.js: "train" or "run") outranks everything, including a company job: otherwise the gym
+    // would start and be replaced by the next pass, and each start cancels the other
+    const bbHolds = ["train", "run"].includes(String(ns.read("bb-state.txt")));
+    if (bbHolds && ns.read("player-do.txt")) { ns.write("player-do.txt", "", "w"); if (ns.getHostname() !== "home") ns.scp("player-do.txt", "home"); }   // a stale "crime"/"programs" hand-off would keep launching crime-pass against Bladeburner
+    if (current && !OURS.has(current.type) && !bbHolds) { why(`leaving ${current.type} alone`); return; }   // a company job or something else you started: leave it   // a company job or something else you started: leave it
+
+    for (const activity of order) {
+        const verdict = ACTIVITIES[activity]?.(ns, config, player, current);
+        WHY.push(`${activity}: ${verdict}`);
+        if (verdict === "started") ns.tprint(`[player] started: ${activity}`);   // visible in the terminal so you can see what decided
+        if (verdict === "busy" || verdict === "started") return;   // this activity has the player now (already running, or just started)
+    }
+    // Nothing wants the player: stop an action of ours that has nothing left to do
+    if (current?.type === "FACTION") ns.singularity.stopAction();
+}
+
+// City factions: joining one bars its enemies for the rest of the run. So of the pending city invites, join the one whose augmentations are worth
+// the most MINUS what its enemies would have given (all from the live game: faction lists, enemies, owned augs, the config's stat weights).
+// Augs a joined faction already sells count for nothing (no new value). Joins only if the net gain is positive; repeats until nothing is left to gain.
+function joinBestCity(ns, config) {
+    const sing = ns.singularity;
+    const augCfg = config.augments;
+    const owned = new Set(sing.getOwnedAugmentations(true));
+    const worth = new Map();
+    const value = (a) => { if (!worth.has(a)) { const st = sing.getAugmentationStats(a); worth.set(a, owned.has(a) || a === "NeuroFlux Governor" || !wantedBoosts(a, st, augCfg) ? 0 : augValue(a, st, augCfg)); } return worth.get(a); };
+    for (let guard = 0; guard < 6; guard++) {
+        const joined = new Set(ns.getPlayer().factions);
+        const have = new Set([...joined].flatMap(f => sing.getAugmentationsFromFaction(f)));
+        const fresh = (f, skip = new Set()) => sing.getAugmentationsFromFaction(f).filter(a => !have.has(a) && !skip.has(a));
+        const options = [];
+        for (const f of sing.checkFactionInvitations().filter(f => CITY_FACTIONS.has(f))) {
+            const enemies = sing.getFactionEnemies(f);
+            if (enemies.some(e => joined.has(e))) continue;   // already barred
+            const mine = new Set(fresh(f));
+            const gain = [...mine].reduce((t, a) => t + value(a), 0);
+            const lost = new Set(enemies.filter(e => !joined.has(e)).flatMap(e => fresh(e, mine)));
+            const loss = [...lost].reduce((t, a) => t + value(a), 0);
+            options.push({ f, gain, loss, net: gain - loss });
+        }
+        if (!options.length) return travelToBestCity(ns, config, joined, value, fresh, have);
+        options.sort((a, b) => b.net - a.net);
+        const best = options[0];
+        WHY.push(`city invites: ${options.map(o => `${o.f} gain ${o.gain.toFixed(2)} - enemies' loss ${o.loss.toFixed(2)} = ${o.net.toFixed(2)}`).join("; ")}`);
+        if (best.net <= 0 || !sing.joinFaction(best.f)) return;
+        ns.toast(`Joined ${best.f} (net augment value ${best.net.toFixed(2)})`, "success", 15000);
+        ns.tprint(`[player] joined city faction ${best.f}: gain ${best.gain.toFixed(2)}, enemies' loss ${best.loss.toFixed(2)}`);
+    }
+}
+
+// No city faction joined and no invite yet: work out which city's faction (with its enemies' loss subtracted) is worth the most among those whose
+// invite needs nothing but being there (and cash/skills we already have), and fly there. The invite arrives by itself and joinBestCity takes it.
+function travelToBestCity(ns, config, joined, value, fresh, have) {
+    if (["train", "run"].includes(String(ns.read("bb-state.txt")).trim())) return;   // Bladeburner's gym keeps the player in Sector-12
+    if ([...joined].some(f => CITY_FACTIONS.has(f))) return;
+    const sing = ns.singularity, player = ns.getPlayer();
+    const reach = (r) => {   // -> { ok, city }: can this requirement be met just by being in a city?
+        switch (r.type) {
+            case "city": return { ok: true, city: r.city };
+            case "money": return { ok: player.money >= r.money };
+            case "skills": return { ok: Object.entries(r.skills).every(([k, v]) => (player.skills[k] ?? 0) >= v) };
+            case "everyCondition": { const xs = r.conditions.map(reach); return { ok: xs.every(x => x.ok), city: xs.find(x => x.city)?.city }; }
+            default: return { ok: false };
+        }
+    };
+    const options = [];
+    for (const f of CITY_FACTIONS) {
+        let reqs = []; try { reqs = sing.getFactionInviteRequirements(f); } catch { continue; }
+        const rs = reqs.map(reach);
+        const city = rs.find(x => x.city)?.city;
+        if (!city || !rs.every(x => x.ok)) continue;
+        const mine = new Set(fresh(f));
+        const lost = new Set(sing.getFactionEnemies(f).flatMap(e => fresh(e, mine)));
+        const net = [...mine].reduce((t, a) => t + value(a), 0) - [...lost].reduce((t, a) => t + value(a), 0);
+        options.push({ f, city, net });
+    }
+    options.sort((a, b) => b.net - a.net);
+    WHY.push(`city plan: ${options.map(o => `${o.f} net ${o.net.toFixed(2)}`).join("; ") || "no city faction reachable yet"}`);
+    const best = options[0];
+    if (!best || best.net <= 0 || player.city === best.city || player.money < FLIGHT_COST) return;
+    if (sing.travelToCity(best.city)) { ns.toast(`Flew to ${best.city} for the ${best.f} invite`, "info", 15000); ns.tprint(`[player] flew to ${best.city} for ${best.f}`); }
+}
+
+// [skill name, GymType the API wants (v3.0.1: "str", "def", "dex", "agi"), name the game reports for the current class]
+const GYM_STATS = [["strength", "str", "GYMSTRENGTH"], ["defense", "def", "GYMDEFENSE"], ["dexterity", "dex", "GYMDEXTERITY"], ["agility", "agi", "GYMAGILITY"]];
+const ACTIVITIES = {
+    // bb-pass.js plays Bladeburner; any other work would cancel its action
+    bladeburner(ns) {
+        if (ns.read("bb-state.txt") === "run") return "busy";
+        return why(`bladeburner: ${ns.read("bb-state.txt") || "no state yet"}`);
+    },
+
+    // Bladeburner needs all four combat stats at 100: train the lowest in the Sector-12 gym
+    combat(ns, config, player, current) {
+        if (ns.read("bb-state.txt") !== "train") return why("combat: no training needed");
+        const [stat, gymType, classType] = GYM_STATS.slice().sort((a, b) => player.skills[a[0]] - player.skills[b[0]])[0];
+        if (player.skills[stat] >= 100) return why("combat: all stats at 100");
+        const running = String(current?.classType ?? "").toUpperCase();
+        if (current?.type === "CLASS" && (running === classType || running === gymType.toUpperCase())) return "busy";
+        if (player.city !== "Sector-12") {
+            if (player.money < FLIGHT_COST || !ns.singularity.travelToCity("Sector-12")) return why("combat: cannot travel to Sector-12");
+        }
+        // Powerhouse Gym gives 10x the exp of the Iron Gym but costs 20x (about $2400/s, v3.0.1 source): use it only with cash for ~10 minutes
+        const gym = player.money >= 2400 * 600 ? "Powerhouse Gym" : "Iron Gym";
+        if (ns.singularity.gymWorkout(gym, gymType, focusOn(config))) {
+            ns.toast(`Training ${stat} at ${gym} for Bladeburner (now ${Math.floor(player.skills[stat])}/100)`, "info", 15000);
+            return "started";
+        }
+        return why("combat: gymWorkout refused");
+    },
+
+    programs(ns, config, player, current) {
+        const wanted = PROGRAMS.find(([name, level]) => !ns.fileExists(name, "home") && player.skills.hacking >= level);
+        if (!wanted) return why("programs: none to create (all owned or hacking too low)");
+        if (current?.type === "CREATE_PROGRAM") return "busy";   // let it finish
+        return handOff("programs", `programs: ${wanted[0]} wanted, handed to program-pass.js`);
+    },
+
+    study(ns, config, player, current) {
+        const s = config.studying;
+        if (player.skills.hacking >= s.hackLevel) return why(`study: hacking ${player.skills.hacking} already >= ${s.hackLevel}`);
+        if (current?.type === "CLASS") return "busy";
+        if (player.city !== s.city) {
+            if (player.money < FLIGHT_COST || !ns.singularity.travelToCity(s.city)) return why(`study: cannot travel to ${s.city}`);
+        }
+        if (ns.singularity.universityCourse(s.university, s.course, focusOn(config))) {
+            ns.toast(`Studying ${s.course} until hacking ${s.hackLevel}`, "info", 15000);
+            return "started";
+        }
+        return why("study: universityCourse refused");
+    },
+
+    faction(ns, config, player, current) {
+        const raw = ns.peek(GOALS_PORT);
+        if (raw === "NULL PORT DATA") return why("faction: no goals on port 23 yet (faction-goals.js runs every 10 min)");
+        let goals;
+        try { goals = JSON.parse(raw).goals; } catch { return why("faction: goals on port 23 unreadable"); }
+        const joined = new Set(player.factions);
+        const missing = (f) => goals[f].rep - ns.singularity.getFactionRep(f);
+        const wanted = (f) => joined.has(f) && goals[f]?.rep > 0 && missing(f) > 0;
+        // Config order is the preference; any other joined faction with something left to buy follows, nearest goal first
+        const listed = config.factionWork.order.filter(wanted);
+        const others = Object.keys(goals).filter(f => !config.factionWork.order.includes(f) && wanted(f)).sort((a, b) => missing(a) - missing(b));
+        const open = [...listed, ...others];
+        if (open.length === 0) return why(`faction: nothing to work for (joined: ${[...joined].join(",") || "none"}; goals for: ${Object.keys(goals).join(",") || "none"})`);
+        const target = open[0];
+        if (current?.type === "FACTION" && current.factionName === target) return "busy";
+        if (ns.singularity.workForFaction(target, config.factionWork.workType, focusOn(config))) {
+            ns.toast(`${config.factionWork.workType} work for ${target} (${goals[target].aug}, ${goals[target].count} aug(s) left)`, "info", 15000);
+            return "started";
+        }
+        return why(`faction: workForFaction(${target}) refused`);
+    },
+
+    // company-pass.js does the work itself (it has its own RAM); this only keeps crime from taking the player meanwhile
+    company(ns, config, player, current) {
+        if (ns.read("company-wanted.txt") === "1") return "busy";
+        return why("company: nothing wanted right now (see company-why.txt)");
+    },
+
+    crime(ns, config, player, current) {
+        if (ns.heart.break() <= GANG_KARMA) return why("crime: karma already low enough for a gang");
+        if (current?.type === "CRIME") return "busy";
+        return handOff("crime", "crime: handed to crime-pass.js");
+    },
+};
+
+/** Entry point */
+export async function main(ns) {
+    // Module state survives between runs in the game: without this the log grows for ever and a stale hand-off ("crime") keeps being rewritten
+    WHY.length = 0; HANDOFF = "";
+    try { await pass(ns); }
+    finally {
+        const bbState = String(ns.read("bb-state.txt")).trim() || "none";
+        const bbLine = String(ns.read("bb-status.txt")).split("\n").filter(Boolean).slice(0, 2).join(" | ");
+        // Why it did (or did not) start something; read it on home with: cat player-why.txt
+        const owner = ["train", "run"].includes(bbState) ? `Bladeburner (state ${bbState}${bbLine ? "; " + bbLine : ""})` : HANDOFF ? `hand-off to ${HANDOFF}-pass` : "faction-pass";
+        ns.write("player-why.txt", `${new Date().toLocaleTimeString()} on ${ns.getHostname()}\nowner: ${owner}\nBladeburner state: ${bbState}\n${[...new Set(WHY)].join("\n")}\n(current work is none while Bladeburner acts: its actions are not singularity work)\n`, "w");
+        ns.write("player-do.txt", HANDOFF, "w");
+        if (ns.getHostname() !== "home") ns.scp(["player-why.txt", "player-do.txt"], "home");
+    }
+}

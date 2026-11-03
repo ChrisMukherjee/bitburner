@@ -1,0 +1,127 @@
+import { scanAllServers, getBestTarget } from "lib-target.js";
+
+/** @param {NS} ns */
+export async function main(ns) {
+    ns.disableLog("scan");
+    ns.disableLog("getServerRequiredHackingLevel");
+    ns.disableLog("getServerMaxMoney");
+    ns.disableLog("getServerMaxRam");
+    ns.disableLog("getServerUsedRam");
+    ns.disableLog("sleep");
+    ns.disableLog("ps");
+    ns.disableLog("exec");
+    ns.disableLog("getServerSecurityLevel");
+    ns.disableLog("getServerMoneyAvailable");
+
+    const workerScript = "worker.js";
+    
+    // --- CENTRAL CONFIGURATION ---
+    const CONFIG = {
+        homeReservedRam: 32,
+        completionBuffer: 200,    // Milliseconds between action arrivals
+        loopInterval: 2000,       // Sleep time between controller scanning waves
+        targetHackPercent: 0.15   // Starting target: steal 15% per batch (can be made dynamic)
+    };
+
+    ns.tprint("[Controller] Initialized with centralized configuration parameters.");
+
+    let lastTarget = null;
+
+    while (true) {
+        let bestTarget = getBestTarget(ns);
+
+        if (bestTarget !== lastTarget) {
+            ns.tprint(`[Controller] Target Locked: ${bestTarget}`);
+            lastTarget = bestTarget;
+        }
+
+        // 1. Timing Calculations (Weaken anchor)
+        const weakenTime = ns.getWeakenTime(bestTarget);
+        const growTime = ns.getGrowTime(bestTarget);
+        const hackTime = ns.getHackTime(bestTarget);
+
+        const weakenDelay = 0;
+        const growDelay = Math.max(0, weakenTime - CONFIG.completionBuffer - growTime);
+        const hackDelay = Math.max(0, weakenTime - (CONFIG.completionBuffer * 2) - hackTime);
+
+        // 2. Exact Thread Calculations
+        const hackPercentPerThread = ns.hackAnalyze(bestTarget);
+        let hackThreads = 1;
+        if (hackPercentPerThread > 0) {
+            hackThreads = Math.max(1, Math.floor(CONFIG.targetHackPercent / hackPercentPerThread));
+        }
+
+        const growMultiplier = 1 / Math.max(0.01, 1 - (hackThreads * hackPercentPerThread));
+        let growThreads = Math.max(1, Math.ceil(ns.growthAnalyze(bestTarget, growMultiplier)));
+
+        const hackSecIncrease = ns.hackAnalyzeSecurity(hackThreads);
+        const growSecIncrease = ns.growthAnalyzeSecurity(growThreads);
+        const singleWeakenAmount = ns.weakenAnalyze(1);
+        
+        let weakenThreads = Math.max(
+            1, 
+            Math.ceil((hackSecIncrease + growSecIncrease) / singleWeakenAmount)
+        );
+
+        const scriptRam = ns.getScriptRam(workerScript, "home");
+        if (scriptRam <= 0) {
+            await ns.sleep(1000);
+            continue;
+        }
+
+        const batchRamCost = (hackThreads + growThreads + weakenThreads) * scriptRam;
+        let allServers = scanAllServers(ns);
+
+        // 3. Dynamic Network Scanning and Deployment
+        for (let server of allServers) {
+            if (!ns.hasRootAccess(server)) {
+                let portsNeeded = ns.getServerNumPortsRequired(server);
+                let portsOpened = 0;
+
+                if (ns.fileExists("BruteSSH.exe", "home")) { ns.brutessh(server); portsOpened++; }
+                if (ns.fileExists("FTPCrack.exe", "home")) { ns.ftpcrack(server); portsOpened++; }
+                if (ns.fileExists("relaySMTP.exe", "home")) { ns.relaysmtp(server); portsOpened++; }
+                if (ns.fileExists("HTTPWorm.exe", "home")) { ns.httpworm(server); portsOpened++; }
+                if (ns.fileExists("SQLInject.exe", "home")) { ns.sqlinject(server); portsOpened++; }
+
+                if (portsOpened >= portsNeeded) {
+                    try {
+                        ns.nuke(server);
+                        if (server !== "home") {
+                            await ns.scp(workerScript, server, "home");
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+            }
+
+            if (ns.hasRootAccess(server)) {
+                if (server !== "home" && !ns.fileExists(workerScript, server)) {
+                    await ns.scp(workerScript, server, "home");
+                }
+
+                let maxRam = ns.getServerMaxRam(server);
+                let usedRam = ns.getServerUsedRam(server);
+                let availableRam = maxRam - usedRam;
+                if (server === "home") availableRam = Math.max(0, maxRam - CONFIG.homeReservedRam);
+
+                let batchCount = Math.floor(availableRam / batchRamCost);
+
+                if (batchCount > 0) {
+                    let totalHack = hackThreads * batchCount;
+                    let totalGrow = growThreads * batchCount;
+                    let totalWeaken = weakenThreads * batchCount;
+
+                    ns.exec(workerScript, server, totalHack, "hack", bestTarget, hackDelay);
+                    ns.exec(workerScript, server, totalGrow, "grow", bestTarget, growDelay);
+                    ns.exec(workerScript, server, totalWeaken, "weaken", bestTarget, weakenDelay);
+                }
+            }
+        }
+
+        await ns.sleep(CONFIG.loopInterval);
+    }
+}

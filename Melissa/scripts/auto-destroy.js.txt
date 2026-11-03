@@ -1,0 +1,69 @@
+// One-shot, started by the orchestrator only when node-eta.js wrote node-ready.txt = 1 (Red Pill installed and hacking
+// level reached, or every Bladeburner Black Op done). Roots w0r1d_d43m0n if needed, calls destroyW0r1dD43m0n (32 GB in BN4,
+// so the orchestrator makes room on home for it) and picks the next BitNode from your Source-File levels. Writes auto-destroy-why.txt. Off switch: create auto-destroy-off.txt (run auto-destroy.js --off).
+// Flags: --dry (only print what it would do), --off / --on (create or delete the off switch).
+const WORLD = "w0r1d_d43m0n";
+
+// How much one more level of each Source-File is worth: a judgment about what helps the next runs most.
+// Used together with the live levels below, so a node you already maxed is never chosen.
+const WORTH = { 1: 10, 5: 9, 4: 8, 2: 7, 10: 7, 9: 6, 3: 6, 11: 5, 8: 5, 13: 4, 6: 4, 7: 3, 12: 1 };
+const MAX_LEVEL = (n) => n === 12 ? 1 : 3;   // 12 can go on forever: only choose it when nothing else is left
+
+/** The next BitNodes in order of preference, from live Source-File levels (the current node counts as one level higher
+ *  after this destroy). First-level nodes weigh double: a first level unlocks the node's mechanics. */
+export function rankNext(ownedSF, current) {
+    const out = [];
+    for (let n = 1; n <= 13; n++) {
+        const have = (ownedSF.get(n) ?? 0) + (n === current ? 1 : 0);
+        if (have >= MAX_LEVEL(n)) continue;
+        // Singularity is 16x/4x RAM outside BN4 until SF4.3, so SF4 is worth more while it is under 3
+        const worth = WORTH[n] * (have === 0 ? 2 : 1) * (n === 4 ? 1.25 : 1);
+        out.push({ n, have, score: worth * (MAX_LEVEL(n) - have) });
+    }
+    // Repeating the same node is allowed but only when nothing else is useful
+    out.sort((a, b) => (a.n === current) - (b.n === current) || b.score - a.score);
+    return out;
+}
+
+/** @param {NS} ns */
+export async function main(ns) {
+    ns.disableLog("ALL");
+    if (ns.args.includes("--off")) { ns.write("auto-destroy-off.txt", "off", "w"); ns.tprint("auto-destroy is OFF"); return; }
+    if (ns.args.includes("--on")) { ns.rm("auto-destroy-off.txt", "home"); ns.tprint("auto-destroy is ON"); return; }
+    const dry = ns.args.includes("--dry");
+    const why = (t) => { ns.write("auto-destroy-why.txt", `${new Date().toLocaleTimeString()} ${t}\n`, "w"); ns.print(t); if (dry) ns.tprint(t); if (ns.getHostname() !== "home") ns.scp("auto-destroy-why.txt", "home"); };
+
+    if (!dry && ns.fileExists("auto-destroy-off.txt", "home")) return why("off switch present (auto-destroy-off.txt): not destroying.");
+    const info = ns.getResetInfo();
+    // The game's own check (v3.0.1): hacking level >= w0r1d_d43m0n's requirement AND root on it, OR every Black Op done.
+    // No backdoor is needed. The server is hidden until The Red Pill is installed.
+    let wd = null;
+    try { wd = ns.getServer(WORLD); } catch { /* hidden */ }
+    const blackOps = (() => { try { return ns.bladeburner.inBladeburner() && ns.bladeburner.getNextBlackOp() === null; } catch { return false; } })();
+    if (!blackOps) {
+        if (!wd) return why("w0r1d_d43m0n is hidden until The Red Pill is installed, and the Black Ops are not finished.");
+        if (ns.getHackingLevel() < wd.requiredHackingSkill) return why(`hacking ${ns.getHackingLevel()} is below ${wd.requiredHackingSkill}.`);
+        if (!wd.hasAdminRights) {
+            if (ns.fileExists("BruteSSH.exe", "home")) ns.brutessh(WORLD);
+            if (ns.fileExists("FTPCrack.exe", "home")) ns.ftpcrack(WORLD);
+            if (ns.fileExists("relaySMTP.exe", "home")) ns.relaysmtp(WORLD);
+            if (ns.fileExists("HTTPWorm.exe", "home")) ns.httpworm(WORLD);
+            if (ns.fileExists("SQLInject.exe", "home")) ns.sqlinject(WORLD);
+            try { ns.nuke(WORLD); } catch { return why("could not root w0r1d_d43m0n yet (not enough port openers)."); }
+        }
+    }
+
+    const ranked = rankNext(info.ownedSF, info.currentNode);
+    if (!ranked.length) ranked.push({ n: info.currentNode, have: 3, score: 0 });
+    why(`ready: going to BitNode ${ranked[0].n} first (Source-File level ${ranked[0].have} of ${MAX_LEVEL(ranked[0].n)}); fallbacks ${ranked.slice(1, 4).map(r => r.n).join(", ")}${dry ? " (dry run: nothing done)" : ""}`);
+    if (dry) return;
+
+    // Preferred way: the API call. A node you cannot enter yet throws, so try the next-best one.
+    for (const r of ranked) {
+        try {
+            ns.singularity.destroyW0r1dD43m0n(r.n, "orchestrator.js");
+            return;   // the game restarts the run here
+        } catch (e) { why(`BitNode ${r.n} refused: ${String(e).slice(0, 120)}`); }
+    }
+    why("every candidate BitNode was refused; see above.");
+}

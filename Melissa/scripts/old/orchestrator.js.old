@@ -1,0 +1,159 @@
+
+/** @param {NS} ns */
+export async function main(ns) {
+    ns.disableLog("ALL");
+
+    // Stop any older orchestrator, so running this again replaces it instead of doubling up
+    for (const proc of ns.ps("home")) {
+        if (proc.filename === ns.getScriptName() && proc.pid !== ns.pid) ns.kill(proc.pid);
+    }
+
+    // Highest priority first (money per GB of home RAM). `ready` (optional) says when a daemon can start.
+    // A daemon only starts if its real RAM fits; if a higher one is waiting, lower ones are stopped to make room.
+    const daemons = [
+        { script: "/hack/batcher.js" },          // earns the most per GB; leaves homeReserveGb free on home. Backup: "/hack/controller-jit.js"
+        { script: "purchase-server-8gb.js" },    // more server RAM = more batcher income
+        {
+            script: "gang.js",
+            ready: () => ns.fileExists("gang-ready.txt", "home") && ns.read("gang-ready.txt").trim() === "1",
+            waitingFor: "a gang (create one from the Factions tab once your karma is low enough)",
+        },
+        { script: "hacknet.js" },
+        { script: "backdoor-watch.js" },
+        { script: "contracts.js" },
+        { script: "IPvGO-lite.js" },
+        {
+            script: "darkweb.js",
+            ready: () => ns.hasTorRouter() && ns.fileExists("DarkscapeNavigator.exe", "home"),
+            waitingFor: "a TOR router and DarkscapeNavigator.exe (buy both from the terminal)",
+        },
+    ];
+
+    ns.tprint("==================================================");
+    ns.tprint("         INITIALIZING AUTOMATION SUITE            ");
+    ns.tprint("==================================================");
+
+    // Fresh start: stop old copies so they pick up any code changes
+    for (const d of daemons) {
+        if (ns.isRunning(d.script, "home")) {
+            ns.tprint(`[Boot] ${d.script} is already running. Stopping old instance...`);
+            killScript(ns, d.script);
+        }
+    }
+
+    // Trims passwords.json to the live darknet map every 30 minutes, once darkweb.js is running
+    const PRUNE_EVERY = 30 * 60 * 1000;
+    let lastPrune = Date.now();
+
+    const waiting = new Set();
+    const lowRam = new Set();
+    let firstPass = true;
+    let tick = 0;
+
+    // Daemons read reset-info.txt, so write it before the first launch
+    if (ns.getScriptRam("reset-marker.js", "home") <= ns.getServerMaxRam("home") - ns.getServerUsedRam("home")) { ns.exec("reset-marker.js", "home"); await ns.sleep(200); }
+
+    // Stays running: starts daemons once they are ready, and restarts any that stop
+    while (true) {
+        // Ask the game whether we're in a gang before launching anything, while the check can still find room
+        if (!ns.isRunning("gang.js", "home")) {
+            runOnce(ns, "gang-check.js");
+            await ns.sleep(500);
+        }
+
+        for (let i = 0; i < daemons.length; i++) {
+            const d = daemons[i];
+            if (ns.isRunning(d.script, "home")) continue;
+
+            if (d.before) d.before();
+            if (d.ready && !d.ready()) {
+                if (!waiting.has(d.script)) {
+                    ns.tprint(`[Boot] ${d.script} will start once you have ${d.waitingFor}.`);
+                    waiting.add(d.script);
+                }
+                continue;
+            }
+
+            const need = ns.getScriptRam(d.script, "home");
+            if (need <= 0) {
+                ns.print(`[Boot] [ERROR] ${d.script} not found on home.`);
+                continue;
+            }
+            let free = ns.getServerMaxRam("home") - ns.getServerUsedRam("home");
+            // Not enough room: stop lower-priority daemons (lowest first), but only if that really makes it fit
+            if (free < need) {
+                const victims = [];
+                let gain = 0;
+                for (let j = daemons.length - 1; j > i && free + gain < need; j--) {
+                    const r = ns.getRunningScript(daemons[j].script, "home");
+                    if (!r) continue;
+                    victims.push(daemons[j].script);
+                    gain += ns.getScriptRam(daemons[j].script, "home") * r.threads;
+                }
+                if (free + gain >= need) {
+                    for (const v of victims) killScript(ns, v);
+                    ns.tprint(`[Boot] Stopped ${victims.join(", ")} to make room for ${d.script}.`);
+                    free += gain;
+                }
+            }
+            if (free < need) {
+                // Could it fit if everything of lower priority stopped? Then hold the room: no lower daemon may start.
+                // If not (too big next to the higher-priority ones), skip it so it doesn't block the rest.
+                let used = ns.getServerUsedRam("home"), higher = 0;
+                for (let j = 0; j < daemons.length; j++) {
+                    const r = ns.getRunningScript(daemons[j].script, "home");
+                    if (!r) continue;
+                    const ram = ns.getScriptRam(daemons[j].script, "home") * r.threads;
+                    used -= ram;                      // leaves RAM used by non-daemon scripts
+                    if (j < i) higher += ram;
+                }
+                const fits = ns.getServerMaxRam("home") - used - higher >= need;
+                if (!lowRam.has(d.script)) {
+                    ns.tprint(`[Boot] ${d.script} needs ${ns.format.ram(need)} but only ${ns.format.ram(free)} is free. ${fits ? "Holding the room: lower-priority daemons wait." : "Too big next to higher-priority daemons, skipping until RAM grows."}`);
+                    lowRam.add(d.script);
+                }
+                if (fits) break;
+                continue;
+            }
+
+            const pid = ns.exec(d.script, "home");
+            if (pid > 0) {
+                ns.tprint(`[Boot] ${firstPass || waiting.has(d.script) || lowRam.has(d.script) ? "Launched" : "Restarted"} ${d.script} (PID: ${pid})`);
+                waiting.delete(d.script);
+                lowRam.delete(d.script);
+            } else {
+                ns.print(`[Boot] [ERROR] Couldn't launch ${d.script}. Retrying in 1 minute.`);
+            }
+        }
+
+        if (Date.now() - lastPrune >= PRUNE_EVERY && ns.isRunning("darkweb.js", "home")) {
+            if (!ns.isRunning("prune-vault.js", "home")) ns.exec("prune-vault.js", "home", 1, "--auto");
+            lastPrune = Date.now();
+        }
+
+        // Small jobs live in their own scripts so the orchestrator stays small: they run, finish and free their RAM
+        runOnce(ns, "reset-marker.js");
+        runOnce(ns, "shop-reminder.js");
+        if (ns.fileExists("share-on.txt", "home") || ns.isRunning("share-worker.js", "home")) runOnce(ns, "share-manager.js");
+        if (++tick % 10 === 0) runOnce(ns, "clean-intel.js");
+
+        if (firstPass) {
+            ns.tprint("All available systems running. Orchestrator stays on to start the rest when ready.");
+            ns.tprint("==================================================");
+            firstPass = false;
+        }
+        await ns.sleep(60000);
+    }
+}
+
+/** Stops every copy of a script on home. Uses ps + kill, which cost 0.7 GB together; scriptKill alone costs 1 GB. */
+function killScript(ns, name) {
+    for (const p of ns.ps("home")) if (p.filename === name) ns.kill(p.pid);
+}
+
+/** Starts a one-shot helper script if it isn't already running and fits in the free RAM. */
+function runOnce(ns, script) {
+    if (ns.isRunning(script, "home")) return;
+    const free = ns.getServerMaxRam("home") - ns.getServerUsedRam("home");
+    if (ns.getScriptRam(script, "home") <= free) ns.exec(script, "home");
+}

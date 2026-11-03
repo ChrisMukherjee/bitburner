@@ -1,0 +1,125 @@
+// City factions, one short pass (the orchestrator runs it every 5 minutes, off home), then exit. Writes city-why.txt on home.
+// Joining a faction that has enemies bars those enemies until the next install. faction-pass.js accepts every other invite, but
+// never these: they are decided here, together. Split out of faction-pass.js so that script stays ~20 GB (this one is ~32 GB).
+//
+// The rule, all from the live game (faction list from ns.enums, enemies, invite requirements, owned augs, the config's weights):
+//   1. Factions with enemies (in v3.0.1 the six city factions) fall into groups that can all be joined together (nobody in a group
+//      is an enemy of anybody else in it): Sector-12 + Aevum, Chongqing + New Tokyo + Ishima, Volhaven.
+//   2. A group is worth the augmentations its members sell that are not owned (or queued) and not already sold by a faction you are in,
+//      valued with the same rule as the shop (utils/aug-filter.js: wantedBoosts + augValue). NeuroFlux counts for nothing.
+//   3. Only the best group is ever joined, member by member as invites arrive. An invite from any other group is left pending
+//      (it does no harm), even if the best group's invite needs more cash: a wrong join cannot be undone this run.
+//   4. If the best group's invite is missing and the only thing missing is being in its city, the player flies there
+//      (not while Bladeburner holds the player or a class/gym session is running).
+// The weights follow the Bladeburner route (see utils/config.js), so nothing is decided while that route is still open.
+// Once a group member is joined, its rivals are barred and the remaining choice is only the rest of that group.
+import { wantedBoosts, augValue } from "/utils/aug-filter.js";
+import { loadConfig } from "/utils/config.js";
+
+const FLIGHT_COST = 200e3;
+const NEUROFLUX = "NeuroFlux Governor";
+
+/** @param {NS} ns */
+export async function main(ns) {
+    ns.disableLog("ALL");
+    const why = [];
+    try { pass(ns, why); }
+    catch (e) { why.push(`FAILED: ${String(e && e.stack ? e.stack : e).slice(0, 400)}`); }
+    finally {
+        ns.write("city-why.txt", `${new Date().toLocaleTimeString()} on ${ns.getHostname()}\n${why.join("\n")}\n`, "w");
+        if (ns.getHostname() !== "home") ns.scp("city-why.txt", "home");
+    }
+}
+
+function pass(ns, why) {
+    if (!String(ns.read("sing-info.txt")).startsWith("1")) { why.push("Singularity not available (sing-info.txt)"); return; }
+    const sing = ns.singularity;
+    // What an aug is worth depends on the Bladeburner route (utils/config.js reads bb-state.txt and bb-route.txt: combat weights while
+    // Bladeburner is the route). A join cannot be undone this run, so decide only once that is settled: Bladeburner off or on hold,
+    // or the combat route committed by node-eta.js. During "boot" or the first train/measure phase (no route yet) the weights are temporary.
+    const bbState = String(ns.read("bb-state.txt")).trim(), bbRoute = String(ns.read("bb-route.txt")).trim();
+    if (["boot", "train", "run"].includes(bbState) && bbRoute !== "combat") { why.push(`waiting: Bladeburner state "${bbState}" with no committed route; aug values are not settled`); return; }
+    const augCfg = loadConfig(ns).augments;
+    const player = ns.getPlayer();
+    const joined = new Set(player.factions);
+
+    const all = Object.values(ns.enums.FactionName);
+    const enemies = new Map(all.map(f => [f, sing.getFactionEnemies(f)]));
+    const rivals = all.filter(f => enemies.get(f).length > 0);
+    const clash = (a, b) => enemies.get(a).includes(b) || enemies.get(b).includes(a);
+    const barred = (f) => [...joined].some(j => clash(j, f));
+    const open = rivals.filter(f => !joined.has(f) && !barred(f));
+    why.push(`joined: ${rivals.filter(f => joined.has(f)).join(", ") || "none of them"}; barred this run: ${rivals.filter(f => !joined.has(f) && barred(f)).join(", ") || "none"}`);
+    if (!open.length) { why.push("nothing left to decide"); return; }
+
+    const owned = new Set(sing.getOwnedAugmentations(true));
+    const have = new Set([...joined].flatMap(f => sing.getAugmentationsFromFaction(f)));
+    const worth = new Map();
+    const value = (a) => {
+        if (!worth.has(a)) {
+            const st = sing.getAugmentationStats(a);
+            worth.set(a, owned.has(a) || have.has(a) || a === NEUROFLUX || !wantedBoosts(a, st, augCfg) ? 0 : augValue(a, st, augCfg));
+        }
+        return worth.get(a);
+    };
+    const freshAugs = new Map(open.map(f => [f, sing.getAugmentationsFromFaction(f).filter(a => value(a) > 0)]));
+    const own = (f) => freshAugs.get(f).reduce((t, a) => t + value(a), 0);
+
+    // Groups: start from each open faction, add every other open faction that clashes with no one already in the group (richest first)
+    const byOwn = open.slice().sort((a, b) => own(b) - own(a));
+    const groups = new Map();
+    for (const f of open) {
+        const members = [f];
+        for (const g of byOwn) if (!members.includes(g) && !members.some(m => clash(m, g))) members.push(g);
+        const augs = new Set(members.flatMap(m => freshAugs.get(m)));
+        const total = [...augs].reduce((t, a) => t + value(a), 0);
+        groups.set(members.slice().sort().join(" + "), { members, total, augs: [...augs] });
+    }
+    const ranked = [...groups.values()].sort((a, b) => b.total - a.total);
+    why.push(`groups: ${ranked.map(g => `${g.members.join(" + ")} = ${g.total.toFixed(3)} (${g.augs.join(", ") || "nothing wanted"})`).join(" | ")}`);
+    const best = ranked[0];
+    if (!(best.total > 0)) { why.push("no group sells anything wanted: joining none keeps every option open"); return; }
+    why.push(`best group: ${best.members.join(" + ")}${ranked[1] ? ` (next best ${ranked[1].total.toFixed(3)})` : ""}`);
+
+    // Join the best group's members that sell something new; their rivals' invites stay pending, unanswered
+    const tryJoin = () => {
+        const invites = new Set(sing.checkFactionInvitations());
+        let any = false;
+        for (const f of best.members.filter(m => invites.has(m) && own(m) > 0)) {
+            if (!sing.joinFaction(f)) { why.push(`joinFaction(${f}) refused`); continue; }
+            any = true;
+            ns.toast(`Joined ${f} (city group ${best.members.join(" + ")})`, "success", 15000);
+            ns.tprint(`[player] joined ${f}: best city group ${best.members.join(" + ")} worth ${best.total.toFixed(3)}; barred now: ${enemies.get(f).join(", ")}`);
+            why.push(`joined ${f}`);
+        }
+        return any;
+    };
+    if (tryJoin()) return;
+
+    // No invite from the best group yet: fly to the member whose invite needs nothing but being there
+    if (bbState === "train" || bbState === "run") { why.push(`waiting: Bladeburner holds the player (${bbState})`); return; }
+    const work = sing.getCurrentWork();
+    if (work?.type === "CLASS") { why.push("waiting: a class or gym session is running"); return; }
+    const reach = (r) => {   // -> { ok, city, money }: can this requirement be met just by flying to a city?
+        switch (r.type) {
+            case "city": return { ok: true, city: r.city };
+            case "money": return { ok: player.money >= r.money, money: r.money };
+            case "skills": return { ok: Object.entries(r.skills).every(([k, v]) => (player.skills[k] ?? 0) >= v) };
+            case "everyCondition": { const xs = r.conditions.map(reach); return { ok: xs.every(x => x.ok), city: xs.find(x => x.city)?.city, money: Math.max(0, ...xs.map(x => x.money ?? 0)) }; }
+            default: return { ok: false };
+        }
+    };
+    for (const f of best.members.filter(m => own(m) > 0).sort((a, b) => own(b) - own(a))) {
+        const r = reach({ type: "everyCondition", conditions: sing.getFactionInviteRequirements(f) });
+        if (!r.city) { why.push(`${f}: its invite does not depend on a city; waiting`); continue; }
+        if (!r.ok) { why.push(`${f}: invite needs more than being in ${r.city} (cash $${ns.format.number(r.money || 0)} or skills); waiting`); continue; }
+        if (player.city === r.city) { why.push(`${f}: in ${r.city} with the requirements met; the invite should arrive`); continue; }
+        if (player.money < (r.money || 0) + FLIGHT_COST) { why.push(`${f}: the flight would drop cash below the invite's $${ns.format.number(r.money || 0)}`); continue; }
+        if (!sing.travelToCity(r.city)) { why.push(`travelToCity(${r.city}) refused`); return; }
+        ns.toast(`Flew to ${r.city} for the ${f} invite`, "info", 15000);
+        ns.tprint(`[player] flew to ${r.city} for ${f}`);
+        why.push(`flew to ${r.city} for ${f}`);
+        tryJoin();   // checkFactionInvitations runs the game's invite check at once
+        return;
+    }
+}
