@@ -12,6 +12,7 @@ const CONFIG = {
  * new stage from home RAM by itself.
  *   run singularity/upgrade-home-ram.js          keep buying as money comes in
  *   run singularity/upgrade-home-ram.js --once   buy what's affordable now, then exit
+ *   run singularity/upgrade-home-ram.js --once --spend-all   spend all the cash on it (before an install)
  */
 export async function main(ns) {
 	await runUpgradeLoop(ns, {

@@ -21,11 +21,15 @@ import { postGate } from "/singularity/ready.js";
  *
  * Flags: --once buys whatever the budget allows right now, then exits. startup.js runs it
  * that way, only when the gate says the next upgrade is affordable.
+ * --spend-all ignores the spending stages (no reserve, all of the cash): install-augs.js runs
+ * both buyers this way just before an install, since home upgrades survive it and cash doesn't.
  */
 export async function runUpgradeLoop(ns, options) {
 	ns.disableLog("ALL");
-	const flags = ns.flags([["once", false]]);
-	const getPolicy = createPolicyTracker(options.stages);
+	const flags = ns.flags([["once", false], ["spend-all", false]]);
+	const getPolicy = flags["spend-all"]
+		? () => ({ name: "spend-all", reserve: 0, maxFraction: 1 })
+		: createPolicyTracker(options.stages);
 	const tag = `[${options.label}]`;
 	let lastStageName = "";
 	let lastIdleMessage = "";
