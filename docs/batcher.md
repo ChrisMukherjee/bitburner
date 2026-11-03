@@ -25,6 +25,11 @@
 - **Batch from 50% money.** Batching starts once a target is at min security and half its max money,
   with each batch growing a bit extra (`catchUpPerBatch`) until money is back at max. Waiting for full prep
   made a fresh BitNode earn nothing for 15+ minutes.
+  "At max money" is the highest money seen over the last couple of batches, not the current reading:
+  money sampled between a hack and its grow looked short, turned on catch-up, and (since the hack fraction
+  used to be chosen with catch-up included) flipped the plan to huge batches seconds apart. That made income
+  and XP come in bursts and left RAM idle. The fraction is now chosen without catch-up and the extra grow
+  is added after.
 - **Formulas.exe is optional.** Checked every tick, so buying it mid-run just switches over. With it,
   sizes and timings are exact even before prep. Without it, a one-shot helper measures targets every 30s and
   posts them on port 27; its grow rate rescales exactly to min security, so the same hack fractions are safe
