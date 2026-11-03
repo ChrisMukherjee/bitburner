@@ -1,0 +1,169 @@
+import { loadVault, VAULT, FOUND } from 'lib-intel.js';
+
+/** @param {NS} ns */
+export async function main(ns) {
+  ns.disableLog("sleep");
+  ns.disableLog("ls");
+  ns.disableLog("killall");
+  ns.disableLog("scriptKill");
+  ns.disableLog("getServerMaxRam");
+  ns.disableLog("getServerUsedRam");
+  ns.disableLog("getScriptRam");
+  ns.disableLog("isRunning");
+  ns.disableLog("ps");
+  ns.disableLog("dnet.probe");
+  ns.disableLog("dnet.getBlockedRam");
+  ns.disableLog("dnet.memoryReallocation");
+  ns.disableLog("rm");
+  ns.disableLog("scp");
+  ns.disableLog("fileExists");
+
+  if (ns.getHostname() !== "home") {
+    ns.tprint("ERROR: Run darkweb.js exclusively from home!");
+    return;
+  }
+
+  ns.print("[Orchestrator] Starting multi-node recursive Darknet orchestrator from home...");
+
+  while (true) {
+    const discoveredServers = new Set(["darkweb"]);
+
+    // 1. Recursive crawl across all scout_nodes files to discover the whole tree
+    const queue = ["darkweb"];
+    const scanned = new Set();
+    const parents = {};   // host -> the host you connect from (for contracts.js)
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (scanned.has(current)) continue;
+      scanned.add(current);
+
+      try {
+        if (ns.fileExists("scout_nodes.txt", current)) {
+          await ns.scp("scout_nodes.txt", "home", current);
+          const raw = ns.read("scout_nodes.txt");
+          if (raw) {
+            const neighbors = JSON.parse(raw);
+            for (const n of neighbors) {
+              discoveredServers.add(n);
+              if (n !== "darkweb" && !(n in parents)) parents[n] = current;
+              if (!scanned.has(n)) queue.push(n);
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Share the map with contracts.js (it reads this instead of walking every node itself)
+    try { ns.write("darknet-hosts.txt", JSON.stringify({ t: Date.now(), parents }), "w"); } catch (e) {}
+
+    // 2. Iterate through every discovered server and manage deployment/execution
+    for (const hostname of discoveredServers) {
+      if (hostname === "home") continue;
+
+      let details;
+      try {
+        details = ns.dnet.getServerDetails(hostname);
+      } catch (e) {
+        ns.print(`[Skip] ${hostname}: getServerDetails failed: ${e.message || e}`);
+        continue; 
+      }
+
+      // If authenticated, deploy and run scripts locally on this node
+      if (details && details.hasSession) {
+        // Collect keys this node found BEFORE its vault copy gets overwritten
+        mergeFoundKeys(ns, hostname);
+
+        const filesToDeploy = ["scout.js", "phish.js", "lib-auth.js", "lib-intel.js", VAULT];
+        for (const file of filesToDeploy) {
+          if (ns.fileExists(file, "home")) {
+            try {
+              await ns.scp(file, hostname, "home");
+            } catch (e) {}
+          }
+        }
+
+        // Memory reallocation check
+        try {
+          const blockedRam = ns.dnet.getBlockedRam(hostname);
+          if (blockedRam > 0) {
+            await ns.dnet.memoryReallocation(hostname);
+          }
+        } catch (e) {}
+
+        // Check running processes on this node
+        let currentPs = [];
+        try {
+          currentPs = ns.ps(hostname);
+        } catch (e) {}
+
+        const scoutScript = "scout.js";
+        const phishScript = "phish.js";
+
+        const scoutRunning = currentPs.some(s => s.filename === scoutScript);
+
+        // Force launch scout.js locally if not running, so it maps its own local children & solves them
+        let scoutOk = scoutRunning;
+        if (!scoutRunning && ns.fileExists(scoutScript, hostname)) {
+          try {
+            const pid = ns.exec(scoutScript, hostname, 1);
+            if (pid > 0) {
+              scoutOk = true;
+              ns.print(`[Infection] Launched local scout on unlocked node ${hostname} (PID: ${pid})`);
+            } else {
+              ns.print(`[Infection] Failed to launch scout on ${hostname} (needs ${ns.getScriptRam(scoutScript, hostname)}GB)`);
+            }
+          } catch (e) {}
+        }
+
+        // Fill any free RAM with phish threads, but only once the scout is safely running
+        if (scoutOk && ns.fileExists(phishScript, hostname)) {
+          try {
+            const maxRam = ns.getServerMaxRam(hostname);
+            const usedRam = ns.getServerUsedRam(hostname);
+            const scriptRam = ns.getScriptRam(phishScript, hostname);
+            const availableRam = maxRam - usedRam;
+            const threads = scriptRam > 0 ? Math.floor(availableRam / scriptRam) : 0;
+
+            if (threads > 0) {
+              const pid = ns.exec(phishScript, hostname, threads, Date.now());
+              if (pid > 0) {
+                ns.print(`[Phish] Deployed ${threads} threads on ${hostname}`);
+              }
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    await ns.sleep(5000);
+  }
+}
+
+/** Pulls a node's vault_found.txt to home and merges any new keys into home's passwords.json */
+function mergeFoundKeys(ns, hostname) {
+  try {
+    if (!ns.fileExists(FOUND, hostname)) return;
+    ns.scp(FOUND, "home", hostname);
+
+    const found = loadVault(ns, FOUND);
+    const vault = loadVault(ns, VAULT);
+    let changed = false;
+
+    for (const [host, key] of Object.entries(found.servers)) {
+      if (vault.servers[host] !== key) { vault.servers[host] = key; changed = true; }
+    }
+    for (const word of found.dictionary) {
+      if (!vault.dictionary.includes(word)) { vault.dictionary.push(word); changed = true; }
+    }
+
+    if (changed) {
+      ns.write(VAULT, JSON.stringify(vault, null, 2), "w");
+      ns.print(`[Vault] Merged new keys from ${hostname}`);
+    }
+  } catch (e) {}
+}
+
+export function autocomplete(data) {
+  return ["--tail"];
+}

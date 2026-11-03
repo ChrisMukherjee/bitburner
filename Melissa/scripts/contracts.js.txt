@@ -1,0 +1,213 @@
+import { SOLVERS } from "lib-contracts.js";
+
+// Contracts this script couldn't solve, one per line, so they survive a restart and you can look them up.
+// The first line is "#lib <size of lib-contracts.js>": when the solvers change, old failures other than
+// wrong answers are forgotten so the new solvers get their chance.
+const UNSOLVED_FILE = "contracts-unsolved.txt";
+// Written by darkweb.js every crawl: {"t": timestamp, "parents": {host: the host you connect from}}
+const DARKNET_FILE = "darknet-hosts.txt";
+const DARKNET_MAX_AGE = 2 * 60 * 1000;
+
+/** @param {NS} ns */
+async function pass(ns) {
+    ns.disableLog("ALL");
+    ns.print("[Contracts] Background contract daemon started...");
+
+    // server/file -> the line written to UNSOLVED_FILE. A flagged contract is never attempted again,
+    // because a solver that was wrong once will give the same wrong answer and burn another try.
+    let libSig = (ns.read("lib-contracts.js") || "").length;
+    let flagged = loadFlagged(ns, libSig);
+    saveFlagged(ns, flagged, libSig);
+
+    {   // ONE pass: the orchestrator starts this every few minutes on a server with room (see offHome), so no RAM is held between passes
+        let solvedCount = 0;
+        let stillThere = new Set();
+        let listed = new Set();   // servers we could actually list this pass
+
+        let normalParents = scanNormal(ns);
+        let normal = Object.keys(normalParents);
+        let { hosts: darknet, parents: darknetParents } = findDarknetHosts(ns, new Set(normal));
+        let routes = { normal: normalParents, darknet: darknetParents };
+        for (let server of [...normal, ...darknet]) {
+            let files;
+            try {
+                files = ns.ls(server, ".cct");
+            } catch (e) {
+                continue; // darknet servers move and go offline all the time
+            }
+            listed.add(server);
+            for (let file of files) {
+                let key = `${server}/${file}`;
+                stillThere.add(key);
+                if (flagged.has(key)) continue;
+
+                let type = "unknown";
+                let flag = (reason) => flagContract(ns, flagged, libSig, key, server, file, type, reason, darknet.includes(server), routes);
+                try {
+                    type = ns.codingcontract.getContractType(file, server);
+                } catch (e) {
+                    continue; // most likely the server went offline mid-pass: try again next time, no warning
+                }
+
+                let solver = SOLVERS[type];
+                if (!solver) {
+                    flag("no solver for this contract type");
+                    continue;
+                }
+
+                let answer;
+                try {
+                    answer = solver(ns.codingcontract.getData(file, server));
+                } catch (e) {
+                    flag(`solver crashed: ${e}`);
+                    continue;
+                }
+                if (answer === undefined || answer === null) {
+                    flag("solver returned no answer");
+                    continue;
+                }
+
+                let reward;
+                try {
+                    reward = ns.codingcontract.attempt(answer, file, server);
+                } catch (e) {
+                    // The game throws (without using a try) when the answer is in the wrong format
+                    flag(`game rejected the answer format: ${e}`);
+                    continue;
+                }
+
+                if (reward) {
+                    ns.tprint(`[SUCCESS] Solved "${type}" on ${server}! Reward: ${reward}`);
+                    solvedCount++;
+                } else if (ns.fileExists(file, server)) {
+                    let triesLeft = ns.codingcontract.getNumTriesRemaining(file, server);
+                    flag(`wrong answer, ${triesLeft} tries left`);
+                } else {
+                    flag("wrong answer, it was the last try and the contract self-destructed");
+                }
+            }
+        }
+
+        // Forget contracts that are gone (solved by hand or expired), but only on servers we could list:
+        // an offline darknet server must keep its flags, or a contract with a wrong answer gets tried again.
+        let removed = false;
+        for (let [key, line] of [...flagged.entries()]) {
+            if (!stillThere.has(key) && listed.has(line.split(" | ")[0])) {
+                flagged.delete(key);
+                removed = true;
+            }
+        }
+        if (removed) saveFlagged(ns, flagged, libSig);
+
+        if (solvedCount > 0) {
+            ns.print(`[Contracts] Finished scan cycle. Automatically solved ${solvedCount} contract(s).`);
+        }
+
+        ns.write("contracts-next.txt", String(Date.now() + 5 * 60 * 1000), "w");   // the orchestrator waits until then
+    }
+}
+
+// Every normal server and the server you connect from to reach it, via ns.scan from home.
+function scanNormal(ns) {
+    let parents = { home: null };
+    let queue = ["home"];
+    while (queue.length > 0) {
+        let current = queue.shift();
+        for (let n of ns.scan(current)) {
+            if (!(n in parents)) { parents[n] = current; queue.push(n); }
+        }
+    }
+    return parents;
+}
+
+// Darknet servers don't show up in ns.scan from home. darkweb.js keeps their list (and who connects to whom)
+// in DARKNET_FILE. If that file is missing or stale (darkweb.js not running), fall back to walking every
+// scout's scout_nodes.txt from "darkweb". Darknet servers can be reached by name from anywhere, so no
+// connecting is needed to list or attempt their contracts.
+function findDarknetHosts(ns, skip) {
+    let parents = {};
+    let add = (h, parent) => { if (typeof h === "string" && h && !skip.has(h) && !(h in parents)) parents[h] = parent; };
+    try {
+        let data = JSON.parse(ns.read(DARKNET_FILE) || "null");
+        if (data && Date.now() - data.t < DARKNET_MAX_AGE) {
+            for (let [h, p] of Object.entries(data.parents)) add(h, p);
+            return { hosts: Object.keys(parents), parents };
+        }
+    } catch (e) {}
+    try { ns.dnet.probe().forEach(h => add(h, null)); } catch (e) {}
+    let queue = ["darkweb"];
+    let visited = new Set();
+    while (queue.length > 0) {
+        let current = queue.shift();
+        if (visited.has(current)) continue;
+        visited.add(current);
+        try {
+            if (!ns.fileExists("scout_nodes.txt", current)) continue;
+            ns.scp("scout_nodes.txt", ns.getHostname(), current);
+            for (let n of JSON.parse(ns.read("scout_nodes.txt") || "[]")) {
+                add(n, current);
+                if (!visited.has(n)) queue.push(n);
+            }
+        } catch (e) {}
+    }
+    return { hosts: Object.keys(parents), parents };
+}
+
+// "home; connect a; connect b; run x.cct", or "" if the chain of servers isn't known
+function routeTo(server, file, parents) {
+    let chain = [];
+    let cur = server;
+    let seen = new Set();
+    while (cur && cur !== "home" && !seen.has(cur)) {
+        seen.add(cur);
+        chain.unshift(cur);
+        cur = parents[cur];
+    }
+    if (cur !== "home") return "";
+    return ["home", ...chain.map(h => `connect ${h}`), `run ${file}`].join("; ");
+}
+
+function flagContract(ns, flagged, libSig, key, server, file, type, reason, isDarknet, routes) {
+    let line = `${server} | ${file} | ${type} | ${reason}`;
+    let hint = "";
+    if (!reason.includes("self-destructed")) {
+        // "connect" only works from a neighbouring server, so print the whole route
+        let route = isDarknet
+            ? routeTo(server, file, { darkweb: "home", ...routes.normal, ...routes.darknet })
+            : routeTo(server, file, routes.normal);
+        hint = route ? ` To solve it yourself, in the terminal: ${route}`
+            : isDarknet ? ` ${server} is on the darknet: solve it by hand from a terminal on that node (${file})`
+            : ` To solve it yourself: connect to ${server}, then run ${file}`;
+    }
+    ns.tprint(`WARN [UNSOLVED CONTRACT] "${type}" on ${server} (${file}): ${reason}.${hint}`);
+    ns.toast(`Unsolved contract: "${type}" on ${server}`, "warning", 15000);
+    flagged.set(key, line);
+    saveFlagged(ns, flagged, libSig);
+}
+
+// Every kind of failure is remembered, so the warning appears once. Wrong answers always stay (they used up a
+// try). Everything else is dropped when lib-contracts.js has changed, so a new solver gets its chance.
+function loadFlagged(ns, libSig) {
+    let flagged = new Map();
+    let lines = ns.read(UNSOLVED_FILE).split("\n");
+    let sameLib = lines.some(l => l === `#lib ${libSig}`);
+    for (let line of lines) {
+        if (line.startsWith("#")) continue;
+        let [server, file, , reason] = line.split(" | ");
+        if (!server || !file || !reason) continue;
+        if (sameLib || reason.startsWith("wrong answer")) flagged.set(`${server}/${file}`, line);
+    }
+    return flagged;
+}
+
+function saveFlagged(ns, flagged, libSig) {
+    ns.write(UNSOLVED_FILE, [`#lib ${libSig}`, ...flagged.values()].join("\n"), "w");
+}
+
+/** Entry point. When this runs on another server, the notes it keeps go back to home. */
+export async function main(ns) {
+    try { await pass(ns); }
+    finally {
+        if (ns.getHostname() !== "home") ns.scp(["contracts-unsolved.txt", "contracts-next.txt"].filter(f => ns.fileExists(f)), "home");
+    }
+}

@@ -1,0 +1,24 @@
+/** Run once: shows where a batching target stands and what the batcher's jobs are doing.
+ *  run diag-target.js [target]   (default: harakiri-sushi)
+ *  @param {NS} ns */
+export async function main(ns) {
+    const t = String(ns.args[0] || "harakiri-sushi");
+    const sec = ns.getServerSecurityLevel(t), min = ns.getServerMinSecurityLevel(t);
+    const money = ns.getServerMoneyAvailable(t), max = ns.getServerMaxMoney(t);
+    ns.tprint(`${t}: security ${sec.toFixed(2)} (min ${min.toFixed(2)}), money ${(money / max * 100).toFixed(1)}% of ${ns.format.number(max)}`);
+    ns.tprint(`  times now: hack ${(ns.getHackTime(t) / 1000).toFixed(1)}s, grow ${(ns.getGrowTime(t) / 1000).toFixed(1)}s, weaken ${(ns.getWeakenTime(t) / 1000).toFixed(1)}s`);
+    ns.tprint(`  hacking level ${ns.getHackingLevel()}, needs ${ns.getServerRequiredHackingLevel(t)}`);
+    const seen = new Set(["home"]), queue = ["home"], counts = {};
+    while (queue.length) {
+        const h = queue.shift();
+        for (const p of ns.ps(h)) {
+            if (/^(job-(hack|grow|weaken)|worker)\.js$/.test(p.filename)) {
+                const key = `${p.filename} on ${p.args.find(a => typeof a === "string" && !a.endsWith(".js")) || p.args[1] || "?"}`;
+                counts[key] = (counts[key] || 0) + p.threads;
+            }
+        }
+        for (const n of ns.scan(h)) if (!seen.has(n)) { seen.add(n); queue.push(n); }
+    }
+    for (const [k, v] of Object.entries(counts)) ns.tprint(`  running: ${k} = ${v} threads`);
+    if (!Object.keys(counts).length) ns.tprint("  no job-*.js or worker.js jobs running");
+}

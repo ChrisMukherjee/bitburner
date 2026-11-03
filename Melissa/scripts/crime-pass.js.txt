@@ -1,0 +1,62 @@
+// Singularity: ONE short pass that commits the best crime, then exits. Started by the orchestrator when faction-pass.js
+// writes "crime" in player-do.txt (split out so faction-pass stays small: the crime calls cost 15 GB).
+//
+// Which crime: every crime is scored by what it is expected to give per second,
+//     score = chance x (karma + skillWeight x exp) / seconds
+// where karma is what a success gives (it pushes your karma down towards the gang threshold) and exp is the sum of the
+// stat experience it gives (the stats are what lift the chance of the harder crimes). Early on, with low stats, an easy
+// crime with a high chance wins; as the stats rise the harder, higher-karma crimes take over by themselves.
+// If no crime scores above zero, the one with the highest chance is taken, so the player is never left idle.
+// Tune with "crimeSkillWeight" in data/config.json (higher = prefer stat training; 0 = pure karma). One line is
+// printed every run so you can see what it picked and why.
+import { loadConfig } from "/utils/config.js";
+
+const CRIMES = ["Shoplift", "Rob Store", "Mug", "Larceny", "Deal Drugs", "Bond Forgery", "Traffick Arms", "Homicide", "Grand Theft Auto", "Kidnap", "Assassinate", "Heist"];
+const GANG_KARMA = -54000;
+const DEFAULT_SKILL_WEIGHT = 0.02;   // used only while the best karma crime is still stat-limited
+const GOOD_CHANCE = 0.75;
+
+/** @param {NS} ns */
+export async function main(ns) {
+    ns.disableLog("ALL");
+    if (!String(ns.read("sing-info.txt")).startsWith("1")) return;
+    // Bladeburner (train = gym, run = its actions) owns the player: a crime would cancel its action and bb-pass would cancel the crime 30 s later
+    if (["train", "run"].includes(String(ns.read("bb-state.txt")).trim())) return;
+    const config = loadConfig(ns);
+    if (ns.heart.break() <= GANG_KARMA) { ns.tprint("[crime-pass] karma is already low enough for a gang, nothing to do"); return; }
+    const current = ns.singularity.getCurrentWork();
+    if (current && !["CLASS", "FACTION", "CRIME"].includes(current.type)) { ns.tprint(`[crime-pass] leaving ${current.type} alone`); return; }
+
+    // Decided from live state: stats only matter while they limit the chance of the best karma crime. Find that crime first;
+    // if its chance is already good, train nothing (weight 0 = pure karma). Otherwise count stat experience (config value as the strength).
+    let topKarma = null;
+    for (const name of CRIMES) {
+        try {
+            const s = ns.singularity.getCrimeStats(name), c = ns.singularity.getCrimeChance(name);
+            const perSec = c * (s.karma || 0) / Math.max(0.5, (s.time || 1000) / 1000);
+            if (!topKarma || perSec > topKarma.perSec) topKarma = { name, chance: c, perSec };
+        } catch { }
+    }
+    const weight = topKarma && topKarma.chance >= GOOD_CHANCE ? 0 : Number(config.crimeSkillWeight ?? DEFAULT_SKILL_WEIGHT);
+    const rows = [];
+    for (const name of CRIMES) {
+        let chance = 0, stats = null;
+        try { chance = ns.singularity.getCrimeChance(name); stats = ns.singularity.getCrimeStats(name); } catch { continue; }
+        if (!stats) continue;
+        // Sum every stat-experience field (names end in "_exp"), leaving out intelligence
+        const exp = Object.entries(stats).filter(([k, v]) => /exp$/i.test(k) && !/intelligence/i.test(k) && typeof v === "number").reduce((s, [, v]) => s + v, 0);
+        const seconds = Math.max(0.5, (stats.time || 1000) / 1000);
+        rows.push({ name, chance, score: chance * ((stats.karma || 0) + weight * exp) / seconds });
+    }
+    if (rows.length === 0) { ns.tprint("[crime-pass] could not read any crime stats"); return; }
+
+    const best = rows.slice().sort((a, b) => b.score - a.score)[0].score > 0
+        ? rows.slice().sort((a, b) => b.score - a.score)[0]
+        : rows.slice().sort((a, b) => b.chance - a.chance)[0];
+    const summary = rows.slice().sort((a, b) => b.score - a.score).slice(0, 3).map(r => `${r.name} ${Math.round(r.chance * 100)}%`).join(", ");
+
+    if (current?.type === "CRIME" && current.crimeType === best.name) return;   // already the best one
+    ns.singularity.commitCrime(best.name, config.playerFocus !== false);
+    ns.toast(`Committing ${best.name} (karma ${ns.format.number(ns.heart.break())} / ${GANG_KARMA})`, "info", 15000);
+    ns.tprint(`[crime-pass] started ${best.name} (${Math.round(best.chance * 100)}% chance; top 3: ${summary}; skillWeight ${weight}${weight === 0 ? " (best karma crime already >= 75%)" : ""})`);
+}

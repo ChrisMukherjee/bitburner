@@ -1,0 +1,146 @@
+/** @param {NS} ns */
+export async function main(ns) {
+  // 1. Discover all servers on the network
+  const servers = scanAllServers(ns);
+  ns.print(`Found ${servers.length} total servers on the network.`);
+
+  for (const hostname of servers) {
+    if (hostname === "home" || hostname === "darkweb") continue;
+
+    const serverObj = ns.getServer(hostname);
+
+    // Skip player-purchased servers
+    if (serverObj.purchasedByPlayer) continue;
+
+    // Check if player meets hacking skill requirement
+    if (ns.getHackingLevel() < serverObj.requiredHackingSkill) {
+      continue; 
+    }
+
+    // 2. Gain root access if we don't have it yet
+    if (!serverObj.hasAdminRights) {
+      openPorts(ns, hostname);
+      try {
+        ns.nuke(hostname);
+      } catch (e) {
+        continue; 
+      }
+    }
+
+    // Check if a backdoor is already installed
+    const freshServer = ns.getServer(hostname);
+    if (freshServer.backdoorInstalled) {
+      ns.print(`[Already Backdoored] ${hostname}`);
+      continue;
+    }
+
+    ns.print(`Attempting to install backdoor on: ${hostname}...`);
+
+    // 3. Route through the network using Terminal UI simulation
+    const path = getServerPath(ns, hostname);
+    
+    // Reset position to home first in the terminal
+    runTerminalCommand(ns, "home");
+
+    // Sequentially connect through the path hops
+    for (const hop of path) {
+      runTerminalCommand(ns, `connect ${hop}`);
+      await ns.sleep(100); // Small delay to let terminal register connection
+    }
+
+    // 4. Install the backdoor via terminal command
+    runTerminalCommand(ns, "backdoor");
+    ns.print(`[Terminal Triggered] Installing backdoor on ${hostname}... Please wait for completion.`);
+
+    // Wait a few seconds for the backdoor installation progress bar to finish
+    await ns.sleep(15000);
+
+    // Return home safely before moving to the next server
+    runTerminalCommand(ns, "home");
+    await ns.sleep(100);
+  }
+
+  ns.tprint("Finished checking and installing available backdoors!");
+}
+
+/**
+ * Helper: Simulates typing commands directly into the game's terminal input element.
+ */
+function runTerminalCommand(ns, command) {
+  const terminalInput = document.getElementById("terminal-input");
+  if (!terminalInput) {
+    ns.print("ERROR: Could not find terminal input element in DOM.");
+    return;
+  }
+  
+  terminalInput.value = command;
+  
+  // Dispatch a React/browser input event so the game registers the text change
+  const handler = Object.keys(terminalInput).find(key => key.startsWith("__reactProps$"));
+  if (handler && terminalInput[handler].onChange) {
+    terminalInput[handler].onChange({ target: terminalInput });
+  }
+
+  // Simulate pressing the 'Enter' key
+  terminalInput.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter", code: "Enter", keyCode: 13 }));
+}
+
+/**
+ * Helper: Recursively scans the entire network graph.
+ */
+function scanAllServers(ns) {
+  const visited = new Set(["home"]);
+  const queue = ["home"];
+  const results = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    results.push(current);
+
+    const neighbors = ns.scan(current);
+    for (const neighbor of neighbors) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+  }
+  return results;
+}
+
+/**
+ * Helper: Finds the exact route/path from 'home' to a target server.
+ */
+function getServerPath(ns, target) {
+  const visited = new Set(["home"]);
+  const queue = [["home"]];
+
+  while (queue.length > 0) {
+    const path = queue.shift();
+    const current = path[path.length - 1];
+
+    if (current === target) {
+      path.shift(); // Remove 'home' from the start
+      return path;
+    }
+
+    for (const neighbor of ns.scan(current)) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push([...path, neighbor]);
+      }
+    }
+  }
+  return [];
+}
+
+/**
+ * Helper: Automatically runs available port-opening programs.
+ */
+function openPorts(ns, hostname) {
+  if (ns.fileExists("BruteSSH.exe", "home")) ns.brutessh(hostname);
+  if (ns.fileExists("FTPCrack.exe", "home")) ns.ftpcrack(hostname);
+  if (ns.fileExists("relaySMTP.exe", "home")) ns.relaysmtp(hostname);
+  if (ns.fileExists("HTTPWorm.exe", "home")) ns.httpworm(hostname);
+  if (ns.fileExists("SQLInject.exe", "home")) ns.sqlinject(hostname);
+}

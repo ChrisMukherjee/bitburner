@@ -1,0 +1,15 @@
+// How far ahead the rep grind plans for, in hours (see faction-goals.js). Use a long value before you leave, a short one when you are around.
+//   run horizon.js 8      overnight: grind rep for augmentations you can afford within 8 hours of income
+//   run horizon.js 2      back to normal
+//   run horizon.js        show the current value
+/** @param {NS} ns */
+export async function main(ns) {
+    if (ns.args.length === 0) {
+        ns.tprint(`Rep horizon: ${ns.read("rep-horizon.txt") || "default (2)"} hours. Takes effect at the next goals refresh (within 10 minutes).`);
+        return;
+    }
+    const hours = Number(ns.args[0]);
+    if (!(hours > 0)) { ns.tprint("Usage: run horizon.js <hours>"); return; }
+    ns.write("rep-horizon.txt", String(hours), "w");
+    ns.tprint(`Rep horizon set to ${hours} hours. Takes effect at the next goals refresh (within 10 minutes).`);
+}

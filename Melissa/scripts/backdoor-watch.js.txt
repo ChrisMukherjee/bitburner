@@ -1,0 +1,53 @@
+import { tryRoot } from "lib-target.js";
+
+// Servers worth backdooring, and why. Everything else is ignored.
+const WORTH_IT = {
+    "CSEC": "CyberSec invite",
+    "avmnite-02h": "NiteSec invite",
+    "I.I.I.I": "The Black Hand invite",
+    "run4theh111z": "BitRunners invite",
+    "fulcrumassets": "helps the Fulcrum Secret Technologies invite",
+    "w0r1d_d43m0n": "finishes the BitNode",
+};
+
+/** Watches the network and announces each server worth backdooring as soon as it can be done,
+ *  with the terminal command to paste. Runs in the background; announces each server once.
+ *  @param {NS} ns */
+export async function main(ns) {
+    ns.disableLog("ALL");
+    const announced = new Set();
+
+    while (true) {
+        // Map every server to the server we reach it from
+        const parent = { home: null };
+        const queue = ["home"];
+        while (queue.length > 0) {
+            const current = queue.shift();
+            for (const n of ns.scan(current)) {
+                if (!(n in parent)) {
+                    parent[n] = current;
+                    queue.push(n);
+                }
+            }
+        }
+
+        for (const [host, reason] of Object.entries(WORTH_IT)) {
+            if (!(host in parent) || announced.has(host)) continue;
+            const server = ns.getServer(host);
+            if (server.backdoorInstalled) continue;
+            if (ns.getHackingLevel() < server.requiredHackingSkill) continue;
+            if (!tryRoot(ns, host)) continue;
+
+            const path = [];
+            for (let s = host; s; s = parent[s]) path.unshift(s);
+            const command = "home; " + path.slice(1).map(s => `connect ${s}`).join("; ") + "; backdoor";
+
+            ns.tprint(`[BACKDOOR READY] ${host} (${reason})`);
+            ns.tprint(`  ${command}`);
+            ns.toast(`Backdoor ready: ${host} (${reason})`, "success", 30000);
+            announced.add(host);
+        }
+
+        await ns.sleep(60000);
+    }
+}

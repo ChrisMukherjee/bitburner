@@ -1,0 +1,93 @@
+import { scanAllServers, getBestTarget } from "lib-target.js";
+
+/** @param {NS} ns */
+export async function main(ns) {
+  const workerScript = "early-hack-template.js";
+  //const homeAllocatedRam = 31000;
+  const homeAllocatedRam = ns.getServerMaxRam("home") // when i dont want this ran on home 
+  ns.disableLog("scan");
+  ns.disableLog("getServerRequiredHackingLevel");
+  ns.disableLog("getServerMaxMoney");
+  ns.disableLog("getServerMaxRam");
+  ns.disableLog("getServerUsedRam");
+  ns.disableLog("sleep");
+  ns.disableLog("ps");
+  ns.disableLog("exec");
+
+  ns.tprint("[Startup] Initializing network orchestrator...");
+
+  let lastTarget = null;
+  while (true) {
+    let bestTarget = getBestTarget(ns);
+    let allServers = scanAllServers(ns);
+
+    if (bestTarget !== lastTarget) {
+      ns.tprint(`[Startup] New target: ${bestTarget}`);
+      lastTarget = bestTarget;
+    }
+    for (let server of allServers) {
+      // Open ports and nuke only if we have enough port programs
+      if (!ns.hasRootAccess(server)) {
+        let portsNeeded = ns.getServerNumPortsRequired(server);
+        let portsOpened = 0;
+
+        if (ns.fileExists("BruteSSH.exe", "home")) { ns.brutessh(server); portsOpened++; }
+        if (ns.fileExists("FTPCrack.exe", "home")) { ns.ftpcrack(server); portsOpened++; }
+        if (ns.fileExists("relaySMTP.exe", "home")) { ns.relaysmtp(server); portsOpened++; }
+        if (ns.fileExists("HTTPWorm.exe", "home")) { ns.httpworm(server); portsOpened++; }
+        if (ns.fileExists("SQLInject.exe", "home")) { ns.sqlinject(server); portsOpened++; }
+
+        if (portsOpened >= portsNeeded) {
+          try {
+            ns.nuke(server);
+          } catch (e) {
+            continue;
+          }
+        } else {
+          // Skip servers we can't crack yet
+          continue;
+        }
+      }
+
+
+      if (ns.hasRootAccess(server)) {
+        // Ensure worker script exists on remote server first
+        if (!ns.fileExists(workerScript, server)) {
+          await ns.scp(workerScript, server, "home");
+        }
+
+        // Check what the server is currently running
+        let processes = ns.ps(server);
+        let runningWorker = processes.find(p => p.filename === workerScript);
+        let currentTarget = runningWorker ? runningWorker.args[0] : null;
+
+        // 1. If it's targeting the wrong thing, kill it first
+        if (runningWorker && currentTarget !== bestTarget) {
+          ns.scriptKill(workerScript, server);
+        }
+
+        // 2. Always calculate available RAM and fill up the server to maximum capacity
+        let maxRam = ns.getServerMaxRam(server);
+        let usedRam = ns.getServerUsedRam(server);
+        let availableRam = maxRam - usedRam;
+        if (server === "home") availableRam = homeAllocatedRam;
+
+        let scriptRam = ns.getScriptRam(workerScript, "home");
+        if (scriptRam <= 0) continue;
+
+        let threads = Math.floor(availableRam / scriptRam);
+
+        if (threads > 0) {
+          let pid = ns.exec(workerScript, server, threads, bestTarget);
+          if (pid > 0) {
+            ns.print(`[Startup] Deployed ${threads}t of ${workerScript} to ${server} targeting ${bestTarget}`);
+          } else {
+            ns.print(`[ERROR] Failed to launch ${workerScript} on ${server}!`);
+          }
+        }
+      }
+    }
+
+    await ns.sleep(30000);
+  }
+}

@@ -1,0 +1,21 @@
+// Singularity: ONE short pass that starts creating the next port-opener program, then exits. Started by the orchestrator when
+// faction-pass.js writes "programs" in player-do.txt (split out so faction-pass stays under 20 GB: createProgram alone is 5 GB).
+import { loadConfig } from "/utils/config.js";
+
+const PROGRAMS = [["BruteSSH.exe", 50], ["FTPCrack.exe", 100], ["relaySMTP.exe", 250], ["HTTPWorm.exe", 500], ["SQLInject.exe", 750]];
+
+/** @param {NS} ns */
+export async function main(ns) {
+    if (["train", "run"].includes(String(ns.read("bb-state.txt")).trim())) return;   // Bladeburner owns the player
+    ns.disableLog("ALL");
+    if (!String(ns.read("sing-info.txt")).startsWith("1")) return;
+    const config = loadConfig(ns);
+    const current = ns.singularity.getCurrentWork();
+    if (current && !["CLASS", "CRIME", "FACTION"].includes(current.type)) return;   // already creating one, or something of yours
+    const wanted = PROGRAMS.find(([name, level]) => !ns.fileExists(name, "home") && ns.getHackingLevel() >= level);
+    if (!wanted) return;
+    if (ns.singularity.createProgram(wanted[0], config.playerFocus !== false)) {
+        ns.toast(`Creating ${wanted[0]}`, "info", 15000);
+        ns.tprint(`[player] started: creating ${wanted[0]}`);
+    }
+}
