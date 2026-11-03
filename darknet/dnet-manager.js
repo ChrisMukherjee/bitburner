@@ -26,7 +26,11 @@ export async function main(ns) {
 	const stasis = earn && !flags["no-stasis"];
 
 	if (!ns.fileExists("DarkscapeNavigator.exe", "home")) {
-		notify(ns, "[darknet]", "DarkscapeNavigator.exe not found on home. Buy it, then run this again.", "error", true);
+		// Not sticky: startup.js only starts this once the program is owned (darknet/ready.js), so this
+		// shows only when run by hand. The terminal line says why it stopped.
+		const msg = "DarkscapeNavigator.exe not found on home. Buy it, then run this again.";
+		notify(ns, "[darknet]", msg, "warning");
+		ns.tprint(`[darknet] ${msg}`);
 		return;
 	}
 

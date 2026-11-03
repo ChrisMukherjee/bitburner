@@ -88,7 +88,7 @@ stage it starts in. It skips anything already running and stays running (about 7
 becomes ready, restart what stops, and run the one-shots.
 Below 64GB home (a fresh BitNode) it is in the `start` stage: only the home/program buyers,
 the batcher, invites and backdoors, and [`player-work.js`](singularity/player-work.js) (study, faction and company work,
-Tian Di Hui and city factions) run, so the batcher gets the free servers' RAM; the Go bot, hacknet,
+Tian Di Hui and city factions; a short pass every minute) run, so the batcher gets the free servers' RAM; the Go bot, hacknet,
 server buying and auto-destroy follow after the first home upgrades. The batcher
 keeps at most a quarter of home (up to 64GB) free for typed commands.
 
@@ -147,7 +147,7 @@ alias darknet-phishing='run /darknet/dnet-manager.js'
 alias stock-trading='run /stocks/stock-trader.js'
 alias upgrade-home='run /singularity/upgrade-home-ram.js --once; run /singularity/upgrade-home-cores.js --once'
 alias auto-backdoor='run /singularity/auto-backdoor.js --once'
-alias player-work='run /singularity/join-factions.js --once; run /singularity/player-work.js'
+alias player-work='run /singularity/join-factions.js --once; run /singularity/player-work.js --once'
 alias augs='run /singularity/buy-augs.js --dry'
 alias buy-augs='run /singularity/buy-augs.js'
 alias install-augs='run /singularity/install-augs.js /startup.js'
@@ -194,8 +194,9 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | 30 | Gang invite crimes (for player-work) |
 | 31 | Batcher RAM claim (free RAM its batches still need; share-manager leaves it alone) |
 | 32 | Contract wrong answers (solver to solve-contracts) |
-| 33 | One-shot gates (cash the next home upgrade or program needs, for startup.js) |
+| 33 | One-shot gates (cash the next home upgrade or program needs, player-work done, for startup.js) |
 | 34 | RAM reservations (room kept free on a server for a script waiting to start; the batcher and share-manager leave it alone) |
+| 35 | player-work state between passes |
 
 ## Conventions
 

@@ -27,4 +27,7 @@ Passwords come from [`hint-interpreter.js`](../darknet/hint-interpreter.js) and
 - **Never backdoor darknet servers.** Backdoors don't slow server movement. They only let `exec` skip the
   direct-connection check, while each one past two makes any login randomly time out more often and adds
   random restarts that kill our scripts.
-- **The manager exits without DarkscapeNavigator.exe**, so it never idles holding RAM.
+- **The manager exits without DarkscapeNavigator.exe**, so it never idles holding RAM. startup.js only
+  starts it once the program is owned ([`../darknet/ready.js`](../darknet/ready.js)); before that it kept
+  restarting the manager, and each exit left a sticky toast. The exit message is now a normal toast plus a
+  terminal line, since it only shows when the manager is run by hand.

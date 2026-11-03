@@ -8,6 +8,7 @@ Maps and cracks darknet servers, phishes for money and keeps stasis links on the
 | [`crawler.js`](crawler.js) | Spreads across darknet servers and cracks them | args: earn, stasis (set by the manager) | 10.25GB |
 | [`phish.js`](phish.js) | Phishing worker, one per opened server | none | 3.65GB |
 | [`stasis.js`](stasis.js) | Applies or removes a stasis link | arg: `unlink` | 13.65GB while it runs |
+| [`ready.js`](ready.js) | Library: tells [`startup.js`](../startup.js) to start the manager only once DarkscapeNavigator.exe is owned | import only | 0GB |
 | [`hint-interpreter.js`](hint-interpreter.js) | Library: works out a password from a server's hint | import only | 0GB |
 | [`feedback-solvers.js`](feedback-solvers.js) | Library: solvers for models that answer wrong guesses, such as Factori-Os | import only | 0.4GB |
 | [`auth.js`](auth.js) | Library: login helper | import only | no extra RAM |

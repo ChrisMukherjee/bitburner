@@ -16,6 +16,21 @@ Singularity calls instead of five).
 Order, one at a time: study (free course to hacking 75), gang-invite crimes (BitNode 2, no gang yet),
 faction work, then megacorp jobs when no faction needs rep.
 
+## Short passes
+
+[`../startup.js`](../startup.js) runs it `--once` about every minute as a one-shot. A pass refreshes what's due,
+takes one travel step and one work step, and exits; the game keeps the work going without a script. So its
+30GB is used for a moment instead of all the time, which matters most at a BitNode start (8GB home), when it
+otherwise came out of the batcher's RAM. What the next pass needs (goals, city plan, what was started or
+announced) is kept on port 35, tagged with the last install time so a new run starts clean; the helpers' own
+ports aren't enough because the state also says what this script did (e.g. the class was started, so a
+stopped class is left alone). Ports, not a file, because the pass may run on any server. Each pass logs one
+line per part saying what it did or why it did nothing. When every part is done it posts `done` on port 33
+([`../singularity/ready.js`](../singularity/ready.js)) and startup.js stops running it until the next reset.
+Tradeoffs: a reaction can take up to a minute (it was 30 seconds), and getResetInfo adds 1GB to each pass.
+Run by hand without `--once` it still loops (startup.js stops such a copy, as with every one-shot).
+Rejected: a small resident loop that starts the big pass (two scripts to keep in step, for little gain).
+
 ## Focus
 
 Work is focused by default until the Neuroreceptor Management Implant is installed, then unfocused.

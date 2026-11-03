@@ -17,9 +17,9 @@ Scripts are charged RAM up front by a static check, so RAM shapes the design mor
 - **Pure logic is free.** [`../go/choose-move.js`](../go/choose-move.js) and [`../config.js`](../config.js)
   make no NS calls, so importing them costs nothing.
 
-- **Rarely needed Singularity scripts run as one-shots.** The home and program buyers, invites and backdoors
-  run `--once` from [`../startup.js`](../startup.js), only when their next purchase is affordable or a timer is
-  due, instead of looping on home ([`startup.md`](startup.md)).
+- **Rarely needed Singularity scripts run as one-shots.** The home and program buyers, invites, backdoors and
+  player work run `--once` from [`../startup.js`](../startup.js), only when their next purchase is affordable or a
+  timer is due, instead of looping on home ([`startup.md`](startup.md)). State a pass needs next time goes on a port.
 
 ## Where helpers run
 

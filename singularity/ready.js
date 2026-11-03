@@ -52,3 +52,6 @@ export const programsReady = cashGate("programs");
 
 /** auto-backdoor.js: done once every target has a backdoor; until then startup.js runs it on a timer. */
 export const backdoorReady = (ns) => !readGates(ns).backdoor?.done;
+
+/** player-work.js: done once study, travel and every work part are finished this run. */
+export const playerWorkReady = (ns) => !readGates(ns)["player-work"]?.done;
