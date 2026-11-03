@@ -40,9 +40,10 @@
   stage), so two copies never fight over the same thing.
 
 Rejected: stopping lower-priority scripts to make room for a waiting higher one, or holding home RAM for it.
-Stages already keep back what doesn't fit, and it would need the batcher to read a hold value. Not yet done:
-reserving room for one-shots on other servers through a port the batcher reads, and running player-work.js as a
-pass every few minutes (it holds 29GB but keeps state between loops).
+Stages already keep back what doesn't fit, and it would need the batcher to read a hold value. Instead, when the
+highest-priority script that may run off home finds no room, startup.js reserves room for it on one server
+([`ram.md`](ram.md)), one reservation at a time. Not yet done: running player-work.js as a pass every few minutes
+(it holds 29GB but keeps state between loops).
 
 ## Structure across BitNodes
 

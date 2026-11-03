@@ -27,6 +27,16 @@ Scripts are charged RAM up front by a static check, so RAM shapes the design mor
 else on any rooted server with room, copying the helper and its imports over. At 64GB home the batcher left
 too little of home free for a 17GB helper, so helpers that only tried home never ran.
 
+**Reserved room.** Off home the batcher and share-manager fill every free GB, so a 17-30GB helper could still
+wait a long time for a gap. When a helper (or a script [`../startup.js`](../startup.js) is starting) finds no room,
+it reserves its size on one server through [`../utils/ram-reserve.js`](../utils/ram-reserve.js) (port 34). The RAM pool in
+[`../utils/ram-pool.js`](../utils/ram-pool.js), which both the batcher and share-manager build from, leaves that RAM out,
+so no new workers start there and the room frees up as running ones finish. The server picked is the one big
+enough with the most free RAM right now. A reservation lasts 5 minutes unless the script asks again, and is dropped
+as soon as it starts. Tradeoffs: the reserved GB earns nothing until the script starts, and two scripts writing the
+port at the same moment can lose one reservation until the next try. Rejected: pausing the batcher or killing its
+workers to make room (lost batches cost more than a few seconds of waiting).
+
 ## Singularity costs depend on Source-File 4
 
 Inside BitNode 4 Singularity functions cost their base price. Elsewhere they cost 16x with SF4.1, 4x with

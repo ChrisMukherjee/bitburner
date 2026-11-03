@@ -1,23 +1,27 @@
 /** @param {NS} ns **/
 // Shared view of free RAM across every rooted server, and all-or-nothing thread placement on it.
+import { reservedByHost } from "/utils/ram-reserve.js";
 
 /**
  * Free RAM on every rooted server, biggest first with home last (so home is only used once
  * everything else is full). Pass only servers you can exec on (e.g. no darknet servers).
  *   homeReservedRam - RAM on home that is never handed out
  *   minFreeRam      - servers with less free RAM than this are left out (use the smallest script's RAM)
+ * RAM that a waiting script has reserved on a server (utils/ram-reserve.js, port 34) is left out too,
+ * so the batcher and share-manager let it free up.
  * Returns { ramPool: [{ host, freeRam }], totalRam } where totalRam is usable RAM whether free or not.
  */
 export function buildRamPool(ns, servers, { homeReservedRam = 0, minFreeRam = 0 } = {}) {
 	const ramPool = [];
 	let totalRam = 0;
+	const reserved = reservedByHost(ns);
 	for (const server of servers) {
 		if (!ns.hasRootAccess(server)) continue;
 		const maxRam = ns.getServerMaxRam(server);
 		if (maxRam <= 0) continue;
 		const reservedRam = server === "home" ? homeReservedRam : 0;
 		totalRam += Math.max(0, maxRam - reservedRam);
-		const freeRam = maxRam - ns.getServerUsedRam(server) - reservedRam;
+		const freeRam = maxRam - ns.getServerUsedRam(server) - reservedRam - (reserved[server] ?? 0);
 		if (freeRam >= minFreeRam && freeRam > 0) ramPool.push({ host: server, freeRam });
 	}
 	ramPool.sort((a, b) => (a.host === "home") - (b.host === "home") || b.freeRam - a.freeRam);

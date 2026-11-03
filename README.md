@@ -195,6 +195,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | 31 | Batcher RAM claim (free RAM its batches still need; share-manager leaves it alone) |
 | 32 | Contract wrong answers (solver to solve-contracts) |
 | 33 | One-shot gates (cash the next home upgrade or program needs, for startup.js) |
+| 34 | RAM reservations (room kept free on a server for a script waiting to start; the batcher and share-manager leave it alone) |
 
 ## Conventions
 

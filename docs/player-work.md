@@ -16,6 +16,20 @@ Singularity calls instead of five).
 Order, one at a time: study (free course to hacking 75), gang-invite crimes (BitNode 2, no gang yet),
 faction work, then megacorp jobs when no faction needs rep.
 
+## Focus
+
+Work is focused by default until the Neuroreceptor Management Implant is installed, then unfocused.
+Unfocused work runs at 80% speed without the implant, which costs more rep and study time than having the
+screen taken over; with it there's no penalty, so the screen is left to the user. The goals helper already
+reads the owned augments, so it reports whether the implant is installed (`focusPenalty` on port 23) and
+player-work.js pays no extra RAM for the check. Until the helper first runs, work is focused. The switch
+only happens at a reset (the implant counts once installed), when player-work.js starts again anyway.
+Work already running unfocused when the script starts is focused once (`setFocus`, 0.1GB); after that the
+user can unfocus by hand and it's left alone until the next new work.
+`--focus` and `--no-focus` force one or the other. Rejected: unfocused by default with `--focus` to opt in
+(the old behaviour), since nothing passed the flag and every run before the implant lost a fifth of its
+work speed.
+
 ## Real rep goals
 
 A faction is worked until its **goal**: the highest rep needed among the augments still worth buying there
@@ -56,8 +70,8 @@ City factions come in rival groups: joining one locks the others out for that ru
   queued augs decide the group, so no state file is needed across resets.
 - A city invite is still accepted when it locks out nothing wanted (a faction of the same group is already
   joined, or the plan wants nothing from any city): the favor is free.
-- Tian Di Hui comes first. It's not a city faction, locks nobody out, and its Neuroreceptor Manager
-  removes the penalty for unfocused work.
+- Tian Di Hui comes first. It's not a city faction, locks nobody out, and its Neuroreceptor Management
+  Implant removes the penalty for unfocused work.
 
 ## Helpers
 
