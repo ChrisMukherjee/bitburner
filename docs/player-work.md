@@ -41,7 +41,8 @@ player-work.js pays no extra RAM for the check. Until the helper first runs, wor
 only happens at a reset (the implant counts once installed), when player-work.js starts again anyway.
 Work already running unfocused when the script starts is focused once (`setFocus`, 0.1GB); after that the
 user can unfocus by hand and it's left alone until the next new work.
-`--focus` and `--no-focus` force one or the other. Rejected: unfocused by default with `--focus` to opt in
+`--focus` and `--no-focus` force one or the other, and so does `playerFocus: true` or `false` in the config
+(`"auto"`, the default, is the rule above; a flag wins over the config). Rejected: unfocused by default with `--focus` to opt in
 (the old behaviour), since nothing passed the flag and every run before the implant lost a fifth of its
 work speed.
 

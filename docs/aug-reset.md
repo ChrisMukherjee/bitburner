@@ -11,13 +11,20 @@ Settings: `augments.resetRule` in [`config.js`](../config.js). Income forecast:
 Reset at the moment that gives the most augment value **per hour of the run**. Every check
 (10 min) works out the value of the batch you could install now and at moments up to
 `horizonHours` (6 h) ahead, divides each by (run age at that moment + `overheadMinutes`), and
-resets when no later moment beats now by more than `waitMargin` (5%).
+resets when no later moment within `maxWaitMinutes` (60) beats now by more than `waitMargin` (5%).
 
 On top of that:
 
 - The Red Pill ready: reset at once (`keyAugs`).
 - No reset in the first `minRunMinutes` (30), and none before rep rates are measured.
 - Daedalus rule (`daedalusFavor`), see below.
+- Guarantee: a run at least `maxRunHours` (4 h) old resets once the batch is worth at least
+  x`guaranteeSpeed` (1.5), whatever the forecast says.
+
+The last two caps came from the other player's version of this rule: with a growing income the
+forecast can keep promising a slightly better moment a little further on, so the reset recedes for
+hours. A 60 min window and a 4 h guarantee stop that at the cost of sometimes resetting a little
+early. `maxRunHours: null` turns the guarantee off.
 
 ## Why
 

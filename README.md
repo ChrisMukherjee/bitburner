@@ -117,8 +117,8 @@ crime augs too, no reset in the first hour of a run, and BitNode 5 after SF4.3:
 ```
 
 Stat groups: `hacking`, `rep`, `hacknet`, `darknet`, `combat`, `charisma`, `work`, `crime`,
-`bladeburner`. `"profile"` picks a named preset from `PRESETS` in [`config.js`](config.js) first (only
-`hacking` so far). Scripts read the settings when they start, so restart them after a change.
+`bladeburner`. `"profile"` picks a named preset from `PRESETS` in [`config.js`](config.js) first
+(`hacking`, or `bladeburner` for the Bladeburner route). Scripts read the settings when they start, so restart them after a change.
 `run /tools/show-config.js [section]` prints what the scripts will use, and
 `run /tools/show-config.js --example` prints a starter `data/config.json` with your current
 values to paste into `nano data/config.json`.

@@ -218,7 +218,10 @@ function decideReset(context) {
 		return { ...point, waitMs, rate: point.value / ((sinceInstallMs + waitMs + overheadMs) / 3600_000) };
 	});
 	const now = points[0];
-	const later = points.slice(1).reduce((top, point) => (!top || point.rate > top.rate ? point : top), null);
+	// Only moments within maxWaitMinutes count as "later": a forecast that keeps promising a slightly
+	// better moment a bit further on would otherwise postpone the reset for ever.
+	const maxWaitMs = (RESET_RULE.maxWaitMinutes ?? Infinity) * 60_000;
+	const later = points.slice(1).filter((point) => point.waitMs <= maxWaitMs).reduce((top, point) => (!top || point.rate > top.rate ? point : top), null);
 	const curve = points.map((point) => ({ inMinutes: Math.round(point.waitMs / 60_000), value: round(point.value), rate: round(point.rate), augs: point.augs.length, neuroflux: point.neuroflux }));
 	const result = (reset, reason) => ({
 		reset, reason, value: round(now.value), rate: round(now.rate), curve,
@@ -252,6 +255,13 @@ function decideReset(context) {
 
 	const fromDaedalus = daedalusRule(daedalus, income, horizonMs, eta);
 	if (fromDaedalus) return result(fromDaedalus.reset, fromDaedalus.reason);
+
+	// Guarantee: an old run with a worthwhile batch resets now, whatever the forecast says.
+	if (RESET_RULE.maxRunHours != null && sinceInstallMs >= RESET_RULE.maxRunHours * 3600_000 &&
+		now.value >= Math.log(RESET_RULE.guaranteeSpeed ?? 1)) {
+		return result(true, `Run is ${eta(sinceInstallMs)} old and ${count} ready are worth ${speed(now)} (at least x${RESET_RULE.guaranteeSpeed ?? 1}): ` +
+			"resetting instead of waiting for ever-better moments.");
+	}
 
 	if (later && later.rate > now.rate * (1 + RESET_RULE.waitMargin)) {
 		return result(false, `Resetting now gives ${speed(now)}; waiting ${eta(later.waitMs)} for ${added(later)} gives ${speed(later)}, ` +

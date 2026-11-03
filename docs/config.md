@@ -35,5 +35,7 @@ depends on progress is a setting, and scripts don't hardcode new ones.
 
 ## Not done yet
 
-Only the `hacking` preset exists, and `bitnodes` in `config.js` is still empty: entries get added as each
-BitNode is played (a `"2"` entry for the gang run is the likely first).
+Presets: `hacking` (the defaults) and `bladeburner` (combat and Bladeburner augments instead of hacking
+ones, from the other player's Bladeburner route). The `bladeburner` preset is picked by hand for now; a
+Bladeburner manager could switch it from live state later. `bitnodes` in `config.js` is still empty:
+entries get added as each BitNode is played (a `"2"` entry for the gang run is the likely first).

@@ -88,6 +88,13 @@ export const DEFAULTS = {
 			minRunMinutes: 30,    // never reset a run younger than this
 			waitMargin: 0.05,     // wait only if a later moment beats now by more than 5% per hour
 			horizonHours: 6,      // how far ahead the forecast looks
+			// Only moments this close count as a better "later", so a forecast that keeps promising a
+			// little more a bit further on can't postpone the reset for ever.
+			maxWaitMinutes: 60,
+			// Guarantee: a run this old resets once the batch is worth at least x guaranteeSpeed,
+			// whatever the forecast says (null turns it off).
+			maxRunHours: 4,
+			guaranteeSpeed: 1.5,
 			daedalusFavor: true,  // Daedalus rule: reset for 150 favor (donations) when that beats working for The Red Pill
 			// Income curve (utils/income-curve.js): forecast cash with income that keeps growing
 			// the way it has this run, instead of flat. Also used by faction-goals' money budget.
@@ -105,6 +112,11 @@ export const DEFAULTS = {
 			maxRateGapMs: 3 * 3600_000,
 		},
 	},
+
+	// Focus for the player's work (player-work.js): "auto" = focused until the Neuroreceptor
+	// Management Implant is installed, then unfocused; true = always focused; false = never.
+	// The --focus / --no-focus flags win over this.
+	playerFocus: "auto",
 
 	// Studying (player-work.js). Below hackLevel, the player studies and nothing else takes over.
 	studying: {
@@ -267,4 +279,19 @@ export const DEFAULTS = {
 // "profile" in data/config.json. Add your own; only list what differs from DEFAULTS.
 export const PRESETS = {
 	"hacking": {},
+	// Bladeburner as the way out of a BitNode: rank comes from Contracts/Operations, whose success
+	// depends on combat stats, so combat and Bladeburner augments count and hacking ones don't
+	// (they'd be lost at the next reset for nothing). Pick with "profile": "bladeburner".
+	"bladeburner": {
+		augments: {
+			wantStats: ["rep", "hacknet", "darknet", "combat", "bladeburner"],
+			resetRule: {
+				weights: {
+					strength: 1, defense: 1, dexterity: 1, agility: 1,
+					strength_exp: 0.5, defense_exp: 0.5, dexterity_exp: 0.5, agility_exp: 0.5,
+					bladeburner_success_chance: 1, bladeburner_max_stamina: 1, bladeburner_stamina_gain: 1, bladeburner_analysis: 1,
+				},
+			},
+		},
+	},
 };

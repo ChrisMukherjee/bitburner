@@ -98,6 +98,8 @@ const CONFIG = {
  *   run singularity/player-work.js --study 100   study until hacking 100 instead of studying.hackLevel
  *   run singularity/player-work.js --no-company  never take megacorp jobs
  *   run singularity/player-work.js --plan        print the city plan and exit (travels and joins nothing)
+ *
+ * "playerFocus": true / false in the config does the same as --focus / --no-focus ("auto" = the default rule).
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -118,11 +120,12 @@ export async function main(ns) {
 		const state = loadState(ns, resetAt);
 		Object.assign(state, {
 			config,
-			focusForced: flags.focus || flags["no-focus"],
+			focusForced: flags.focus || flags["no-focus"] || typeof config.playerFocus === "boolean",
 			studyLevel: Number(flags.study) || config.studying.hackLevel,
 			noCompany: flags["no-company"],
 		});
-		state.focus = flags.focus ? true : flags["no-focus"] ? false : state.focusAuto ?? true;
+		state.focus = flags.focus ? true : flags["no-focus"] ? false :
+			typeof config.playerFocus === "boolean" ? config.playerFocus : state.focusAuto ?? true;
 
 		const done = await onePass(ns, state);
 		saveState(ns, state, resetAt);
