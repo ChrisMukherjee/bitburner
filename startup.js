@@ -3,6 +3,7 @@ import { loadConfig, USER_CONFIG_FILE, BITNODE_FILE } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 import { notify } from "/utils/notify.js";
+import { reserveRoom, releaseRoom } from "/utils/ram-reserve.js";
 import { singularityInfo } from "/utils/singularity.js";
 // Mechanic folders: each one's "is there work for its manager?" check (see AGENTS.md).
 import { gangReady } from "/gang/ready.js";
@@ -62,6 +63,8 @@ const STATUS_SCRIPT = "/tools/status.js";
 // Scripts placed off home may use at most this share of the other rooted servers' RAM,
 // so the batcher always keeps the rest for hack/grow/weaken threads.
 const MAX_OFF_HOME_SHARE = 0.65;
+// Key of startup.js's own room reservation (utils/ram-reserve.js).
+const RESERVE_KEY = "startup.js";
 
 const CONFIG = {
 	passMs: 10_000,         // time between passes
@@ -111,6 +114,7 @@ export async function main(ns) {
 	const sf4 = singularityInfo(ns);
 	// A new run (startup.js is started after every reset): every one-shot checks once again.
 	clearGates(ns);
+	releaseRoom(ns, RESERVE_KEY); // a replaced copy's reservation; this one posts its own when needed
 
 	const state = {
 		sf4,
@@ -120,6 +124,7 @@ export async function main(ns) {
 		daemons: new Map(),  // label -> { running, since, stoppedAt, wait }
 		lastShot: new Map(), // label -> time a one-shot was last started
 		reported: new Set(), // messages already printed (no room, missing file)
+		reservedFor: null,   // label of the script room is reserved for off home
 	};
 
 	while (true) {
@@ -184,6 +189,8 @@ function runPass(ns, requested, state) {
 		(state.lastShot.get(shotLabel(first)) ?? 0) - (state.lastShot.get(shotLabel(second)) ?? 0))[0];
 
 	const started = [], restarted = [], alreadyRunning = [], noRoom = [], missing = [];
+	// The first script (by priority) that could run off home but found no room: room is reserved for it.
+	let waiting = null;
 	for (const entry of wanted) {
 		const args = entry.args ?? [];
 		const label = [entry.script, ...args].join(" ");
@@ -231,6 +238,7 @@ function runPass(ns, requested, state) {
 		} else if (!entry.homeOnly && offHomeUsed + ram <= offHomeTotal * MAX_OFF_HOME_SHARE) {
 			host = placeOffHome(ns, entry.script, args, ram, hosts);
 			if (host) offHomeUsed += ram;
+			else waiting ??= { label, ram };
 		}
 		if (!host) {
 			noRoom.push(`${entry.script} (${ns.format.ram(ram)})`);
@@ -244,6 +252,17 @@ function runPass(ns, requested, state) {
 		const where = host === "home" ? label : `${label} [on ${host}]`;
 		(daemon ? restarted : started).push(where);
 		state.daemons.set(label, { running: true, since: now, wait: daemon?.wait ?? CONFIG.restartMinMs });
+	}
+
+	// One reservation at a time, for the highest-priority script that is waiting, so the batcher
+	// gives up as little RAM as possible (utils/ram-reserve.js; the batcher's RAM pool leaves it out).
+	if (waiting) {
+		const held = reserveRoom(ns, RESERVE_KEY, waiting.ram, hosts);
+		if (held && waiting.label !== state.reservedFor) ns.print(`[startup] keeping ${ns.format.ram(waiting.ram)} free on ${held} for ${waiting.label}`);
+		state.reservedFor = held ? waiting.label : null;
+	} else if (state.reservedFor) {
+		releaseRoom(ns, RESERVE_KEY);
+		state.reservedFor = null;
 	}
 
 	report(ns, state, { stage, homeRam, noSingularity, started, restarted, alreadyRunning, noRoom, missing });
