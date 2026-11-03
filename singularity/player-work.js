@@ -3,6 +3,8 @@ import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { startHelper } from "/utils/start-helper.js";
 import { postGate } from "/singularity/ready.js";
+import { bladeburnerAccess } from "/utils/bladeburner.js";
+import { bladeburnerState, trainFloor } from "/bladeburner/state.js";
 
 // Ports the one-shot helpers write to (not imported: the static RAM check would charge their
 // Singularity calls to this script too).
@@ -51,6 +53,8 @@ const CONFIG = {
  * faction-work.js, company-work.js, get-tian-di-hui.js and city-factions.js (now in archive/).
  *
  * Work, one at a time, in this order:
+ *   0. Bladeburner (bladeburner/bb-manage.js posts its state on port 36): while it plays ("run") nothing else
+ *      is started; while the combat stats are too low ("train") the lowest goes to the Sector-12 gym first.
  *   1. Study: below studying.hackLevel (75), takes the free course (`studying` in the config) once
  *      and leaves the class alone. The class keeps running past the target until something
  *      better below takes over.
@@ -263,7 +267,19 @@ function workStep(ns, state, player) {
 
 	const companies = state.noCompany ? [] : companyWork.companies.filter((entry) =>
 		!joined.has(entry.faction) && ns.singularity.getCompanyRep(entry.company) < companyWork.repNeeded);
-	const done = hacking >= state.studyLevel && factionDone && companies.length === 0 && state.gangDone;
+	// Never done while Bladeburner is possible: bladeburner/bb-manage.js may ask for the gym or the whole player later.
+	const done = hacking >= state.studyLevel && factionDone && companies.length === 0 && state.gangDone && !bladeburnerAccess(ns).available;
+
+	// 0. Bladeburner (bladeburner/bb-manage.js posts its state): "run" = bb-pass.js plays, and anything else started
+	// here would cancel its action; "train" = the combat stats go to the gym first, before anything else.
+	const bladeburner = bladeburnerState(ns);
+	if (bladeburner === "run") {
+		return { message: "[bladeburner] playing: nothing else is started (see `status`)", done };
+	}
+	if (bladeburner === "train") {
+		const trained = gymStep(ns, state, player, current);
+		if (trained) return { message: trained, done };
+	}
 
 	// 1. Study.
 	if (hacking < state.studyLevel) {
@@ -316,6 +332,37 @@ function workStep(ns, state, player) {
 	if (!working || newJob) ns.singularity.workForCompany(target.company, state.focus);
 	const rep = ns.singularity.getCompanyRep(target.company);
 	return { message: `[company-work] ${target.company}: ${ns.format.number(rep)} / ${ns.format.number(companyWork.repNeeded)} rep`, done };
+}
+
+// [skill, the GymType the API wants, the class name the game reports for the current work]
+const GYM_STATS = [["strength", "str", "GYMSTRENGTH"], ["defense", "def", "GYMDEFENSE"], ["dexterity", "dex", "GYMDEXTERITY"], ["agility", "agi", "GYMAGILITY"]];
+const GYM_CITY = "Sector-12";
+// Powerhouse Gym gives 10x the exp of the Iron Gym but costs 20x (about $2400/s, v3.0.1 source): only with cash for ~10 minutes.
+const POWERHOUSE_MONEY = 2400 * 600;
+
+/**
+ * Trains the lowest combat stat in the Sector-12 gym until every one reaches the floor Bladeburner needs
+ * (bladeburner/state.js trainFloor). Returns the log line, or null when no stat needs it.
+ */
+function gymStep(ns, state, player, current) {
+	const floor = trainFloor(ns);
+	const [stat, gymType] = GYM_STATS.slice().sort((first, second) => player.skills[first[0]] - player.skills[second[0]])[0];
+	if (player.skills[stat] >= floor) return null;
+	// Keep a gym class that is running for a stat still below the floor, so the lowest stat changing doesn't swap it every pass.
+	const running = String(current?.classType ?? "").toUpperCase();
+	const runningStat = GYM_STATS.find(([, type, className]) => running === className || running === type.toUpperCase())?.[0];
+	if (current?.type === "CLASS" && runningStat && player.skills[runningStat] < floor) {
+		return `[bladeburner] training ${runningStat} (${Math.floor(player.skills[runningStat])} / ${floor})`;
+	}
+	if (player.city !== GYM_CITY) {
+		if (player.money < CONFIG.travelCost || !ns.singularity.travelToCity(GYM_CITY)) {
+			return `[bladeburner] waiting to fly to ${GYM_CITY} for the gym ($${ns.format.number(CONFIG.travelCost)})`;
+		}
+	}
+	const gym = player.money >= POWERHOUSE_MONEY ? "Powerhouse Gym" : "Iron Gym";
+	if (!ns.singularity.gymWorkout(gym, gymType, state.focus)) return `[bladeburner] ${gym} refused ${stat}, will retry`;
+	notify(ns, "[bladeburner]", `training ${stat} at ${gym} (now ${Math.floor(player.skills[stat])} / ${floor})`, "info");
+	return `[bladeburner] training ${stat} at ${gym}`;
 }
 
 /** Commits the crime gang/workers/invite.js picked (it repeats until other work replaces it). Returns the log line. */

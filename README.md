@@ -168,6 +168,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | [`share/`](share/README.md) | Shares spare RAM for faction rep during faction work |
 | [`singularity/`](singularity/README.md) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, next BitNode |
 | [`gang/`](gang/README.md) | Gang manager for BitNode 2 |
+| [`bladeburner/`](bladeburner/README.md) | Bladeburner (BitNode 6/7 or Source-File 6/7): state manager and the action pass |
 | [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links |
 | [`go/`](go/README.md) | IPvGO bot |
 | [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks, exploit achievements |
@@ -197,6 +198,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | 33 | One-shot gates (cash the next home upgrade or program needs, player-work done, for startup.js) |
 | 34 | RAM reservations (room kept free on a server for a script waiting to start; the batcher and share-manager leave it alone) |
 | 35 | player-work state between passes |
+| 36 | Bladeburner state, route estimate, rank samples and status lines (bladeburner/) |
 
 ## Conventions
 

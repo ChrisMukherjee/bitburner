@@ -23,6 +23,7 @@ import { hasSingularity } from "/utils/singularity.js";
  *   port 26  stock summary             (stock-trader.js, every 10 ticks)
  *   port 28  gang summary              (gang/gang-manager.js, every gang update; any mechanic
  *            manager listed in MECHANIC_PORTS posts ready-made lines the same way)
+ *   port 36  Bladeburner state + lines (bladeburner/bb-manage.js and bb-pass.js, one-shots)
  *   data/aug-plan.json   reset advice + rep rates, Red Pill rep/price and Daedalus invite needs
  *                        (buy-augs.js --plan, every 10 min via auto-reset.js)
  *   data/go-bonus.json   Go bonus history (go/ipvgo-bot.js)
@@ -34,7 +35,7 @@ const GOALS_PORT = 23;
 const CITY_PORT = 25;
 const STOCK_SUMMARY_PORT = 26;
 // Ports where mechanic managers post { time, title, script, lines }; add one per mechanic folder.
-const MECHANIC_PORTS = [28];
+const MECHANIC_PORTS = [28, 36];
 const PLAN_FILE = "data/aug-plan.json";
 const GO_FILE = "data/go-bonus.json";
 const REP_FILE = "data/status-rep.json";
@@ -205,7 +206,8 @@ export async function main(ns) {
 	for (const port of MECHANIC_PORTS) {
 		const post = peekJson(ns, port);
 		if (!post?.lines) continue;
-		const running = processes.some((proc) => proc.filename === post.script);
+		// One-shot managers (oneShot: true in the post) only run for a moment, so not running is normal for them.
+		const running = post.oneShot || processes.some((proc) => proc.filename === post.script);
 		if (!running) {
 			out.push(`${post.title}: ${post.script} isn't running (run \`startup\`)`);
 			continue;

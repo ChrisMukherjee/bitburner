@@ -8,6 +8,7 @@ import { singularityInfo } from "/utils/singularity.js";
 // Mechanic folders: each one's "is there work for its manager?" check (see AGENTS.md).
 import { gangReady } from "/gang/ready.js";
 import { dnetReady } from "/darknet/ready.js";
+import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
 import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady, playerWorkReady } from "/singularity/ready.js";
 
 // Every script startup.js runs, in priority order: earlier entries get RAM first.
@@ -39,6 +40,10 @@ const SCRIPTS = [
 	{ stage: "start", script: "singularity/player-work.js", args: ["--once"], oneShot: true, every: 60_000, ready: playerWorkReady },
 	// Mechanics, one folder each. Started only once their ready check says there is work.
 	{ stage: "start", script: "gang/gang-manager.js", ready: gangReady },
+	// Bladeburner (BitNode 6/7 or Source-File 6/7): the manager decides the state every 3 minutes, the pass plays
+	// every 30 s while the state is "run"; player-work.js does the gym. One-shots, so their RAM is only held for a moment.
+	{ stage: "early", script: "bladeburner/bb-manage.js", oneShot: true, every: 180_000, ready: bladeburnerReady },
+	{ stage: "early", script: "bladeburner/bb-pass.js", oneShot: true, every: 30_000, ready: bladeburnerRunning },
 	// Both keep $1m back for TOR and the port openers, so they buy nothing in the first minutes anyway.
 	{ stage: "early", script: "pserv/pserv-manager.js" },
 	{ stage: "early", script: "hacknet/hacknet-manager.js" },

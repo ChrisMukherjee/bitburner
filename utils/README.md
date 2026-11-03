@@ -9,6 +9,7 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`bitnode-route.js`](bitnode-route.js) | Next BitNode from `bitnodeRoute` | 1GB |
 | [`singularity.js`](singularity.js) | Whether this run can use the Singularity API | 1GB |
 | [`gang.js`](gang.js) | What this run can do with gangs; the one place with per-BitNode gang rules | 1GB |
+| [`bladeburner.js`](bladeburner.js) | Whether this run can use the Bladeburner API (BitNode 6/7 or Source-File 6/7) | 1GB |
 | [`get-all-servers.js`](get-all-servers.js) | Every reachable server | 0.2GB |
 | [`find-path.js`](find-path.js) | Route from home to a server | 0.2GB |
 | [`nuke-all.js`](nuke-all.js) | Roots every server it can | 0.75GB |

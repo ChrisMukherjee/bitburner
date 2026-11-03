@@ -17,6 +17,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`stocks.md`](stocks.md): longs only, 4S or estimates, steering prices through the batcher.
 - [`go-bot.md`](go-bot.md): Monte Carlo search at 0GB, opponent rotation, Illuminati on 5x5.
 - [`gang.md`](gang.md): BitNode 2 gang manager (untested in game).
+- [`bladeburner.md`](bladeburner.md): state manager, action pass, gym via player-work, state on a port.
 
 ## Writing one
 

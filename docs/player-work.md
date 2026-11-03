@@ -46,6 +46,14 @@ user can unfocus by hand and it's left alone until the next new work.
 (the old behaviour), since nothing passed the flag and every run before the implant lost a fifth of its
 work speed.
 
+## Bladeburner
+
+When the state on port 36 is `run`, `bb-pass.js` plays and anything started here would cancel its action, so
+player-work starts nothing (invites, travel and city joins still go on). When it is `train`, the lowest combat
+stat goes to the Sector-12 gym first (Powerhouse when there is cash for ten minutes, otherwise Iron), before
+study or faction work. It never reports done while the Bladeburner API is usable. See
+[`bladeburner.md`](bladeburner.md).
+
 ## Gang crimes
 
 Crimes for the gang are scored, not fixed. `gang/workers/invite.js` rates every crime in `gang.inviteCrimes`
