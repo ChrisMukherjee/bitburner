@@ -1,6 +1,7 @@
 # When to install augments
 
 Used by [`singularity/buy-augs.js`](../singularity/buy-augs.js) (`decideReset`, shown by `augs`),
+[`singularity/workers/aug-buyer.js`](../singularity/workers/aug-buyer.js),
 [`singularity/auto-reset.js`](../singularity/auto-reset.js) and [`singularity/install-augs.js`](../singularity/install-augs.js).
 Settings: `augments.resetRule` in [`config.js`](../config.js). Income forecast:
 [`utils/income-curve.js`](../utils/income-curve.js) (`resetRule.incomeCurve`).
@@ -58,6 +59,33 @@ augments.
 
 Stock positions count as cash: auto-reset sells them (`stock-trader.js --liquidate`) before
 buying, because the reset wipes held shares.
+
+## Planning, buying, installing
+
+**Plan and buy are two scripts, so a 32GB home can reset.** buy-augs.js plans (about 30GB) and
+writes the buy list into `data/aug-plan.json`; workers/aug-buyer.js (about 9GB) buys from it.
+`buy-augs` hands over with `ns.spawn` (2GB, but the planner's RAM is free before the buyer starts);
+auto-reset runs the buyer itself after its check. The buyer reads live prices and simply tries each
+purchase, so it needs neither the stats nor the rep calls. Rejected: one script (about 36GB, which no
+32GB home can run) and a buyer that re-plans (needs the planner's RAM again). Moving the planner off
+home was also rejected for now: it keeps its income history in a home file.
+A local property named `share` in the planner cost 2.4GB (the RAM check matches it to `ns.share`);
+it's `repShare` now. next-bitnode.js stays about 34GB (`destroyW0r1dD43m0n` alone is 32GB), so the
+last step of a BitNode needs a 64GB home, which every run has long before The Red Pill.
+
+**A plan belongs to one run.** Readers ignore a plan checked before the last install
+(`checkedAt` < `lastAugReset`). install-augs uses a plan from the last 5 minutes as it is (the buyer
+moves what it bought from `affordable` to `queued`), so `buy-augs` then `install-augs` doesn't need
+room for the planner twice; an older plan is made again first.
+
+**RESET is announced once.** The plan keeps `resetSince`, when the advice turned RESET this run
+(null while it says wait). auto-reset announces only when that's new in the check it just ran, so
+restarting it (`startup --restart`, `--dry` runs) doesn't repeat the toast.
+
+**Leftover cash goes into home before an install.** Home RAM and cores survive an install and
+cash doesn't, so install-augs runs both home buyers with `--spend-all` (no reserve, no stage cap)
+after augments and NeuroFlux are bought (`--keep-cash` skips it). Home RAM first: it's usually the
+bigger help to the next run's start.
 
 ## Daedalus
 

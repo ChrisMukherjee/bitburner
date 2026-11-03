@@ -7,6 +7,7 @@ const NEUROFLUX = "NeuroFlux Governor";
 const RED_PILL = "The Red Pill";
 const DAEDALUS = "Daedalus";
 const PLAN_FILE = "data/aug-plan.json";
+const BUYER = "singularity/workers/aug-buyer.js"; // does the buying, so this script stays small
 const STOCK_SUMMARY_PORT = 26;   // stock-trader.js posts the value of its positions here
 const PRICE_MULT = 1.9;          // every purchase multiplies the price of the rest
 const NEUROFLUX_LEVEL_MULT = 1.14; // each NeuroFlux level costs this much more money and rep
@@ -34,9 +35,14 @@ let RESET_RULE = null;
  * Processors Gen II goes through once Gen I is bought.
  *
  * It only spends cash: money in stocks has to be sold first (auto-reset.js does that with
- * stock-trader.js --liquidate). Est. 33GB RAM. It runs once and exits.
+ * stock-trader.js --liquidate). It runs once and exits.
  *
- *   run singularity/buy-augs.js                  buy the useful ones you can afford
+ * Planning and buying are split so a 32GB home can do both: this script (about 30GB) plans,
+ * writes data/aug-plan.json with the list to buy, and hands over to
+ * singularity/workers/aug-buyer.js (about 9GB), which buys in the same order after this
+ * script has exited (ns.spawn). auto-reset.js runs the buyer itself after --plan.
+ *
+ *   run singularity/buy-augs.js                  plan, then buy the useful ones you can afford
  *   run singularity/buy-augs.js --dry            list them with what each one boosts, the
  *                                                cost of the whole set and whether to reset
  *   run singularity/buy-augs.js --all            buy every augment, useful or not
@@ -95,113 +101,93 @@ export async function main(ns) {
 		.sort((first, second) => second.price - first.price);
 	const stocks = stockValue(ns);
 
-	if (flags.plan || flags.dry) {
-		const installed = new Set(ns.singularity.getOwnedAugmentations(false));
-		const queued = [...owned].filter((aug) => !installed.has(aug));
-		const previous = readPlan(ns);
-		const rates = repRates(ns, previous, rep);
-		const plan = byPrice();
-		const lastReset = ns.getResetInfo().lastAugReset;
-		const sameRun = previous?.checkedAt >= lastReset;
-		const income = readIncomeRate(ns).perSecond; // not getTotalScriptIncome: it misses batcher hacks
-		// Income curve: this run's income history (and the last run's), and how fast it's growing.
-		const sinceInstallMs = Date.now() - lastReset;
-		const incomeHistory = recordIncomeSample(previous?.incomeHistory, lastReset, Date.now(), income, RESET_RULE.incomeCurve);
-		const incomeModel = buildIncomeModel(incomeHistory, sinceInstallMs, RESET_RULE.incomeCurve);
+	const installed = new Set(ns.singularity.getOwnedAugmentations(false));
+	const queued = [...owned].filter((aug) => !installed.has(aug));
+	const previous = readPlan(ns);
+	const rates = repRates(ns, previous, rep);
+	const plan = byPrice();
+	const lastReset = ns.getResetInfo().lastAugReset;
+	const sameRun = previous?.checkedAt >= lastReset;
+	const income = readIncomeRate(ns).perSecond; // not getTotalScriptIncome: it misses batcher hacks
+	// Income curve: this run's income history (and the last run's), and how fast it's growing.
+	const sinceInstallMs = Date.now() - lastReset;
+	const incomeHistory = recordIncomeSample(previous?.incomeHistory, lastReset, Date.now(), income, RESET_RULE.incomeCurve);
+	const incomeModel = buildIncomeModel(incomeHistory, sinceInstallMs, RESET_RULE.incomeCurve);
 
-		// Each locked augment once (the faction closest to unlocking it), minus ones another faction sells.
-		const closest = new Map();
-		for (const entry of locked) {
-			if (sellers.has(entry.aug)) continue;
-			const rate = rates.perSecond[entry.faction] ?? 0;
-			const etaMs = rate > 0 ? (entry.missing / rate) * 1000 : null;
-			const best = closest.get(entry.aug);
-			if (!best || (etaMs ?? Infinity) < (best.etaMs ?? Infinity) || (best.etaMs === null && entry.missing < best.missing)) {
-				closest.set(entry.aug, { ...entry, etaMs });
-			}
-		}
-		const upcoming = [...closest.values()];
-		const fitNow = whatFits(plan, cash() + stocks);
-
-		// NeuroFlux: bought from the joined faction with the most rep (its rep need climbs per level).
-		const nfgFaction = factions.reduce((top, faction) => (rep.get(faction) > (rep.get(top) ?? -1) ? faction : top), null);
-		const neuroflux = AUG_CONFIG.neuroflux && nfgFaction ? {
-			price: ns.singularity.getAugmentationPrice(NEUROFLUX),
-			repReq: ns.singularity.getAugmentationRepReq(NEUROFLUX),
-			value: augValue(NEUROFLUX, ns.singularity.getAugmentationStats(NEUROFLUX), AUG_CONFIG),
-			rep: rep.get(nfgFaction),
-			rate: rates.perSecond[nfgFaction] ?? 0,
-		} : null;
-
-		// Favor: each faction still needed next run (it sells a wanted augment we won't have,
-		// or it's Daedalus before The Red Pill), weighted by how much rep it will take there.
-		const willOwn = new Set([...owned, ...fitNow.augs]);
-		const repStillNeeded = new Map();
-		const need = (faction, amount) => repStillNeeded.set(faction, Math.max(repStillNeeded.get(faction) ?? 0, amount));
-		for (const entry of locked) if (!willOwn.has(entry.aug)) need(entry.faction, entry.repNeeded);
-		for (const [aug, faction] of sellers) if (!willOwn.has(aug)) need(faction, ns.singularity.getAugmentationRepReq(aug));
-		const redPillRep = ns.singularity.getAugmentationRepReq(RED_PILL);
-		if (factions.includes(DAEDALUS) && !owned.has(RED_PILL)) need(DAEDALUS, redPillRep);
-		const totalNeeded = [...repStillNeeded.values()].reduce((sum, amount) => sum + amount, 0);
-		const favors = [...repStillNeeded].map(([faction, amount]) => ({
-			faction, favor: ns.singularity.getFactionFavor(faction), rep: rep.get(faction),
-			rate: rates.perSecond[faction] ?? 0, share: totalNeeded > 0 ? amount / totalNeeded : 0,
-		}));
-
-		// Daedalus: when it was first seen this run (how long the invite takes), and its numbers.
-		const daedalusSeenAt = !factions.includes(DAEDALUS) ? null
-			: sameRun && previous.daedalusSeenAt ? previous.daedalusSeenAt : Date.now();
-		const daedalus = factions.includes(DAEDALUS) && !owned.has(RED_PILL) ? {
-			favor: favors.find((entry) => entry.faction === DAEDALUS)?.favor ?? ns.singularity.getFactionFavor(DAEDALUS),
-			rep: rep.get(DAEDALUS), rate: rates.perSecond[DAEDALUS] ?? 0, redPillRep,
-			threshold: ns.getFavorToDonate(), joinAgeMs: daedalusSeenAt - lastReset,
-			repMult: player.mults.faction_rep,
-		} : null;
-
-		const decision = decideReset({
-			queued, plan, upcoming, cash: cash() + stocks, income, incomeModel, sinceInstallMs,
-			neuroflux, favors, daedalus, ratesMeasured: Object.keys(rates.perSecond).length > 0,
-		});
-
-		ns.write(PLAN_FILE, JSON.stringify({
-			time: rates.snapshotTime, rep: rates.snapshot, perSecond: rates.perSecond, checkedAt: Date.now(),
-			queued, affordable: fitNow.augs, cost: fitNow.cost, stocks, decision, daedalusSeenAt, bitnode: bitnodeGoal(ns, factions),
-			incomeHistory, incomeModel,
-		}), "w");
-		if (flags.dry) showAdvice(ns, plan, cash(), stocks, sellers, boosts, skipped, upcoming, queued, fitNow, decision, rates, income, incomeModel);
-		return;
-	}
-
-	if (stocks > 0) ns.tprint(`Note: ${money(stocks)} is in stocks and isn't spent here. Run /stocks/stock-trader.js --liquidate first to use it.`);
-	let bought = 0;
-	let progress = true;
-	while (progress && sellers.size > 0) {
-		progress = false;
-		for (const entry of byPrice().filter((candidate) => candidate.price <= cash())) {
-			if (ns.singularity.purchaseAugmentation(sellers.get(entry.aug), entry.aug)) {
-				ns.tprint(`Bought ${entry.aug} from ${sellers.get(entry.aug)} for ${money(entry.price)}`);
-				sellers.delete(entry.aug);
-				bought++;
-				progress = true;
-				break; // prices just went up: re-read them
-			}
+	// Each locked augment once (the faction closest to unlocking it), minus ones another faction sells.
+	const closest = new Map();
+	for (const entry of locked) {
+		if (sellers.has(entry.aug)) continue;
+		const rate = rates.perSecond[entry.faction] ?? 0;
+		const etaMs = rate > 0 ? (entry.missing / rate) * 1000 : null;
+		const best = closest.get(entry.aug);
+		if (!best || (etaMs ?? Infinity) < (best.etaMs ?? Infinity) || (best.etaMs === null && entry.missing < best.missing)) {
+			closest.set(entry.aug, { ...entry, etaMs });
 		}
 	}
-	if (sellers.size > 0) ns.tprint(`Left for later (money or prerequisites): ${[...sellers.keys()].join(", ")}`);
+	const upcoming = [...closest.values()];
+	const fitNow = whatFits(plan, cash() + stocks);
 
-	let neuroflux = 0;
-	if (AUG_CONFIG.neuroflux && !flags["no-neuroflux"]) {
-		// Buy from the joined faction with the most rep, since its rep requirement climbs per level.
-		const best = factions.reduce((top, faction) => (rep.get(faction) > (rep.get(top) ?? -1) ? faction : top), null);
-		while (best && rep.get(best) >= ns.singularity.getAugmentationRepReq(NEUROFLUX)
-			&& ns.singularity.getAugmentationPrice(NEUROFLUX) <= cash()
-			&& ns.singularity.purchaseAugmentation(best, NEUROFLUX)) {
-			neuroflux++;
-		}
-	}
+	// NeuroFlux: bought from the joined faction with the most rep (its rep need climbs per level).
+	const nfgFaction = factions.reduce((top, faction) => (rep.get(faction) > (rep.get(top) ?? -1) ? faction : top), null);
+	const neuroflux = AUG_CONFIG.neuroflux && nfgFaction ? {
+		price: ns.singularity.getAugmentationPrice(NEUROFLUX),
+		repReq: ns.singularity.getAugmentationRepReq(NEUROFLUX),
+		value: augValue(NEUROFLUX, ns.singularity.getAugmentationStats(NEUROFLUX), AUG_CONFIG),
+		rep: rep.get(nfgFaction),
+		rate: rates.perSecond[nfgFaction] ?? 0,
+	} : null;
 
-	ns.tprint(`Done: ${bought} augment(s) and ${neuroflux} NeuroFlux level(s) bought, cash left ${money(cash() + flags.reserve)}.`);
-	if (bought + neuroflux > 0) ns.tprint("Run singularity/install-augs.js when you're ready to install them (this resets the run).");
+	// Favor: each faction still needed next run (it sells a wanted augment we won't have,
+	// or it's Daedalus before The Red Pill), weighted by how much rep it will take there.
+	const willOwn = new Set([...owned, ...fitNow.augs]);
+	const repStillNeeded = new Map();
+	const need = (faction, amount) => repStillNeeded.set(faction, Math.max(repStillNeeded.get(faction) ?? 0, amount));
+	for (const entry of locked) if (!willOwn.has(entry.aug)) need(entry.faction, entry.repNeeded);
+	for (const [aug, faction] of sellers) if (!willOwn.has(aug)) need(faction, ns.singularity.getAugmentationRepReq(aug));
+	const redPillRep = ns.singularity.getAugmentationRepReq(RED_PILL);
+	if (factions.includes(DAEDALUS) && !owned.has(RED_PILL)) need(DAEDALUS, redPillRep);
+	const totalNeeded = [...repStillNeeded.values()].reduce((sum, amount) => sum + amount, 0);
+	const favors = [...repStillNeeded].map(([faction, amount]) => ({
+		faction, favor: ns.singularity.getFactionFavor(faction), rep: rep.get(faction),
+		rate: rates.perSecond[faction] ?? 0, repShare: totalNeeded > 0 ? amount / totalNeeded : 0, // not `share`: that name costs 2.4GB (ns.share)
+	}));
+
+	// Daedalus: when it was first seen this run (how long the invite takes), and its numbers.
+	const daedalusSeenAt = !factions.includes(DAEDALUS) ? null
+		: sameRun && previous.daedalusSeenAt ? previous.daedalusSeenAt : Date.now();
+	const daedalus = factions.includes(DAEDALUS) && !owned.has(RED_PILL) ? {
+		favor: favors.find((entry) => entry.faction === DAEDALUS)?.favor ?? ns.singularity.getFactionFavor(DAEDALUS),
+		rep: rep.get(DAEDALUS), rate: rates.perSecond[DAEDALUS] ?? 0, redPillRep,
+		threshold: ns.getFavorToDonate(), joinAgeMs: daedalusSeenAt - lastReset,
+		repMult: player.mults.faction_rep,
+	} : null;
+
+	const decision = decideReset({
+		queued, plan, upcoming, cash: cash() + stocks, income, incomeModel, sinceInstallMs,
+		neuroflux, favors, daedalus, ratesMeasured: Object.keys(rates.perSecond).length > 0,
+	});
+
+	// When the advice first said RESET this run (null while it says wait), so auto-reset.js
+	// announces a reset once per stretch of RESET advice, even when it is restarted.
+	const resetSince = !decision.reset ? null
+		: sameRun && previous?.resetSince ? previous.resetSince : Date.now();
+
+	ns.write(PLAN_FILE, JSON.stringify({
+		time: rates.snapshotTime, rep: rates.snapshot, perSecond: rates.perSecond, checkedAt: Date.now(),
+		queued, affordable: fitNow.augs, cost: fitNow.cost, stocks, decision, resetSince, daedalusSeenAt, bitnode: bitnodeGoal(ns, factions),
+		incomeHistory, incomeModel,
+		// For singularity/workers/aug-buyer.js: everything with the rep, most expensive first, and
+		// where to buy NeuroFlux (null when the config or --no-neuroflux says not to).
+		buyList: plan.map((entry) => ({ aug: entry.aug, faction: sellers.get(entry.aug) })),
+		neurofluxFaction: AUG_CONFIG.neuroflux && !flags["no-neuroflux"] ? nfgFaction : null,
+	}), "w");
+	if (flags.dry) showAdvice(ns, plan, cash(), stocks, sellers, boosts, skipped, upcoming, queued, fitNow, decision, rates, income, incomeModel);
+	if (flags.dry || flags.plan) return;
+
+	// Buy: hand over to the small buyer, which starts once this script has exited and frees its RAM.
+	const buyerArgs = flags.reserve > 0 ? ["--reserve", flags.reserve] : [];
+	ns.spawn(BUYER, { threads: 1, spawnDelay: 0 }, ...buyerArgs);
 }
 
 /**
@@ -342,7 +328,7 @@ function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux,
 	const repWeight = (RESET_RULE.weights.faction_rep ?? RESET_RULE.defaultWeight) * RESET_RULE.favorWeight;
 	for (const entry of favors) {
 		const after = repToFavor(favorToRep(entry.favor) + entry.rep + entry.rate * waitS);
-		value += entry.share * repWeight * Math.log((100 + after) / (100 + entry.favor));
+		value += entry.repShare * repWeight * Math.log((100 + after) / (100 + entry.favor));
 	}
 	return { value, augs: fit.augs, neuroflux: levels };
 }
