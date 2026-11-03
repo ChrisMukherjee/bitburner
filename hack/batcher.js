@@ -253,6 +253,7 @@ function newTargetState() {
 		prepRam: 0,             // RAM held by the current prep wave
 		droppedBatches: 0,      // batches dropped part-way since the last log line
 		minMoneyPercent: 100,   // worst money seen since the last log line
+		moneySeen: [],          // { time, money } over the last couple of batch spacings (see stepTarget)
 		maxSecurityAboveMin: 0, // worst security above min seen since the last log line
 	};
 }
@@ -377,7 +378,7 @@ function pickPlan(ns, target, hackPerThread, timings, budget, scriptRam, ctx, ca
 		const ramMs = batchRamMs(plan, timings, scriptRam);
 		const moneyRate = plan.stolen / Math.max(BATCH_SPACING_MS, ramMs / budget);
 		// Smaller only if clearly better: near-ties go to the bigger batch (fewer processes to exec)
-		if (!best || moneyRate > best.moneyRate * 1.02) best = { plan, ramMs, moneyRate };
+		if (!best || moneyRate > best.moneyRate * 1.02) best = { plan, ramMs, moneyRate, fraction };
 	}
 	return best;
 }
@@ -445,7 +446,14 @@ function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft,
 	const maxMoney = ns.getServerMaxMoney(target);
 	const money = ns.getServerMoneyAvailable(target);
 	const atMinSecurity = security <= minSecurity + 0.01;
-	const atMaxMoney = money >= maxMoney * 0.999;
+	// Between a hack landing and its grow, money is below max for a moment. Sampled then, it looked like
+	// the target needed catch-up growth, which flipped the plan to huge batches with long gaps (bursty
+	// income, idle RAM). So "at max" uses the highest money seen over the last couple of batches.
+	const now = Date.now();
+	state.moneySeen = state.moneySeen.filter((sample) => sample.time > now - Math.max(1000, 2 * state.spacing));
+	state.moneySeen.push({ time: now, money });
+	const recentMoney = Math.max(...state.moneySeen.map((sample) => sample.money));
+	const atMaxMoney = recentMoney >= maxMoney * 0.999;
 	const batchable = money >= maxMoney * CONFIG.batchFromMoney;
 
 	if (state.mode === "batch") {
@@ -507,12 +515,17 @@ function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft,
 	state.prepRam = 0;
 	if (!state.timings) return { batchId, ramUsed: 0 };
 
-	// Hack fraction sized to this target's RAM share (see pickPlan)
-	// Below max money each batch grows a bit extra (catch-up), so money climbs back while it earns
-	const catchUp = atMaxMoney ? 1 : Math.min(CONFIG.catchUpPerBatch, maxMoney / Math.max(1, money));
-	const picked = pickPlan(ns, target, state.timings.hackPerThread, state.timings, budgetLeft, scriptRam, ctx, catchUp);
+	// Hack fraction sized to this target's RAM share (see pickPlan), chosen without catch-up: the extra
+	// grow is the same per batch whatever its size, so counting it would always favour the biggest batch.
+	// Below max money each batch then grows a bit extra (catch-up), so money climbs back while it earns.
+	const picked = pickPlan(ns, target, state.timings.hackPerThread, state.timings, budgetLeft, scriptRam, ctx);
 	if (!picked) return { batchId, ramUsed: 0 };
-	const { plan, ramMs } = picked;
+	let { plan, ramMs } = picked;
+	const catchUp = atMaxMoney ? 1 : Math.min(CONFIG.catchUpPerBatch, maxMoney / Math.max(1, recentMoney));
+	if (catchUp > 1) {
+		plan = makePlan(ns, target, state.timings.hackPerThread, picked.fraction, scriptRam, ctx, catchUp);
+		ramMs = batchRamMs(plan, state.timings, scriptRam);
+	}
 	state.lastPlan = plan;
 
 	// Space batches so that this target's steady-state RAM (RAM-time per batch / spacing) fits its share
