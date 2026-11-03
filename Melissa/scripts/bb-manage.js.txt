@@ -1,0 +1,67 @@
+// Bladeburner housekeeping, one short pass every few minutes: decides bb-state.txt, joins the division, spends skill points.
+//   bb-state.txt = "off"   Bladeburner is not available (needs Source-File 6 or 7, or BitNode 6/7)
+//                  "boot"  start of a run: first get hacking to 10 and income flowing (programs, study, batcher), Bladeburner waits
+//                  "train" a combat stat is below 100: faction-pass.js trains it in the gym (also after an install resets the stats)
+//                  "run"   stats are ready: bb-pass.js plays, faction-pass.js leaves the player alone
+// All decided from live state each pass (Source-Files, hacking level, income, stats, run age); nothing is remembered between runs.
+// Skill points: Overclock first (shorter actions = more rank per hour), then the success-chance skills, then stamina, always the
+// cheapest of the current tier.
+import { readIncomeRate } from "/utils/income.js";
+
+const TIERS = [["Overclock"], ["Blade's Intuition", "Digital Observer", "Tracer", "Cloak", "Short-Circuit"], ["Cyber's Edge"], ["Hyperdrive"]];
+const OVERCLOCK_MAX = 90;
+const HACK_FLOOR = 10;           // before this the batcher has almost nothing to hack and programs/TOR are out of reach
+const CASH_FLOOR = 5e6;          // or this much cash on hand
+const BOOT_MAX_MS = 3600_000;    // never hold Bladeburner longer than an hour into a run: if the start is stuck, training is not the cause
+const COMBAT_FLOOR = 100;        // gym until every combat stat reaches this (also the join requirement)
+
+/** @param {NS} ns */
+export async function main(ns) {
+    ns.disableLog("ALL");
+    const bb = ns.bladeburner;
+    const info = ns.getResetInfo();
+    const access = info.currentNode === 6 || info.currentNode === 7 || info.ownedSF.has(6) || info.ownedSF.has(7);
+    const state = (s) => { ns.write("bb-state.txt", s, "w"); if (ns.getHostname() !== "home") ns.scp("bb-state.txt", "home"); };
+    if (!access) return state("off");
+
+    const player = ns.getPlayer();
+    const s = player.skills;
+    // One route: node-eta.js picks it (with hysteresis) and writes bb-route.txt. On the hacking route Bladeburner takes none of the player's
+    // time (no gym, no actions), so faction/company work and the hacking augs get all of it; on the combat route (or no verdict yet) it carries on as below.
+    if (String(ns.read("bb-route.txt")).trim() === "hacking") { if (bb.inBladeburner() && bb.getCurrentAction()) bb.stopBladeburnerAction(); return state("hold"); }
+    // A Bladeburner action left running (for example from before a reset) would fight the gym or the study: stop it
+    const clearAction = () => { if (bb.inBladeburner() && bb.getCurrentAction()) bb.stopBladeburnerAction(); };
+
+    // Start of a run: hacking and income first (they pay for everything else), unless the run is already an hour old
+    const young = Date.now() - (Number(ns.read("reset-info.txt")) || 0) < BOOT_MAX_MS;
+    const income = readIncomeRate(ns).perSecond;
+    const booted = s.hacking >= HACK_FLOOR && (income > 0 || player.money >= CASH_FLOOR);
+    if (young && !booted) { clearAction(); return state("boot"); }
+
+    // Combat stats under the floor (new run, or never trained): gym first
+    // The floor is also raised by node-eta.js when a longer gym phase beats running now (bb-train-target.txt, a level; 0 = none)
+    const floor = Math.max(COMBAT_FLOOR, Number(ns.read("bb-train-target.txt")) || 0);
+    if (Math.min(s.strength, s.defense, s.dexterity, s.agility) < floor) { clearAction(); return state("train"); }
+    if (!bb.inBladeburner()) {
+        if (!bb.joinBladeburnerDivision()) return state("off");
+        ns.toast("Joined the Bladeburner division", "success", 15000);
+    }
+    // node-eta.js decides from the live chances whether Bladeburner is worth the player's time right now ("hold" = division joined, no actions;
+    // faction-pass then does normal faction/company/crime work, and the planner keeps buying the augmentations node-eta's route needs)
+    if (String(ns.read("bb-hold.txt")).trim() === "1") { clearAction(); return state("hold"); }
+    state("run");
+
+    // Skills
+    let points = bb.getSkillPoints();
+    for (const tier of TIERS) {
+        for (let guard = 0; guard < 50; guard++) {
+            const options = tier.map(n => ({ n, cost: bb.getSkillUpgradeCost(n, 1) })).filter(o => Number.isFinite(o.cost) && o.cost > 0);
+            const open = options.filter(o => o.n !== "Overclock" || bb.getSkillLevel("Overclock") < OVERCLOCK_MAX);
+            if (!open.length) break;
+            const pick = open.sort((a, b) => a.cost - b.cost)[0];
+            if (pick.cost > points) return;   // can't afford the next one of this tier: wait (don't skip ahead to lesser tiers)
+            if (!bb.upgradeSkill(pick.n, 1)) break;
+            points -= pick.cost;
+        }
+    }
+}

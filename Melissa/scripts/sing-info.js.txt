@@ -1,0 +1,13 @@
+/**
+ * One-shot: writes sing-info.txt as "available,multiplier,node,sf4level" (e.g. "1,1,4,0" inside BitNode 4).
+ * Singularity works in BitNode 4 or with Source-File 4. Outside BitNode 4 every Singularity call costs
+ * 16x RAM at SF4.1, 4x at SF4.2 and 1x at SF4.3. Kept separate so the orchestrator doesn't pay for getResetInfo.
+ * @param {NS} ns */
+export async function main(ns) {
+    const info = ns.getResetInfo();
+    const node = info.currentNode;
+    const level = info.ownedSF.get(4) ?? 0;
+    const available = node === 4 || level > 0;
+    const multiplier = node === 4 || level >= 3 ? 1 : level === 2 ? 4 : 16;
+    ns.write("sing-info.txt", `${available ? 1 : 0},${multiplier},${node},${level}`, "w");
+}

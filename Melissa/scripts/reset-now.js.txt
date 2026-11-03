@@ -1,0 +1,22 @@
+// Run this when you want to buy the augmentations you can afford and install them (this RESETS the run).
+// Start it when the orchestrator's "Reset advice is RESET" toast shows up, or any time you are ready.
+//   run reset-now.js            buy everything useful, then install (orchestrator.js restarts afterwards)
+//   run reset-now.js --cancel   take the request back (only possible before the install starts)
+//   run reset-now.js --auto on  let the orchestrator do this by itself whenever the reset advice says RESET (off by default)
+//   run reset-now.js --auto off turn that off again
+/** @param {NS} ns */
+export async function main(ns) {
+    const autoAt = ns.args.indexOf("--auto");
+    if (autoAt >= 0) {
+        if (ns.args[autoAt + 1] === "on") { ns.write("auto-reset.txt", "1", "w"); ns.tprint("Automatic resets ON: the orchestrator will buy and install when the advice says RESET."); }
+        else { ns.rm("auto-reset.txt", "home"); ns.tprint("Automatic resets OFF."); }
+        return;
+    }
+    if (ns.args.includes("--cancel")) {
+        ns.rm("do-reset.txt", "home");
+        ns.tprint("Reset request cancelled.");
+        return;
+    }
+    ns.write("do-reset.txt", String(Date.now()), "w");
+    ns.tprint("Reset requested. The orchestrator will buy the useful augmentations, then install them and restart. Use --cancel to stop it before the install.");
+}

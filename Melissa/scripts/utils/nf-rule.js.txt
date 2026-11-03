@@ -1,0 +1,15 @@
+/**
+ * Should leftover cash go to a home upgrade instead of NeuroFlux Governor? (0 GB: only reads files.)
+ * Home RAM and cores survive an install and raise income, so while one of them is affordable it wins; NeuroFlux gets the
+ * cash only when no home upgrade is available or affordable. The "next" files hold what the upgrade passes need in cash
+ * (upgrade cost plus the income-based reserve), written by upgrade-home-ram.js / upgrade-home-cores.js.
+ * Missing files mean "unknown": the upgrade is assumed to be wanted, so NeuroFlux is not bought on guesswork.
+ */
+export function homeUpgradeBeatsNeuroFlux(ns, cash) {
+	const stamp = String(ns.read("reset-info.txt"));
+	const ramWanted = ns.read("home-ram-maxed.txt") !== stamp && cash >= (Number(ns.read("home-ram-next.txt")) || 0);
+	const coresRelevant = ns.getServerMaxRam("home") >= 64;
+	const coresNext = Number(ns.read("home-cores-next.txt")) || 0;
+	const coresWanted = coresRelevant && ns.read("home-cores-maxed.txt") !== stamp && coresNext > 0 && cash >= coresNext;
+	return ramWanted || coresWanted;
+}

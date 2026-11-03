@@ -1,0 +1,105 @@
+import { serverSolver } from 'lib-auth.js';
+
+const FILES = ["scout.js", "phish.js", "lib-auth.js", "lib-intel.js", "passwords.json"];
+
+/** @param {NS} ns */
+export async function main(ns) {
+  const currentHost = ns.getHostname();
+  if (currentHost === "home") return;
+
+  ns.disableLog("sleep");
+  ns.disableLog("dnet.probe");
+  ns.disableLog("write");
+  ns.disableLog("scp");
+  ns.disableLog("ps");
+  ns.disableLog("ls");
+  ns.disableLog("getServerMaxRam");
+  ns.disableLog("getServerUsedRam");
+  ns.disableLog("getScriptRam");
+
+  while (true) {
+    await claimCaches(ns, currentHost);
+
+    try {
+      const neighbors = ns.dnet.probe() || [];
+      ns.write("scout_nodes.txt", JSON.stringify(neighbors), "w");
+
+      // Solve immediate neighbors, then spread onto any we have a session with.
+      // exec needs a direct connection, so only a neighbouring scout can start scouts deeper in.
+      // Easy ones first; the slow NIL/DeepGreen solvers only run once every quick win is spread to
+      const hard = [];
+      for (const neighbor of neighbors) {
+        try {
+          if (await serverSolver(ns, neighbor)) {
+            await spreadTo(ns, currentHost, neighbor);
+          } else {
+            hard.push(neighbor);
+          }
+        } catch (e) {
+          // Silently catch individual neighbor errors to keep the scout loop stable
+        }
+      }
+      for (const neighbor of hard) {
+        try {
+          if (await serverSolver(ns, neighbor, true)) {
+            await spreadTo(ns, currentHost, neighbor);
+          }
+        } catch (e) {}
+      }
+    } catch (err) {
+      ns.write("scout_error.txt", String(err), "w");
+    }
+
+    await ns.sleep(15000);
+  }
+}
+
+/** Opens every reward cache (.cache and .d.cache) sitting on this server */
+async function claimCaches(ns, currentHost) {
+  for (const file of ns.ls(currentHost, ".cache")) {
+    try {
+      const result = await ns.dnet.openCache(file);
+      ns.print(`[Cache] Opened ${file}: ${JSON.stringify(result)}`);
+    } catch (e) {
+      ns.print(`[Cache] Failed to open ${file}: ${e.message || e}`);
+    }
+  }
+}
+
+/** Copies the toolkit to a cracked neighbour, starts its scout, and fills spare RAM with phish */
+async function spreadTo(ns, currentHost, target) {
+  if (target === "home") return;
+
+  // Free up blocked RAM first so there's room for the scripts
+  try {
+    if (ns.dnet.getBlockedRam(target) > 0) {
+      await ns.dnet.memoryReallocation(target);
+    }
+  } catch (e) {}
+
+  // Only copy files on first infection, so we never overwrite a running node's vault
+  const scoutRunning = ns.ps(target).some(p => p.filename === "scout.js");
+  if (!scoutRunning) {
+    ns.scp(FILES.filter(f => ns.fileExists(f, currentHost)), target, currentHost);
+    const pid = ns.exec("scout.js", target, 1);
+    if (pid > 0) {
+      ns.print(`[Spread] Started scout on ${target}`);
+    } else {
+      // Don't fill with phish, or the scout will never get room to start
+      ns.print(`[Spread] Couldn't start scout on ${target} (not enough RAM?)`);
+      return;
+    }
+  }
+
+  const freeRam = ns.getServerMaxRam(target) - ns.getServerUsedRam(target);
+  const phishRam = ns.getScriptRam("phish.js", target);
+  const threads = phishRam > 0 ? Math.floor(freeRam / phishRam) : 0;
+  if (threads > 0) {
+    ns.exec("phish.js", target, threads, Date.now());
+  }
+}
+
+/** @param {AutocompleteData} data */
+export function autocomplete(data) {
+  return ["--tail"];
+}

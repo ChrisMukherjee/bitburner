@@ -1,0 +1,12 @@
+import { scanAllServers } from "lib-target.js";
+
+/** Copies the current worker.js from home to every server, replacing old copies.
+ *  @param {NS} ns */
+export async function main(ns) {
+    let copied = 0;
+    for (const server of scanAllServers(ns)) {
+        if (server === "home" || !ns.hasRootAccess(server)) continue;
+        if (ns.scp("worker.js", server, "home")) copied++;
+    }
+    ns.tprint(`[Refresh] Copied worker.js to ${copied} servers.`);
+}

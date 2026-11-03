@@ -1,0 +1,50 @@
+import { SHARE_FLAG, SHARE_WORKER, homeReserveGb, shareThreadsWanted } from "lib-share.js";
+
+/** One-shot, run by the orchestrator every minute while sharing is on (or a worker is left running). @param {NS} ns */
+export async function main(ns) {
+    manageShare(ns);
+}
+
+/**
+ * While share-on.txt exists (run share.js on), keeps one share worker on home, sized to the
+ * percent you chose (default in lib-share.js). The batcher leaves that room free, so the worker can grow
+ * to full size within a minute or two. Without the flag, the worker is stopped.
+ */
+function manageShare(ns) {
+    const running = ns.getRunningScript(SHARE_WORKER, "home");
+    const have = running ? running.threads : 0;
+
+    if (!ns.fileExists(SHARE_FLAG, "home")) {
+        if (have > 0) {
+            ns.scriptKill(SHARE_WORKER, "home");
+            ns.tprint("[Share] Sharing stopped, RAM goes back to the batcher.");
+        }
+        return;
+    }
+
+    const ram = ns.getScriptRam(SHARE_WORKER, "home");
+    if (ram <= 0) {
+        ns.print(`[Share] [ERROR] ${SHARE_WORKER} not found on home.`);
+        return;
+    }
+    const want = shareThreadsWanted(ns);
+    if (have > want) {
+        // You lowered the percent: shrink now
+        ns.scriptKill(SHARE_WORKER, "home");
+        if (want > 0) ns.exec(SHARE_WORKER, "home", want);
+        ns.tprint(`[Share] Sharing reduced to ${want} threads.`);
+        return;
+    }
+    if (have === want) return;
+
+    // Only restart the worker if it can actually get bigger right now
+    const free = ns.getServerMaxRam("home") - ns.getServerUsedRam("home") + have * ram - homeReserveGb(ns);
+    const fit = Math.min(want, Math.floor(free / ram));
+    if (fit <= have) return;
+
+    ns.scriptKill(SHARE_WORKER, "home");
+    if (ns.exec(SHARE_WORKER, "home", fit) > 0) {
+        ns.tprint(`[Share] Sharing with ${fit}/${want} threads (${ns.format.ram(fit * ram)})`);
+    }
+}
+

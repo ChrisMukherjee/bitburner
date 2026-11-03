@@ -1,0 +1,27 @@
+// Singularity: ONE pass of home core upgrades, then exits. Buys while the cash left afterwards still covers RESERVE_SECONDS of income.
+// Only worth it once home RAM is 64 GB or more (the orchestrator checks). Ported from ChrisMukherjee/bitburner singularity/upgrade-home-cores.js.
+import { readIncomeRate } from "/utils/income.js";
+const RESERVE_SECONDS = 300;   // cores pay back slower than RAM: keep 5 minutes of income after buying
+const FALLBACK_FRACTION = 0.25;   // used only while no income reading exists
+
+/** @param {NS} ns */
+async function pass(ns) {
+    ns.disableLog("ALL");
+    if (!String(ns.read("sing-info.txt")).startsWith("1")) return;
+    while (true) {
+        const cost = ns.singularity.getUpgradeHomeCoresCost();
+        if (!Number.isFinite(cost)) { ns.write("home-cores-maxed.txt", String(ns.read("reset-info.txt")), "w"); return; }
+        const keep = readIncomeRate(ns).perSecond * RESERVE_SECONDS;
+        const need = keep > 0 ? cost + keep : Math.ceil(cost / FALLBACK_FRACTION);   // decided from live income, fraction only as fallback
+        if (ns.getServerMoneyAvailable("home") < need || !ns.singularity.upgradeHomeCores()) { ns.write("home-cores-next.txt", String(Math.ceil(need)), "w"); return; }
+        ns.toast("Bought a home core", "success", 15000);
+    }
+}
+
+/** Entry point. Results go back to home when this runs on another server. */
+export async function main(ns) {
+    try { await pass(ns); }
+    finally {
+        if (ns.getHostname() !== "home") ns.scp(["home-cores-next.txt", "home-cores-maxed.txt"].filter(f => ns.fileExists(f)), "home");
+    }
+}

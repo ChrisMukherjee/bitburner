@@ -1,0 +1,136 @@
+/** @param {NS} ns */
+export function scanAllServers(ns) {
+  ns.disableLog("scan");
+  let visited = new Set(["home"]);
+  let queue = ["home"];
+  let allServers = [];
+
+  while (queue.length > 0) {
+    let current = queue.shift();
+    allServers.push(current);
+
+    let neighbors = ns.scan(current);
+    for (let neighbor of neighbors) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  let purchasedServers = ns.cloud.getServerNames();
+  for (let server of purchasedServers) {
+    if (!visited.has(server)) {
+      visited.add(server);
+      allServers.push(server);
+    }
+  }
+
+  return allServers;
+}
+
+/** @param {NS} ns */
+export function getBestTarget(ns) {
+  let servers = scanAllServers(ns);
+  let playerHacking = ns.getHackingLevel();
+  let purchasedServers = ns.cloud.getServerNames();
+
+  let bestTarget = "joesguns";
+  let bestScore = 0;
+
+  for (let server of servers) {
+    // Skip home, our own purchased servers, and servers with 0 max money
+    if (server === "home" || purchasedServers.includes(server)) continue;
+    if (ns.getServerMaxMoney(server) <= 0) continue;
+
+    // Skip servers requiring a higher hacking level than we currently possess
+    if (ns.getServerRequiredHackingLevel(server) > playerHacking) continue;
+
+    // Gain root access if we don't have it yet (skips servers we can't open enough ports on)
+    if (!tryRoot(ns, server)) continue;
+
+    let maxMoney = ns.getServerMaxMoney(server);
+    let minSecurity = ns.getServerMinSecurityLevel(server);
+
+    let score = maxMoney / minSecurity;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestTarget = server;
+    }
+  }
+
+  return bestTarget;
+}
+
+
+/** Opens every port we can and nukes the server. Returns true if we have root afterwards.
+ *  @param {NS} ns */
+export function tryRoot(ns, host) {
+  if (ns.hasRootAccess(host)) return true;
+  // Called by name (not ns[fn]) so the game counts their RAM correctly
+  let opened = 0;
+  if (ns.fileExists("BruteSSH.exe", "home")) { ns.brutessh(host); opened++; }
+  if (ns.fileExists("FTPCrack.exe", "home")) { ns.ftpcrack(host); opened++; }
+  if (ns.fileExists("relaySMTP.exe", "home")) { ns.relaysmtp(host); opened++; }
+  if (ns.fileExists("HTTPWorm.exe", "home")) { ns.httpworm(host); opened++; }
+  if (ns.fileExists("SQLInject.exe", "home")) { ns.sqlinject(host); opened++; }
+  if (opened < ns.getServerNumPortsRequired(host)) return false;
+  try { ns.nuke(host); } catch (e) { return false; }
+  return ns.hasRootAccess(host);
+}
+
+/** Money targets we can hack, best first.
+ *  Uses money per second at minimum security when Formulas.exe is owned,
+ *  otherwise max money / min security.
+ *  @param {NS} ns */
+export function getRankedTargets(ns) {
+  return getTargetScores(ns).map(c => c.host);
+}
+
+/** Same as getRankedTargets, as { host, score } so callers can compare how much better one is.
+ *  @param {NS} ns */
+export function getTargetScores(ns) {
+  const level = ns.getHackingLevel();
+  const owned = new Set(ns.cloud.getServerNames());
+  const hasFormulas = ns.fileExists("Formulas.exe", "home");
+  const player = hasFormulas ? ns.getPlayer() : null;
+
+  const candidates = [];
+  for (const host of scanAllServers(ns)) {
+    if (host === "home" || owned.has(host)) continue;
+    const maxMoney = ns.getServerMaxMoney(host);
+    if (maxMoney <= 0) continue;
+    const required = ns.getServerRequiredHackingLevel(host);
+    if (required > level || !tryRoot(ns, host)) continue;
+
+    let score;
+    if (hasFormulas) {
+      const server = mockTarget(ns, host, 1);
+      score = maxMoney * ns.formulas.hacking.hackChance(server, player) / ns.formulas.hacking.weakenTime(server, player);
+    } else {
+      score = maxMoney / ns.getServerMinSecurityLevel(host);
+    }
+    candidates.push({ host, score });
+  }
+
+  // Best score first. With Formulas.exe the score already counts hack chance and time
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates;
+}
+
+/** A server object for the Formulas.exe functions, built from cheap getters instead of ns.getServer (2 GB of script RAM).
+ *  Set at minimum security with `moneyShare` of max money. Only call it when Formulas.exe is owned (mockServer needs it).
+ *  @param {NS} ns */
+export function mockTarget(ns, host, moneyShare = 1) {
+  const server = ns.formulas.mockServer();
+  server.hostname = host;
+  server.requiredHackingSkill = ns.getServerRequiredHackingLevel(host);
+  server.serverGrowth = ns.getServerGrowth(host);
+  server.minDifficulty = ns.getServerMinSecurityLevel(host);
+  server.baseDifficulty = server.minDifficulty;
+  server.hackDifficulty = server.minDifficulty;
+  server.moneyMax = ns.getServerMaxMoney(host);
+  server.moneyAvailable = server.moneyMax * moneyShare;
+  return server;
+}
