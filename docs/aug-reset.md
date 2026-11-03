@@ -90,9 +90,15 @@ room for the planner twice; an older plan is made again first.
 restarting it (`startup --restart`, `--dry` runs) doesn't repeat the toast.
 
 **Leftover cash goes into home before an install.** Home RAM and cores survive an install and
-cash doesn't, so install-augs runs both home buyers with `--spend-all` (no reserve, no stage cap)
-after augments and NeuroFlux are bought (`--keep-cash` skips it). Home RAM first: it's usually the
+cash doesn't, so install-augs runs both home buyers with `--spend-all` (no reserve, no cap)
+after augments are bought (`--keep-cash` skips it). Home RAM first: it's usually the
 bigger help to the next run's start.
+
+**NeuroFlux waits for home.** While a home RAM or cores upgrade is affordable (the cash its buyer last posted
+on port 33: cost plus its income reserve), the buyer and the forecast leave the leftover cash to it instead of
+buying NeuroFlux levels, since the upgrade survives the install and raises income. This is the other player's
+rule, reading the buyers' notes instead of the files it used; with no note yet (a fresh run, or startup.js not running)
+NeuroFlux is bought as before.
 
 ## Daedalus
 

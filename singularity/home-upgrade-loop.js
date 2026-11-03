@@ -1,5 +1,6 @@
 import { notify } from "/utils/notify.js";
-import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
+import { getBudget, getCash, formatMoney } from "/utils/spending.js";
+import { readIncomeRate } from "/utils/income.js";
 import { postGate } from "/singularity/ready.js";
 
 /**
@@ -8,7 +9,9 @@ import { postGate } from "/singularity/ready.js";
  * RAM check only charges that script for the two functions it really uses.
  *
  *   label      - log prefix, e.g. "home-ram"
- *   stages     - spending stages for createPolicyTracker (see utils/spending.js)
+ *   reserveSeconds, fallbackFraction - the spending rule (`homeUpgrades` in the config): buy while the
+ *                cash left afterwards covers this many seconds of income; with no income reading yet, spend
+ *                at most this share of the cash
  *   loopMs     - time between passes
  *   costOf     - () => cost of the next upgrade
  *   doUpgrade  - () => true if the upgrade went through
@@ -21,7 +24,7 @@ import { postGate } from "/singularity/ready.js";
  *
  * Flags: --once buys whatever the budget allows right now, then exits. startup.js runs it
  * that way, only when the gate says the next upgrade is affordable.
- * --spend-all ignores the spending stages (no reserve, all of the cash): install-augs.js runs
+ * --spend-all ignores the spending rule (no reserve, all of the cash): install-augs.js runs
  * both buyers this way just before an install, since home upgrades survive it and cash doesn't.
  */
 export async function runUpgradeLoop(ns, options) {
@@ -29,7 +32,7 @@ export async function runUpgradeLoop(ns, options) {
 	const flags = ns.flags([["once", false], ["spend-all", false]]);
 	const getPolicy = flags["spend-all"]
 		? () => ({ name: "spend-all", reserve: 0, maxFraction: 1 })
-		: createPolicyTracker(options.stages);
+		: incomePolicy(options);
 	const tag = `[${options.label}]`;
 	let lastStageName = "";
 	let lastIdleMessage = "";
@@ -83,4 +86,14 @@ export async function runUpgradeLoop(ns, options) {
 		if (flags.once) return;
 		await ns.sleep(options.loopMs);
 	}
+}
+
+/** Spending policy (utils/spending.js shape) from live income: reserve = income x reserveSeconds. */
+function incomePolicy({ reserveSeconds, fallbackFraction }) {
+	return (ns) => {
+		const perSecond = readIncomeRate(ns).perSecond;
+		return perSecond > 0
+			? { name: "income-based", reserve: perSecond * reserveSeconds, maxFraction: 1 }
+			: { name: "no income reading yet", reserve: 0, maxFraction: fallbackFraction };
+	};
 }

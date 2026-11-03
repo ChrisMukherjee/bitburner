@@ -55,3 +55,26 @@ export const backdoorReady = (ns) => !readGates(ns).backdoor?.done;
 
 /** player-work.js: done once study, travel and every work part are finished this run. */
 export const playerWorkReady = (ns) => !readGates(ns)["player-work"]?.done;
+
+/**
+ * The least cash at which a home RAM or cores upgrade is next in line (Infinity when none is waiting).
+ * It comes from the notes the home buyers post (cost plus their income reserve). No note yet (the
+ * first moments of a run, or startup.js isn't running) or home maxed counts as no upgrade, so a
+ * missing note never keeps cash from NeuroFlux. Cores post nothing below the stage that runs them.
+ */
+export function homeUpgradeNeed(ns) {
+	const gates = readGates(ns);
+	return Math.min(...["home-ram", "home-cores"].map((key) => {
+		const gate = gates[key];
+		return gate && !gate.done ? gate.needCash ?? 0 : Infinity;
+	}));
+}
+
+/**
+ * Should leftover cash go to a home upgrade instead of NeuroFlux Governor? Home RAM and cores survive
+ * an install and raise income, so while one is affordable it wins; NeuroFlux gets the cash only when
+ * no home upgrade is affordable (from the other player's NeuroFlux rule).
+ */
+export function homeUpgradeBeatsNeuroFlux(ns, cash) {
+	return cash >= homeUpgradeNeed(ns);
+}

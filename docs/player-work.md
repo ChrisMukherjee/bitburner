@@ -46,6 +46,15 @@ user can unfocus by hand and it's left alone until the next new work.
 (the old behaviour), since nothing passed the flag and every run before the implant lost a fifth of its
 work speed.
 
+## Gang crimes
+
+Crimes for the gang are scored, not fixed. `gang/workers/invite.js` rates every crime in `gang.inviteCrimes`
+by chance x (karma + `crimeSkillWeight` x stat exp) / seconds, so an easy crime wins early and harder ones take
+over as the stats rise; stat exp stops counting once the best karma crime succeeds `crimeGoodChance` of the time.
+Where a gang also needs karma -54,000 (Source-File 2, outside BitNode 2) that grind takes hours, so it comes
+last: only when no faction or company work needs the player. Rejected: running it before faction work, which
+would stall the rep the augments need. The scoring and the order came from the other player's crime script.
+
 ## Real rep goals
 
 A faction is worked until its **goal**: the highest rep needed among the augments still worth buying there

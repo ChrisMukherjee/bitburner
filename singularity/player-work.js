@@ -54,9 +54,11 @@ const CONFIG = {
  *   1. Study: below studying.hackLevel (75), takes the free course (`studying` in the config) once
  *      and leaves the class alone. The class keeps running past the target until something
  *      better below takes over.
- *   2. Gang invite (BitNode 2 only, no gang yet): crimes from gang.inviteCrimes until the karma and
- *      combat stats for gang.factions[0] (Slum Snakes) are met; join-factions.js accepts the invite
+ *   2. Gang invite (BitNode 2, no gang yet): the best-scoring crime from gang.inviteCrimes until the karma
+ *      and combat stats for gang.factions[0] (Slum Snakes) are met; join-factions.js accepts the invite
  *      and gang/gang-manager.js creates the gang. Asked of gang/workers/invite.js every 2 minutes.
+ *      Where a gang also needs karma -54,000 (Source-File 2, outside BitNode 2) that grind is slow, so it
+ *      is done last, in step 4's gap, only when nothing else needs the player.
  *   3. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
  *      below its real rep goal, from singularity/workers/faction-goals.js on port 23: the highest rep needed
  *      among the augments worth buying there (utils/aug-filter.js) that this run can afford and reach
@@ -173,7 +175,8 @@ async function onePass(ns, state) {
 	}
 
 	if (!state.gangDone && Date.now() - state.gangAt >= CONFIG.gangRefreshMs) {
-		const arg = JSON.stringify({ factions: config.gang.factions, crimes: config.gang.inviteCrimes });
+		const { factions, inviteCrimes: crimes, crimeSkillWeight: skillWeight, crimeGoodChance: goodChance } = config.gang;
+		const arg = JSON.stringify({ factions, crimes, skillWeight, goodChance });
 		// Once the gang faction is joined, startup.js starts gang/gang-manager.js by itself (gang/ready.js).
 		const fresh = await runHelper(ns, CONFIG.gangHelper, CONFIG.gangImports, GANG_PORT, arg);
 		if (fresh) Object.assign(state, { gang: fresh, gangAt: Date.now(), gangDone: !fresh.applies });
@@ -267,19 +270,19 @@ function workStep(ns, state, player) {
 		return { message: studyStep(ns, state, player, current, studying), done };
 	}
 	// 2. Crimes for the gang invite (BitNode 2). Stopped once gang/workers/invite.js says they're no longer needed.
+	// The slow karma grind outside BitNode 2 waits until nothing else needs the player (step 4).
 	const invite = state.gang;
-	if (invite?.applies && invite.crime) {
-		if (!(current?.type === "CRIME" && current.crimeType === invite.crime)) {
-			ns.singularity.commitCrime(invite.crime, state.focus); // repeats until other work replaces it
-			state.gangCrime = true;
+	const crimes = invite?.applies && invite.crime ? invite : null;
+	if (crimes && !crimes.slow) {
+		return { message: crimeStep(ns, state, current, crimes), done };
+	}
+	if (!crimes) {
+		if (state.gangCrime && current?.type === "CRIME") {
+			ns.singularity.stopAction();
+			current = null;
 		}
-		return { message: `[gang-invite] ${invite.crime} for the ${invite.faction} invite: needs ${invite.missing.join(", ")}`, done };
+		state.gangCrime = false;
 	}
-	if (state.gangCrime && current?.type === "CRIME") {
-		ns.singularity.stopAction();
-		current = null;
-	}
-	state.gangCrime = false;
 	// 3. Faction work.
 	if (goalFaction) {
 		const already = current?.type === "FACTION" && current.factionName === goalFaction;
@@ -295,6 +298,9 @@ function workStep(ns, state, player) {
 	}
 	// 4. Company work, filling the gaps.
 	if (companies.length === 0) {
+		if (crimes && (!current || ["CLASS", "CRIME"].includes(current.type))) {
+			return { message: crimeStep(ns, state, current, crimes), done };
+		}
 		return { message: `${factionMessage}; ${state.noCompany ? "company work off (--no-company)" : "every megacorp faction is joined"}`, done };
 	}
 	if (current?.type === "FACTION") {
@@ -310,6 +316,15 @@ function workStep(ns, state, player) {
 	if (!working || newJob) ns.singularity.workForCompany(target.company, state.focus);
 	const rep = ns.singularity.getCompanyRep(target.company);
 	return { message: `[company-work] ${target.company}: ${ns.format.number(rep)} / ${ns.format.number(companyWork.repNeeded)} rep`, done };
+}
+
+/** Commits the crime gang/workers/invite.js picked (it repeats until other work replaces it). Returns the log line. */
+function crimeStep(ns, state, current, invite) {
+	if (!(current?.type === "CRIME" && current.crimeType === invite.crime)) {
+		ns.singularity.commitCrime(invite.crime, state.focus);
+		state.gangCrime = true;
+	}
+	return `[gang-invite] ${invite.crime} for the gang${invite.slow ? " (karma grind, when nothing else needs you)" : ""}: needs ${invite.missing.join(", ")}`;
 }
 
 /** Starts the class once (flying to its city if needed); after that leaves the player's work alone. */

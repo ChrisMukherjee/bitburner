@@ -20,8 +20,10 @@
   minute, backdoors every 2 minutes until all are done. Only one one-shot runs at a time, and the one that waited
   longest goes first, so their RAM never stacks up and one that is always ready can't starve the rest. The notes
   are cleared when startup.js starts (after each reset), because programs are lost on an aug install.
-  Tradeoff: a one-shot buyer starts its spending stage from the current income each time instead of only moving up
-  during a run, so a dip in income can briefly make it stricter.
+  Tradeoff: a one-shot buyer reads the current income each time instead of only moving up during a run, so a dip in
+  income can briefly change what it keeps back.
+- **`data/startup-why.txt`** says what could not start and why (no room, missing file, room being kept free), rewritten
+  only when it changes: `cat data/startup-why.txt`. The idea came from the other player's `placement-why.txt`.
 - **`--restart`** stops every script it manages once, so code synced since they started takes effect. The batcher's
   workers already in flight keep running.
 - **Stages come from home RAM** (`startupStages` in [`../config.js`](../config.js): start below 64GB, early,

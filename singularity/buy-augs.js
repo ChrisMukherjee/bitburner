@@ -1,6 +1,7 @@
 import { readIncomeRate } from "/utils/income.js";
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";
+import { homeUpgradeNeed } from "/singularity/ready.js";
 import { recordIncomeSample, buildIncomeModel, earnedOver, timeToEarn, incomeMultAt } from "/utils/income-curve.js";
 // Design: docs/aug-reset.md
 const NEUROFLUX = "NeuroFlux Governor";
@@ -165,7 +166,7 @@ export async function main(ns) {
 
 	const decision = decideReset({
 		queued, plan, upcoming, cash: cash() + stocks, income, incomeModel, sinceInstallMs,
-		neuroflux, favors, daedalus, ratesMeasured: Object.keys(rates.perSecond).length > 0,
+		neuroflux, homeNeed: homeUpgradeNeed(ns), favors, daedalus, ratesMeasured: Object.keys(rates.perSecond).length > 0,
 	});
 
 	// When the advice first said RESET this run (null while it says wait), so auto-reset.js
@@ -309,7 +310,7 @@ function daedalusRule(daedalus, income, horizonMs, eta) {
  * then NeuroFlux with what's left, plus the favor the run's rep turns into.
  * Returns { value, augs, neuroflux }.
  */
-function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux, favors }, waitMs) {
+function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux, homeNeed, favors }, waitMs) {
 	const waitS = waitMs / 1000;
 	const cashThen = cash + earnedOver(Math.max(0, income), incomeModel, waitS);
 	const unlocked = [...plan, ...upcoming.filter((entry) => entry.etaMs !== null && entry.etaMs <= waitMs)]
@@ -319,8 +320,9 @@ function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux,
 	let value = fit.augs.reduce((sum, aug) => sum + (valueOf.get(aug) ?? 0), 0);
 
 	// NeuroFlux levels from the leftover cash (each level 1.14x dearer in money and rep, plus the 1.9x markup).
+	// Not when a home upgrade could use the leftover cash instead (homeNeed: singularity/ready.js).
 	let levels = 0;
-	if (neuroflux) {
+	if (neuroflux && cashThen - fit.cost < homeNeed) {
 		let left = cashThen - fit.cost;
 		let price = neuroflux.price * fit.mult;
 		let repReq = neuroflux.repReq;

@@ -17,7 +17,8 @@ const HOME_BUYERS = ["singularity/upgrade-home-ram.js", "singularity/upgrade-hom
  *
  * Before installing it spends the cash that's left on home RAM, then home cores (both buyers
  * with --once --spend-all, about 7GB each), since home upgrades survive the install. Run
- * buy-augs.js first so augments and NeuroFlux get the money before home does.
+ * buy-augs.js first so augments get the money before home does (it leaves NeuroFlux
+ * to home when a home upgrade is affordable).
  *
  *   run singularity/install-augs.js                        install, nothing runs afterwards
  *   run singularity/install-augs.js startup.js             install, then run that script on home

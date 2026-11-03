@@ -10,7 +10,7 @@ Gang manager for BitNode 2. Design: [`docs/gang.md`](../docs/gang.md). RAM figur
 | [`gang-manager.js`](gang-manager.js) | Runs the gang; settings are `gang` in the config; posts status lines on port 28 | `--no-buy`, `--no-war` | about 33GB |
 | [`ready.js`](ready.js) | Library: tells [`startup.js`](../startup.js) when the manager has work | import only | 1.5GB |
 | [`workers/equipment.js`](workers/equipment.js) | One-shot: equipment list, on port 29 | none | 5.6GB, for a moment |
-| [`workers/invite.js`](workers/invite.js) | One-shot for player-work: crimes needed for the invite, on port 30 | arg: JSON | 16.1GB (211.1GB at SF4.1, 55.1GB at SF4.2), for a moment |
+| [`workers/invite.js`](workers/invite.js) | One-shot for player-work: the best-scoring crime for the invite (and for the karma grind outside BitNode 2), on port 30 | arg: JSON | 16.1GB (211.1GB at SF4.1, 55.1GB at SF4.2), for a moment |
 
 [`startup.js`](../startup.js) starts the manager once there's work: a gang exists, or a gang faction is joined and a
 gang can be created (BitNode 2, or Source-File 2 with karma -54,000; that rule lives in [`utils/gang.js`](../utils/gang.js)).
@@ -18,7 +18,7 @@ gang can be created (BitNode 2, or Source-File 2 with karma -54,000; that rule l
 - **Combat or hacking.** The gang type comes from the faction it's created with, and can't be changed
   later. The default is a combat gang with Slum Snakes: more money (Human Trafficking) and stronger in
   territory clashes. The invite needs combat stats 30 and karma -9, so in BitNode 2
-  [`player-work.js`](../singularity/player-work.js) commits crimes (Mug, later Homicide) after study until it
+  [`player-work.js`](../singularity/player-work.js) commits the best-scoring crime of `gang.inviteCrimes` (Mug early, harder ones as stats rise) after study until it
   arrives. Set `gang.factions` to `["NiteSec", "The Black Hand"]` for a hacking gang instead: no crimes,
   since the hacking scripts get the NiteSec invite anyway, but less money.
 - **Recruits** whenever respect allows; **ascends** a member once their main stat multiplier would grow

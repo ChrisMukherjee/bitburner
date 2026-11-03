@@ -96,7 +96,7 @@ keeps at most a quarter of home (up to 64GB) free for typed commands.
 
 The choices that depend on where you are in the game live in [`config.js`](config.js): which augment
 stats are worth buying, the reset rule, faction and company order, study target, city-faction
-groups, hacknet/server/stock/home-upgrade spending stages, [`startup.js`](startup.js) stage thresholds and scripts to
+groups, hacknet/server/stock spending stages, how much income the home upgrades keep back, [`startup.js`](startup.js) stage thresholds and scripts to
 skip, and the BitNode route for [`auto-destroy.js`](singularity/auto-destroy.js). The defaults suit a hacking run with no
 gang (for example BitNode 4).
 

@@ -206,20 +206,15 @@ export const DEFAULTS = {
 		{ name: "established", minIncome: 1e7, reserve: 500e6, maxFraction: 0.9 },
 		{ name: "late", minIncome: 1e8, reserve: 2e9, maxFraction: 0.9 },
 	],
-	// Home RAM is the best early buy (every other manager runs on it), so it spends more freely
-	// than the servers. Cores only speed up grow/weaken on home and cost a lot, so more carefully.
-	homeRamBuying: [
-		{ name: "early", minIncome: 0, reserve: 200e3, maxFraction: 0.90 },
-		{ name: "growing", minIncome: 1e5, reserve: 10e6, maxFraction: 0.75 },
-		{ name: "established", minIncome: 1e7, reserve: 100e6, maxFraction: 0.60 },
-		{ name: "late", minIncome: 1e8, reserve: 1e9, maxFraction: 0.50 },
-	],
-	homeCoresBuying: [
-		{ name: "early", minIncome: 0, reserve: 1e6, maxFraction: 0.50 },
-		{ name: "growing", minIncome: 1e5, reserve: 30e6, maxFraction: 0.40 },
-		{ name: "established", minIncome: 1e7, reserve: 300e6, maxFraction: 0.30 },
-		{ name: "late", minIncome: 1e8, reserve: 1e9, maxFraction: 0.25 },
-	],
+	// Home RAM and core upgrades (singularity/upgrade-home-ram.js, upgrade-home-cores.js): buy while the
+	// cash left afterwards still covers reserveSeconds of income, so the batcher, servers and augments
+	// aren't starved. RAM is the best early buy (every other manager runs on it) and keeps 2 minutes;
+	// cores only speed up grow/weaken on home and pay back slower, so they keep 5. Until there is an
+	// income reading (the start of a run) at most fallbackFraction of the cash is spent per upgrade.
+	homeUpgrades: {
+		ram: { reserveSeconds: 120, fallbackFraction: 0.5 },
+		cores: { reserveSeconds: 300, fallbackFraction: 0.25 },
+	},
 
 	// startup.js: home RAM (GB) at which "auto" picks each stage, and scripts it never starts
 	// (paths as in its list, e.g. "darknet/dnet-manager.js").
@@ -235,7 +230,12 @@ export const DEFAULTS = {
 		// For a HACKING gang use ["NiteSec", "The Black Hand"]: no crimes needed (your hacking already
 		// gets the NiteSec invite), but less money and weaker in territory clashes.
 		factions: ["Slum Snakes", "Tetrads", "The Syndicate", "Speakers for the Dead", "The Dark Army"],
-		inviteCrimes: ["Mug", "Homicide"], // player-work.js picks the one losing karma fastest
+		// Crimes player-work.js may commit for the gang (invite needs, and karma -54,000 outside BitNode 2).
+		// Each is scored by chance x (karma + crimeSkillWeight x stat exp) / seconds, best one wins.
+		inviteCrimes: ["Shoplift", "Rob Store", "Mug", "Larceny", "Deal Drugs", "Bond Forgery", "Traffick Arms",
+			"Homicide", "Grand Theft Auto", "Kidnap", "Assassinate", "Heist"],
+		crimeSkillWeight: 0.02,     // how much a point of stat exp counts against a point of karma (0 = karma only)
+		crimeGoodChance: 0.75,      // once the best karma crime succeeds this often, stat exp stops counting
 		trainLevel: 200,            // members train until their main stat (combat average, or hacking) reaches this
 		trainTasks: { combat: "Train Combat", hacking: "Train Hacking" },
 		focus: "auto",              // "respect", "money", or "auto": respect until the gang is full (12), then money

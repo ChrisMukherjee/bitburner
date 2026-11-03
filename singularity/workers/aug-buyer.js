@@ -1,4 +1,5 @@
 // Design: docs/aug-reset.md
+import { homeUpgradeBeatsNeuroFlux } from "/singularity/ready.js";
 const PLAN_FILE = "data/aug-plan.json";
 const NEUROFLUX = "NeuroFlux Governor";
 const MAX_PLAN_AGE_MS = 10 * 60_000; // older plans may list augments that are gone or no longer affordable
@@ -8,7 +9,7 @@ const PLANNER = "/singularity/buy-augs.js";
  * One-shot: buys the augments that buy-augs.js listed in data/aug-plan.json (`buyList`, every
  * augment it wants that a joined faction has the rep for), most expensive first at today's
  * prices (each purchase makes the rest 1.9x dearer), then NeuroFlux Governor levels from the
- * faction the plan names, while cash lasts. A purchase that fails (money or a missing
+ * faction the plan names, while cash lasts and no home RAM or cores upgrade is affordable (that goes first). A purchase that fails (money or a missing
  * prerequisite) is tried again after the next one succeeds.
  *
  * Kept apart from the planner so a 32GB home can plan and buy: buy-augs.js starts this after
@@ -59,10 +60,12 @@ export async function main(ns) {
 	// The game refuses once the rep or the money runs out, which ends the loop.
 	let neuroflux = 0;
 	if (plan.neurofluxFaction) {
-		while (ns.singularity.getAugmentationPrice(NEUROFLUX) <= cash()
+		// Cash a home upgrade can use goes to it instead (install-augs.js / startup.js buy it), see ready.js.
+		while (ns.singularity.getAugmentationPrice(NEUROFLUX) <= cash() && !homeUpgradeBeatsNeuroFlux(ns, cash())
 			&& ns.singularity.purchaseAugmentation(plan.neurofluxFaction, NEUROFLUX)) {
 			neuroflux++;
 		}
+		if (neuroflux === 0 && homeUpgradeBeatsNeuroFlux(ns, cash())) ns.tprint("NeuroFlux skipped: a home upgrade is affordable and gets the cash first.");
 	}
 
 	if (bought.length + neuroflux > 0) {

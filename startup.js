@@ -67,6 +67,8 @@ const STATUS_SCRIPT = "/tools/status.js";
 const MAX_OFF_HOME_SHARE = 0.65;
 // Key of startup.js's own room reservation (utils/ram-reserve.js).
 const RESERVE_KEY = "startup.js";
+// What is waiting and why (no room, missing file); read it with `cat data/startup-why.txt`.
+const WHY_FILE = "data/startup-why.txt";
 
 const CONFIG = {
 	passMs: 10_000,         // time between passes
@@ -127,6 +129,7 @@ export async function main(ns) {
 		lastShot: new Map(), // label -> time a one-shot was last started
 		reported: new Set(), // messages already printed (no room, missing file)
 		reservedFor: null,   // label of the script room is reserved for off home
+		whyText: null,       // last text written to WHY_FILE
 	};
 
 	while (true) {
@@ -267,9 +270,23 @@ function runPass(ns, requested, state) {
 		state.reservedFor = null;
 	}
 
+	writeWhy(ns, state, { noRoom, missing });
 	report(ns, state, { stage, homeRam, noSingularity, started, restarted, alreadyRunning, noRoom, missing });
 	state.firstPass = false;
 	state.stage = stage;
+}
+
+/** Keeps WHY_FILE up to date (written only when it changes): what could not start and what room is held for it. */
+function writeWhy(ns, state, { noRoom, missing }) {
+	const lines = [
+		...noRoom.map((line) => `no room yet: ${line}`),
+		...missing.map((file) => `missing file: ${file}`),
+		...(state.reservedFor ? [`room is being kept free for: ${state.reservedFor}`] : []),
+	];
+	const text = lines.join("\n");
+	if (text === state.whyText) return;
+	state.whyText = text;
+	ns.write(WHY_FILE, `${new Date().toLocaleTimeString()}\n${text || "nothing is waiting"}\n`, "w");
 }
 
 /** First pass: the full summary in the terminal. Later passes: only what changed. */
