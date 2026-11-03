@@ -22,7 +22,7 @@ let RESET_RULE = null;
 
 /**
  * Buys the augments worth having (by default: ones that help hacking, hacknet, darknet or
- * rep gain, plus The Red Pill, Neuroreceptor Manager and CashRoot) that you have the rep
+ * rep gain, plus The Red Pill, Neuroreceptor Management Implant and CashRoot) that you have the rep
  * for, most expensive first (each purchase raises the price of the rest by 1.9x, so the
  * big ones go first), then spends what's left on NeuroFlux Governor levels. By default
  * combat, charisma, crime and Bladeburner augments are skipped, since they'd only make the

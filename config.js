@@ -59,7 +59,7 @@ export const DEFAULTS = {
 		// Always worth buying, whatever they boost, with the reason shown in `augs`.
 		special: {
 			"The Red Pill": "lets you destroy the BitNode",
-			"Neuroreceptor Manager": "no penalty for unfocused work",
+			"Neuroreceptor Management Implant": "no penalty for unfocused work",
 			"CashRoot Starter Kit": "$1m and BruteSSH.exe after every reset",
 		},
 		// Never worth buying, even if they boost a wanted stat.
@@ -83,7 +83,7 @@ export const DEFAULTS = {
 			// rep-limited part of the next run).
 			favorWeight: 0.5,
 			// Value of augments without useful stats (The Red Pill is in keyAugs instead).
-			specialValue: { "Neuroreceptor Manager": 0.25, "CashRoot Starter Kit": 0.05 },
+			specialValue: { "Neuroreceptor Management Implant": 0.25, "CashRoot Starter Kit": 0.05 },
 			overheadMinutes: 5,   // fixed cost of one reset, added to the run age
 			minRunMinutes: 30,    // never reset a run younger than this
 			waitMargin: 0.05,     // wait only if a later moment beats now by more than 5% per hour
@@ -121,7 +121,7 @@ export const DEFAULTS = {
 			"Daedalus",            // The Red Pill: needed to finish the BitNode
 			"CyberSec",
 			"Netburners",
-			"Tian Di Hui",         // Neuroreceptor Manager (no unfocused penalty)
+			"Tian Di Hui",         // Neuroreceptor Management Implant (no unfocused penalty)
 			"NiteSec",
 			"The Black Hand",
 			"BitRunners",
