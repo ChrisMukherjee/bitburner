@@ -7,6 +7,7 @@ import { reserveRoom, releaseRoom } from "/utils/ram-reserve.js";
 import { singularityInfo } from "/utils/singularity.js";
 // Mechanic folders: each one's "is there work for its manager?" check (see AGENTS.md).
 import { gangReady } from "/gang/ready.js";
+import { dnetReady } from "/darknet/ready.js";
 import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady, playerWorkReady } from "/singularity/ready.js";
 
 // Every script startup.js runs, in priority order: earlier entries get RAM first.
@@ -47,7 +48,7 @@ const SCRIPTS = [
 	{ stage: "early", script: "go/ipvgo-bot.js", args: ["--opponent", "Netburners"], restartOnNewArgs: true, until: "mid" },
 	{ stage: "mid", script: "go/ipvgo-bot.js", args: ["--opponent", "The Black Hand"], restartOnNewArgs: true, until: "late" },
 	{ stage: "mid", script: "contracts/solve-contracts.js", homeOnly: true },
-	{ stage: "mid", script: "darknet/dnet-manager.js", homeOnly: true },
+	{ stage: "mid", script: "darknet/dnet-manager.js", homeOnly: true, ready: dnetReady },
 	{ stage: "mid", script: "singularity/upgrade-home-cores.js", args: ["--once"], oneShot: true, every: 30_000, ready: homeCoresReady },
 	// Last in mid: it only runs during faction work and only on RAM the batcher leaves free.
 	{ stage: "mid", script: "share/share-manager.js", needsSF4: true },
