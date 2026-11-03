@@ -42,8 +42,9 @@
 Rejected: stopping lower-priority scripts to make room for a waiting higher one, or holding home RAM for it.
 Stages already keep back what doesn't fit, and it would need the batcher to read a hold value. Instead, when the
 highest-priority script that may run off home finds no room, startup.js reserves room for it on one server
-([`ram.md`](ram.md)), one reservation at a time. Not yet done: running player-work.js as a pass every few minutes
-(it holds 29GB but keeps state between loops).
+([`ram.md`](ram.md)), one reservation at a time.
+- **player-work.js is a one-shot too**, a pass every minute that keeps its state on a port
+  ([`player-work.md`](player-work.md)), so its 30GB is no longer held all run.
 
 ## Structure across BitNodes
 

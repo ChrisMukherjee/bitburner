@@ -7,7 +7,7 @@ import { reserveRoom, releaseRoom } from "/utils/ram-reserve.js";
 import { singularityInfo } from "/utils/singularity.js";
 // Mechanic folders: each one's "is there work for its manager?" check (see AGENTS.md).
 import { gangReady } from "/gang/ready.js";
-import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady } from "/singularity/ready.js";
+import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady, playerWorkReady } from "/singularity/ready.js";
 
 // Every script startup.js runs, in priority order: earlier entries get RAM first.
 // A stage starts everything tagged with that stage or an earlier one.
@@ -33,8 +33,9 @@ const SCRIPTS = [
 	{ stage: "start", script: "singularity/join-factions.js", args: ["--once"], oneShot: true, every: 60_000 },
 	{ stage: "start", script: "singularity/auto-backdoor.js", args: ["--once"], oneShot: true, every: 120_000, ready: backdoorReady },
 	// The one script that moves the player: study to studying.hackLevel, faction work to the real rep
-	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. Exits when all is done.
-	{ stage: "start", script: "singularity/player-work.js" },
+	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. A short pass every
+	// minute (the game keeps the work going), until it posts that everything is done.
+	{ stage: "start", script: "singularity/player-work.js", args: ["--once"], oneShot: true, every: 60_000, ready: playerWorkReady },
 	// Mechanics, one folder each. Started only once their ready check says there is work.
 	{ stage: "start", script: "gang/gang-manager.js", ready: gangReady },
 	// Both keep $1m back for TOR and the port openers, so they buy nothing in the first minutes anyway.

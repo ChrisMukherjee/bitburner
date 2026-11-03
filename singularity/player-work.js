@@ -2,6 +2,7 @@
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { startHelper } from "/utils/start-helper.js";
+import { postGate } from "/singularity/ready.js";
 
 // Ports the one-shot helpers write to (not imported: the static RAM check would charge their
 // Singularity calls to this script too).
@@ -9,6 +10,11 @@ const GOALS_PORT = 23; // singularity/workers/faction-goals.js: rep goal per fac
 const PLAN_PORT = 25;  // singularity/workers/city-plan.js: which city factions still sell something wanted
 const GANG_PORT = 30;  // gang/workers/invite.js: crimes for the gang invite (BitNode 2)
 const AUG_PLAN_FILE = "data/aug-plan.json"; // buy-augs.js --plan: rep rates for the goals helper
+// What one pass leaves for the next (goals, city plan, what was started or announced), so a
+// --once pass can pick up where the last one stopped. Ports work from any server; a new run
+// (aug install) starts from scratch.
+const STATE_PORT = 35;
+const GATE_KEY = "player-work"; // singularity/ready.js: { done } once every part is done this run
 
 // City factions are worked only once joined, never waited for (the city part decides which to join).
 const CITY_FACTIONS = ["Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven"];
@@ -27,7 +33,7 @@ const TIAN_DI_HUI = {
 };
 
 const CONFIG = {
-	loopMs: 30_000,
+	loopMs: 30_000,            // between passes when it loops (no --once)
 	refreshMs: 10 * 60_000,    // re-read goals and city plan this often (catches augments bought meanwhile)
 	travelCost: 200e3,
 	goalsHelper: "singularity/workers/faction-goals.js",
@@ -68,12 +74,17 @@ const CONFIG = {
  *     the invite money plus the $200k flight and joins only factions with something left to buy,
  *     never a rival. Says once (toast + terminal) which city invites not to accept by hand.
  *
- * The helpers (about 22GB and 17GB, for a moment) run on home, else on any rooted server with
+ * The helpers (about 29GB and 17GB, for a moment) run on home, else on any rooted server with
  * room: at the start, after joining a faction, when a faction reaches its goal and every 10 minutes.
  * Until the goals helper has run once, no faction work happens (logged).
  * Exits once every part is done: hacking at the study target, Tian Di Hui joined, the city group
  * joined (or nothing wanted), every faction at its goal, every megacorp faction joined, and no
- * gang invite still to get.
+ * gang invite still to get. Then it posts that on port 33, so startup.js stops running it this run.
+ *
+ * Short passes: startup.js runs it with --once about every minute. Each pass decides, starts or
+ * keeps the work and exits; the game keeps the work going, so its 29GB is only used for a moment.
+ * What the next pass needs is kept on port 35. Each pass logs one line per part (work, travel)
+ * saying what it did or why it did nothing. Without --once it loops every 30 seconds as before.
  *
  * Focus: work is focused (full speed, takes over the screen) until the Neuroreceptor Management
  * Implant is installed, then unfocused (no penalty any more, you keep the screen). The goals helper
@@ -81,6 +92,7 @@ const CONFIG = {
  * unfocused when the script starts is focused once, the first time the helper reports.
  *
  *   run singularity/player-work.js               focused until the implant is installed, then unfocused
+ *   run singularity/player-work.js --once        one pass, then exit (how startup.js runs it)
  *   run singularity/player-work.js --focus       always focused
  *   run singularity/player-work.js --no-focus    always unfocused (80% speed without the implant)
  *   run singularity/player-work.js --study 100   study until hacking 100 instead of studying.hackLevel
@@ -90,81 +102,113 @@ const CONFIG = {
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	const flags = ns.flags([["focus", false], ["no-focus", false], ["study", 0], ["no-company", false], ["plan", false]]);
-	const config = loadConfig(ns);
-	const state = {
-		config,
-		focus: !flags["no-focus"], // set from the goals helper unless a flag forces it
-		focusForced: flags.focus || flags["no-focus"],
-		focusChecked: false,
-		studyLevel: Number(flags.study) || config.studying.hackLevel,
-		noCompany: flags["no-company"],
-		studyStarted: false,
-		studyAnnounced: false,
-		goals: null, goalsAt: 0, goalsFor: "", lastGoalFaction: "", factionAnnounced: false,
-		plan: null, planAt: 0, lastAnnounced: "", cityDone: false, cityMessage: "",
-		gang: null, gangAt: 0, gangDone: false,
-	};
+	const flags = ns.flags([["focus", false], ["no-focus", false], ["study", 0], ["no-company", false], ["plan", false], ["once", false]]);
 
 	if (flags.plan) {
-		const plan = await refreshPlan(ns, config.cities);
+		const plan = await refreshPlan(ns, loadConfig(ns).cities);
 		if (!plan) ns.tprint(`No room right now for ${CONFIG.planHelper} (${ns.format.ram(ns.getScriptRam(CONFIG.planHelper))}).`);
 		else printPlan(ns, plan, new Set(ns.getPlayer().factions));
 		return;
 	}
 
+	const resetAt = ns.getResetInfo().lastAugReset; // state from before the last install is dropped
 	const lastMessages = {};
 	while (true) {
-		let player = ns.getPlayer();
-		const order = config.factionWork.order;
-		const joinedKey = order.filter((faction) => player.factions.includes(faction)).join("|");
-		const reached = state.lastGoalFaction && state.goals &&
-			ns.singularity.getFactionRep(state.lastGoalFaction) >= state.goals[state.lastGoalFaction].rep;
-		if (!state.goals || joinedKey !== state.goalsFor || reached || Date.now() - state.goalsAt >= CONFIG.refreshMs) {
-			const fresh = await refreshGoals(ns, order);
-			if (fresh) {
-				Object.assign(state, { goals: fresh.goals, goalsAt: Date.now(), goalsFor: joinedKey });
-				// Unfocused work is slower until the Neuroreceptor Management Implant is installed.
-				if (!state.focusForced && fresh.focusPenalty !== undefined) state.focus = fresh.focusPenalty;
-				// Once per run: work started unfocused before this run (e.g. by an older version) is
-				// focused too, since only new work would pick up state.focus.
-				if (!state.focusChecked) {
-					state.focusChecked = true;
-					if (state.focus && ns.singularity.getCurrentWork() !== null) ns.singularity.setFocus(true);
-				}
-			}
-		}
-		if (!state.cityDone && (!state.plan || Date.now() - state.planAt >= CONFIG.refreshMs)) {
-			const fresh = await refreshPlan(ns, config.cities);
-			if (fresh) Object.assign(state, { plan: fresh, planAt: Date.now() });
-		}
+		const config = loadConfig(ns);
+		const state = loadState(ns, resetAt);
+		Object.assign(state, {
+			config,
+			focusForced: flags.focus || flags["no-focus"],
+			studyLevel: Number(flags.study) || config.studying.hackLevel,
+			noCompany: flags["no-company"],
+		});
+		state.focus = flags.focus ? true : flags["no-focus"] ? false : state.focusAuto ?? true;
 
-		if (!state.gangDone && Date.now() - state.gangAt >= CONFIG.gangRefreshMs) {
-			const arg = JSON.stringify({ factions: config.gang.factions, crimes: config.gang.inviteCrimes });
-			const fresh = await runHelper(ns, CONFIG.gangHelper, CONFIG.gangImports, GANG_PORT, arg);
-			if (fresh) {
-				// Just joined the gang faction: startup.js starts gang/gang-manager.js now that it has work.
-				if (state.gang?.applies && !fresh.applies && ns.exec("startup.js", "home") === 0) {
-					ns.print("[gang-invite] gang faction joined; no room on home to run startup.js, run `startup` for the gang manager");
-				}
-				Object.assign(state, { gang: fresh, gangAt: Date.now(), gangDone: !fresh.applies });
-			}
-		}
-
-		const trip = travelStep(ns, state, player);
-		player = ns.getPlayer(); // a join or flight above changes factions, city and money
-		const work = workStep(ns, state, player);
-
-		for (const [part, message] of Object.entries({ travel: trip.message, work: work.message })) {
-			if (message !== lastMessages[part]) ns.print(message);
+		const done = await onePass(ns, state);
+		saveState(ns, state, resetAt);
+		for (const [part, message] of Object.entries(done.messages)) {
+			// A --once pass logs every line, so each pass's log says what it did or why it did nothing.
+			if (flags.once || message !== lastMessages[part]) ns.print(message);
 			lastMessages[part] = message;
 		}
-		if (trip.done && work.done) {
+		if (done.all) {
+			postGate(ns, GATE_KEY, { done: true });
 			notify(ns, "[player-work]", "studied, joined and worked everything it can; done.", "success");
 			return;
 		}
+		if (flags.once) return;
 		await ns.sleep(CONFIG.loopMs);
 	}
+}
+
+/** One pass: refresh what's due, then one travel step and one work step. Returns { messages, all }. */
+async function onePass(ns, state) {
+	const config = state.config;
+	let player = ns.getPlayer();
+	const order = config.factionWork.order;
+	const joinedKey = order.filter((faction) => player.factions.includes(faction)).join("|");
+	const reached = state.lastGoalFaction && state.goals &&
+		ns.singularity.getFactionRep(state.lastGoalFaction) >= state.goals[state.lastGoalFaction].rep;
+	if (!state.goals || joinedKey !== state.goalsFor || reached || Date.now() - state.goalsAt >= CONFIG.refreshMs) {
+		const fresh = await refreshGoals(ns, order);
+		if (fresh) {
+			Object.assign(state, { goals: fresh.goals, goalsAt: Date.now(), goalsFor: joinedKey });
+			// Unfocused work is slower until the Neuroreceptor Management Implant is installed.
+			if (fresh.focusPenalty !== undefined) state.focusAuto = fresh.focusPenalty;
+			if (!state.focusForced && fresh.focusPenalty !== undefined) state.focus = fresh.focusPenalty;
+			// Once per run: work started unfocused before this run (e.g. by an older version) is
+			// focused too, since only new work would pick up state.focus.
+			if (!state.focusChecked) {
+				state.focusChecked = true;
+				if (state.focus && ns.singularity.getCurrentWork() !== null) ns.singularity.setFocus(true);
+			}
+		}
+	}
+	if (!state.cityDone && (!state.plan || Date.now() - state.planAt >= CONFIG.refreshMs)) {
+		const fresh = await refreshPlan(ns, config.cities);
+		if (fresh) Object.assign(state, { plan: fresh, planAt: Date.now() });
+	}
+
+	if (!state.gangDone && Date.now() - state.gangAt >= CONFIG.gangRefreshMs) {
+		const arg = JSON.stringify({ factions: config.gang.factions, crimes: config.gang.inviteCrimes });
+		// Once the gang faction is joined, startup.js starts gang/gang-manager.js by itself (gang/ready.js).
+		const fresh = await runHelper(ns, CONFIG.gangHelper, CONFIG.gangImports, GANG_PORT, arg);
+		if (fresh) Object.assign(state, { gang: fresh, gangAt: Date.now(), gangDone: !fresh.applies });
+	}
+
+	const trip = travelStep(ns, state, player);
+	player = ns.getPlayer(); // a join or flight above changes factions, city and money
+	const work = workStep(ns, state, player);
+	return { messages: { travel: trip.message, work: work.message }, all: trip.done && work.done };
+}
+
+// --- State kept between passes (port 35) ---
+
+/** What the last pass left, or a fresh start (first pass, or a new run since). */
+function loadState(ns, resetAt) {
+	let saved = null;
+	try {
+		saved = JSON.parse(ns.peek(STATE_PORT));
+	} catch { /* none yet */ }
+	const state = {
+		focusAuto: null, focusChecked: false,
+		studyStarted: false, studyAnnounced: false,
+		goals: null, goalsAt: 0, goalsFor: "", lastGoalFaction: "", factionAnnounced: false,
+		plan: null, planAt: 0, lastAnnounced: "", cityDone: false, cityMessage: "",
+		gang: null, gangAt: 0, gangDone: false, gangCrime: false,
+	};
+	if (saved?.resetAt !== resetAt) return state;
+	const { planGroups, resetAt: _, ...rest } = saved;
+	Object.assign(state, rest);
+	if (planGroups) state.plan = toPlan(planGroups);
+	return state;
+}
+
+/** Keeps what the next pass needs (not the config or the flags, which are read again). */
+function saveState(ns, state, resetAt) {
+	const { config, focus, focusForced, studyLevel, noCompany, plan, ...rest } = state;
+	ns.clearPort(STATE_PORT);
+	ns.writePort(STATE_PORT, JSON.stringify({ ...rest, planGroups: plan?.groups ?? null, resetAt }));
 }
 
 // --- Work: study, then gang-invite crimes, then faction work, then company work ---
@@ -428,8 +472,12 @@ async function refreshGoals(ns, order) {
 async function refreshPlan(ns, cities) {
 	const arg = JSON.stringify({ groups: cities.groups, otherSources: cities.otherSources });
 	const result = await runHelper(ns, CONFIG.planHelper, CONFIG.planImports, PLAN_PORT, arg);
-	if (!result?.groups) return null;
-	return { groups: result.groups, needs: (group, faction) => group.needs[faction] ?? [] };
+	return result?.groups ? toPlan(result.groups) : null;
+}
+
+/** The city plan with a lookup of what each faction in a group still sells that's wanted. */
+function toPlan(groups) {
+	return { groups, needs: (group, faction) => group.needs[faction] ?? [] };
 }
 
 /** Starts a helper, waits for it, and returns the JSON it posted on its port (only if posted after asking). */
