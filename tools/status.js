@@ -218,7 +218,8 @@ export async function main(ns) {
 	const entries = parseStartupScripts(startupText);
 	const level = stageNames.indexOf(stage);
 	const skipped = new Set(config.startupSkip); // turned off in the config: not "stopped"
-	const inStage = entries.filter((entry) => !skipped.has(entry.script) &&
+	// One-shots run for a moment now and then, so not running is normal for them.
+	const inStage = entries.filter((entry) => !entry.oneShot && !skipped.has(entry.script) &&
 		stageNames.indexOf(entry.stage) <= level && (!entry.until || stageNames.indexOf(entry.until) > level));
 	const running = [];
 	const stopped = [];
@@ -234,7 +235,7 @@ export async function main(ns) {
 		running.push(name + (copies.some((proc) => proc.host === "home") ? "" : `@${copies[0].host}`));
 	}
 	out.push(`Running: ${running.join(", ") || "-"}`);
-	if (stopped.length) out.push(`Not running: ${stopped.join(", ")} (some exit when done; \`run startup.js\` restarts the rest)`);
+	if (stopped.length) out.push(`Not running: ${stopped.join(", ")} (some exit when done; startup.js restarts the rest while it runs)`);
 
 	ns.tprint("\n" + out.join("\n"));
 }
@@ -309,10 +310,11 @@ function goProgress(entry) {
 	return recent < entry.peak * levelOff ? "levelled" : "climbing";
 }
 
-/** [{ stage, script, until }] from startup.js's SCRIPTS list. */
+/** [{ stage, script, until, oneShot }] from startup.js's SCRIPTS list. */
 function parseStartupScripts(text) {
 	return [...text.matchAll(/\{\s*stage:\s*"(\w+)",\s*script:\s*"([^"]+)"([^\n]*)/g)].map((match) => ({
 		stage: match[1], script: match[2], until: match[3].match(/until:\s*"(\w+)"/)?.[1],
+		oneShot: /oneShot:\s*true/.test(match[3]),
 	}));
 }
 

@@ -27,7 +27,8 @@ happens.
 "Can get" means two budgets over the reset rule's horizon (`resetRule.horizonHours`, see
 [`aug-reset.md`](aug-reset.md)):
 
-- **Money:** cash + stocks + income x horizon must cover the picked set bought most expensive first, each
+- **Money:** cash + stocks + what income earns over the horizon (along buy-augs' income curve, see
+  [`aug-reset.md`](aug-reset.md); flat until it has one) must cover the picked set bought most expensive first, each
   purchase making the rest 1.9x dearer (as buy-augs does).
 - **Time:** the rep still missing, summed over factions (they're worked one at a time), at the measured rep
   rate (from `data/aug-plan.json`; factions not worked yet get the best rate seen). Skipped until a rate

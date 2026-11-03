@@ -31,7 +31,7 @@ const CONFIG = {
 	refreshMs: 10 * 60_000,    // re-read goals and city plan this often (catches augments bought meanwhile)
 	travelCost: 200e3,
 	goalsHelper: "singularity/workers/faction-goals.js",
-	goalsImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js", "utils/income.js"],
+	goalsImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js", "utils/income.js", "utils/income-curve.js"],
 	planHelper: "singularity/workers/city-plan.js",
 	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	gangHelper: "gang/workers/invite.js",
@@ -392,14 +392,16 @@ async function refreshGoals(ns, order) {
 	// can't be reached in time. Missing file (or not on home): it checks money only.
 	let rates = {};
 	let ratesTime = 0;
+	let incomeModel = null;
 	try {
 		const plan = JSON.parse(ns.read(AUG_PLAN_FILE));
 		rates = plan.perSecond ?? {};
 		ratesTime = plan.time ?? 0;
+		incomeModel = plan.incomeModel ?? null; // income curve, for the money budget
 	} catch {
 		// no plan yet
 	}
-	const arg = JSON.stringify({ factions: order, rates, ratesTime });
+	const arg = JSON.stringify({ factions: order, rates, ratesTime, incomeModel });
 	const result = await runHelper(ns, CONFIG.goalsHelper, CONFIG.goalsImports, GOALS_PORT, arg);
 	return result?.goals ?? null;
 }

@@ -2,6 +2,7 @@
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";
 import { readIncomeRate } from "/utils/income.js";
+import { earnedOver } from "/utils/income-curve.js";
 // Port player-work.js reads the goals from (20 darknet, 21 stock influence, 22 batcher income).
 export const GOALS_PORT = 23;
 const STOCK_SUMMARY_PORT = 26; // stock-trader.js posts the value of its positions here
@@ -14,7 +15,8 @@ const PRICE_MULT = 1.9;        // every purchase multiplies the price of the res
 /**
  * Works out the rep goal of each faction, counting only the augments this run can actually
  * get: the ones worth buying (not owned, not queued) that fit
- *   - the money: cash + stocks + income x resetRule.horizonHours, with the 1.9x markup of
+ *   - the money: cash + stocks + what income earns over resetRule.horizonHours (along the
+ *     income curve from buy-augs.js, utils/income-curve.js; flat without one), with the 1.9x markup of
  *     buying them most expensive first, as buy-augs.js does; and
  *   - the time: the rep still missing, faction by faction (player-work works one at a time),
  *     at the measured rep rate, within the same horizon. Skipped while no rate is measured.
@@ -25,14 +27,14 @@ const PRICE_MULT = 1.9;        // every purchase multiplies the price of the res
  * every 10 minutes). An augment sold by several factions counts for the first joined one.
  *
  * Started by singularity/player-work.js with one JSON argument:
- *   { factions: [...in priority order], rates: { faction: rep/s }, ratesTime }
- * (rates from data/aug-plan.json; ignored if from before the last reset). Writes
+ *   { factions: [...in priority order], rates: { faction: rep/s }, ratesTime, incomeModel }
+ * (rates and income model from data/aug-plan.json; ignored if from before the last reset). Writes
  *   { time, budget, horizonHours, timeChecked, goals: { faction: { rep, aug, count, skipped } } }
  * to port 23 and exits. count = augments picked there, skipped = wanted but out of reach this run.
  */
 /** @param {NS} ns */
 export async function main(ns) {
-	const { factions, rates = {}, ratesTime = 0 } = JSON.parse(String(ns.args[0]));
+	const { factions, rates = {}, ratesTime = 0, incomeModel = null } = JSON.parse(String(ns.args[0]));
 	const augConfig = loadConfig(ns).augments;
 	const rule = augConfig.resetRule;
 	const horizonS = rule.horizonHours * 3600;
@@ -80,8 +82,10 @@ export async function main(ns) {
 
 	// Budget: money by the end of the horizon, and work time at the measured rep rate.
 	const income = Math.max(0, readIncomeRate(ns).perSecond);
-	const budget = ns.getServerMoneyAvailable("home") + stockValue(ns) + income * horizonS;
-	const fresh = ratesTime >= ns.getResetInfo().lastAugReset;
+	const lastReset = ns.getResetInfo().lastAugReset;
+	const curve = incomeModel && incomeModel.time >= lastReset ? incomeModel : null;
+	const budget = ns.getServerMoneyAvailable("home") + stockValue(ns) + earnedOver(income, curve, horizonS);
+	const fresh = ratesTime >= lastReset;
 	const measured = fresh ? Object.values(rates).filter((rate) => rate > 0) : [];
 	// Factions not worked yet: assume the best rate seen (favor differences are ignored).
 	const fallbackRate = measured.length > 0 ? Math.max(...measured) : 0;

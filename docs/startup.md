@@ -1,15 +1,32 @@
 # Startup
 
 [`../startup.js`](../startup.js). Type `run /startup.js` once per BitNode (or let a reset or
-[`../singularity/next-bitnode.js`](../singularity/next-bitnode.js) do it).
+[`../singularity/next-bitnode.js`](../singularity/next-bitnode.js) do it). It stays running after that.
 
 ## Decisions
 
-- **One list in priority order.** Every long-running script is one entry tagged with the stage it starts
-  in. Earlier entries get RAM first. It skips anything already running and exits once everything is launched,
-  so it is safe to run again at any time. Other scripts do: home RAM upgrades, new port openers, aug installs.
+- **One list in priority order.** Every script is one entry tagged with the stage it starts in. Earlier
+  entries get RAM first. It skips anything already running, and running it again replaces the running copy.
+- **Stays running (about 7GB) instead of launching once and exiting.** Every 10 seconds it re-reads the stage,
+  starts what has become ready and restarts what stopped. Before, nothing restarted a crashed script until the
+  next home upgrade, port opener or reset, and once those were maxed a crash late in a run stayed down. A script
+  that stops soon after starting is retried after 30 seconds, doubling up to an hour, because many stop on purpose
+  (nothing left to buy, no API, all done); one that stopped after 10 minutes or more gets a toast.
+- **Singularity buyers, invites and backdoors are one-shots.** Upgrade-home-ram, upgrade-home-cores,
+  buy-programs, join-factions and auto-backdoor used to loop on home, holding about 36GB in BitNode 4 (about
+  390GB at SF4.1) to wake up every 10 to 60 seconds. Now they run `--once` for a moment. The buyers post the cash
+  their next purchase needs on port 33 ([`../singularity/ready.js`](../singularity/ready.js)), and startup.js only
+  runs one again once that cash is there, so it never pays 7GB to learn nothing is affordable. Invites run every
+  minute, backdoors every 2 minutes until all are done. Only one one-shot runs at a time, and the one that waited
+  longest goes first, so their RAM never stacks up and one that is always ready can't starve the rest. The notes
+  are cleared when startup.js starts (after each reset), because programs are lost on an aug install.
+  Tradeoff: a one-shot buyer starts its spending stage from the current income each time instead of only moving up
+  during a run, so a dip in income can briefly make it stricter.
+- **`--restart`** stops every script it manages once, so code synced since they started takes effect. The batcher's
+  workers already in flight keep running.
 - **Stages come from home RAM** (`startupStages` in [`../config.js`](../config.js): start below 64GB, early,
-  mid at 128GB, late at 256GB). Home RAM is what decides what fits; `run /startup.js mid` forces one.
+  mid at 128GB, late at 256GB), read again every pass, so a home upgrade moves to the next stage by itself.
+  Home RAM is what decides what fits; `run /startup.js mid` forces one.
 - **The `start` stage is lean on purpose.** In a fresh BitNode only the buyers, the batcher, invites,
   backdoors and player work run, so the batcher gets the free servers' RAM. Hacknet, servers, Go and the
   rest wait until home has grown.
@@ -21,6 +38,11 @@
   The gang manager starts only once a gang or gang faction exists.
 - **`restartOnNewArgs`** swaps a running copy when the args change (for example the Go bot's opponent per
   stage), so two copies never fight over the same thing.
+
+Rejected: stopping lower-priority scripts to make room for a waiting higher one, or holding home RAM for it.
+Stages already keep back what doesn't fit, and it would need the batcher to read a hold value. Not yet done:
+reserving room for one-shots on other servers through a port the batcher reads, and running player-work.js as a
+pass every few minutes (it holds 29GB but keeps state between loops).
 
 ## Structure across BitNodes
 

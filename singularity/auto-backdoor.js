@@ -1,4 +1,5 @@
 import { notify } from "/utils/notify.js";
+import { postGate } from "/singularity/ready.js";
 // Servers whose backdoor does something (same list as list-backdoors.js, checked against
 // the v3.0.0 source). Lower priority = done first. Kept here rather than imported, because
 // importing list-backdoors.js would drag its getPlayer/cloud calls into this script's RAM.
@@ -29,6 +30,8 @@ const LOOP_MS = 60_000;
  *
  * It walks your terminal along the path (connect, connect, ..., backdoor) and goes back
  * home afterwards, so the terminal will jump around while it works.
+ *
+ * startup.js runs it with --once every couple of minutes until every target has a backdoor.
  *
  * Flags:
  *   --once     one pass, then exit
@@ -72,6 +75,7 @@ export async function main(ns) {
 
 		if (remaining === 0) {
 			ns.print("[backdoor] every target is backdoored, nothing left to do.");
+			postGate(ns, "backdoor", { done: true }); // startup.js stops running it until the next reset
 			return;
 		}
 		const message = `[backdoor] waiting on ${waiting.length}: ${waiting.join(", ")}`;

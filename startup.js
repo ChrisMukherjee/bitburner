@@ -2,14 +2,19 @@
 import { loadConfig, USER_CONFIG_FILE, BITNODE_FILE } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
+import { notify } from "/utils/notify.js";
 import { singularityInfo } from "/utils/singularity.js";
 // Mechanic folders: each one's "is there work for its manager?" check (see AGENTS.md).
 import { gangReady } from "/gang/ready.js";
+import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady } from "/singularity/ready.js";
 
-// Every long-running script, in priority order: earlier entries get RAM first.
+// Every script startup.js runs, in priority order: earlier entries get RAM first.
 // A stage starts everything tagged with that stage or an earlier one.
+//   oneShot:          runs one short pass (--once) and exits, so its RAM is only used for a moment.
+//                     Started again when `ready` says so (e.g. the next purchase is affordable), at
+//                     most every `every` ms, and only one one-shot at a time. Never "restarted".
 //   restartOnNewArgs: if a copy with different args is running (anywhere), kill it first
-//                     (otherwise two go bots would fight over the same board).
+//                     (otherwise two go bots would fight over the same board). One-shots do this too.
 //   homeOnly:         reads or writes data files on its own server, so it must run on home.
 //   ready:            (ns, config) => false leaves it out this time. For a mechanic's manager,
 //                     imported from its folder, so startup.js knows nothing about the mechanic.
@@ -20,12 +25,12 @@ import { gangReady } from "/gang/ready.js";
 const SCRIPTS = [
 	// "start": a fresh BitNode or a small home. Only what earns money or levels, so the batcher gets
 	// most of the free servers' RAM; everything else waits for the early stage (more home RAM).
-	{ stage: "start", script: "singularity/upgrade-home-ram.js" },
-	{ stage: "start", script: "singularity/buy-programs.js" },
+	{ stage: "start", script: "singularity/upgrade-home-ram.js", args: ["--once"], oneShot: true, every: 10_000, ready: homeRamReady },
+	{ stage: "start", script: "singularity/buy-programs.js", args: ["--once"], oneShot: true, every: 10_000, ready: programsReady },
 	{ stage: "start", script: "hack/batcher.js" },
-	// Player work and invites from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.
-	{ stage: "start", script: "singularity/join-factions.js" },
-	{ stage: "start", script: "singularity/auto-backdoor.js" },
+	// Invites and backdoors from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.
+	{ stage: "start", script: "singularity/join-factions.js", args: ["--once"], oneShot: true, every: 60_000 },
+	{ stage: "start", script: "singularity/auto-backdoor.js", args: ["--once"], oneShot: true, every: 120_000, ready: backdoorReady },
 	// The one script that moves the player: study to studying.hackLevel, faction work to the real rep
 	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. Exits when all is done.
 	{ stage: "start", script: "singularity/player-work.js" },
@@ -41,7 +46,7 @@ const SCRIPTS = [
 	{ stage: "mid", script: "go/ipvgo-bot.js", args: ["--opponent", "The Black Hand"], restartOnNewArgs: true, until: "late" },
 	{ stage: "mid", script: "contracts/solve-contracts.js", homeOnly: true },
 	{ stage: "mid", script: "darknet/dnet-manager.js", homeOnly: true },
-	{ stage: "mid", script: "singularity/upgrade-home-cores.js" },
+	{ stage: "mid", script: "singularity/upgrade-home-cores.js", args: ["--once"], oneShot: true, every: 30_000, ready: homeCoresReady },
 	// Last in mid: it only runs during faction work and only on RAM the batcher leaves free.
 	{ stage: "mid", script: "share/share-manager.js", needsSF4: true },
 	// Buys and installs augs by itself when the reset rule in buy-augs.js says so; startup.js comes
@@ -51,57 +56,94 @@ const SCRIPTS = [
 	{ stage: "late", script: "stocks/stock-trader.js", args: ["--buy-4s", "--promote", 32], homeOnly: true },
 ];
 const STAGES = ["start", "early", "mid", "late"];
-// Printed at the end when startup.js is run by hand (see the end of main).
+// Printed at the end of the first pass when startup.js is run by hand (see the end of main).
 const STATUS_SCRIPT = "/tools/status.js";
 // Home RAM at which "auto" picks each stage: `startupStages` in the config.
 // Scripts placed off home may use at most this share of the other rooted servers' RAM,
 // so the batcher always keeps the rest for hack/grow/weaken threads.
 const MAX_OFF_HOME_SHARE = 0.65;
 
+const CONFIG = {
+	passMs: 10_000,         // time between passes
+	restartMinMs: 30_000,   // wait before restarting a script that stopped...
+	restartMaxMs: 3_600_000, // ...doubling each time it stops again soon after starting, up to this
+	longRunMs: 600_000,     // a script that ran this long before stopping gets the short wait again
+};
+
 /**
- * Starts the scripts for a stage, skipping ones already running anywhere, then exits
- * (so its own RAM is only used for a moment).
- *   run /startup.js          pick the stage from home RAM
- *   run /startup.js mid      start everything up to the mid stage
+ * Starts the scripts for the current stage and stays running: each pass it starts what has become
+ * ready (a new stage after a home upgrade, a gang, an affordable purchase), restarts scripts that
+ * stopped, and runs the Singularity buyers as short one-shots.
+ *   run /startup.js            pick the stage from home RAM (again on every pass)
+ *   run /startup.js mid        stay on the mid stage
+ *   run /startup.js --restart  also restart every script it manages that is already running,
+ *                              so code synced since they started takes effect
+ *   run /startup.js --once     one pass, then exit (the old behaviour)
  *   alias startup='run /startup.js'   (absolute path, so it works from any directory)
  *
- * At the "start" stage (home below startupStages.early, e.g. a fresh BitNode) only the scripts that
- * earn or level run, so the batcher has RAM to hack with; the rest follow after a home upgrade.
+ * Running it again replaces the copy that is running. At the "start" stage (home below
+ * startupStages.early, e.g. a fresh BitNode) only the scripts that earn or level run, so the batcher
+ * has RAM to hack with; the rest follow after a home upgrade.
  * Home first. When home is too small (a fresh 8GB start), it roots every server it can and
  * runs the script on a rooted server instead, copying the script and its imports there.
  * The free servers alone (n00dles, foodnstuff, joesguns, ...) have about 100GB.
  *
- * You don't need to run it again by hand: upgrade-home-ram.js and buy-programs.js start it
- * after each home upgrade / port opener, so new stages and scripts that didn't fit get going.
- * It also runs after an augment install (auto-reset / install-augs) and, with
+ * It is started after an augment install (auto-reset / install-augs) and, with
  * singularity/next-bitnode.js (run by auto-destroy.js), at the start of the next BitNode.
  */
 /** @param {NS} ns */
 export async function main(ns) {
-	const requested = String(ns.args[0] ?? "auto");
-	// For loadConfig's per-BitNode settings (`bitnodes` in config.js). getResetInfo is already paid for below.
-	ns.write(BITNODE_FILE, String(ns.getResetInfo().currentNode), "w");
-	const config = loadConfig(ns);
-	const stageMinHomeRam = config.startupStages;
-	const homeRam = ns.getServerMaxRam("home");
-	const stage = requested === "auto"
-		? STAGES.filter((name) => homeRam >= (stageMinHomeRam[name] ?? Infinity)).pop()
-		: requested;
-	if (!STAGES.includes(stage)) {
+	ns.disableLog("ALL");
+	const flags = ns.flags([["restart", false], ["once", false]]);
+	const requested = String(flags._[0] ?? "auto");
+	if (requested !== "auto" && !STAGES.includes(requested)) {
 		ns.tprint(`ERROR startup: unknown stage "${requested}". Use auto, ${STAGES.join(", ")}.`);
 		return;
 	}
-	const level = STAGES.indexOf(stage);
-	// Costs 1GB (getResetInfo). With BN4/SF4 for sure, set sf4 to { available: true, level: 3, ramMultiplier: 1 }
-	// and drop the import to save it.
+
+	// Only one copy: this one replaces any that is running.
+	for (const proc of ns.ps("home")) {
+		if (proc.filename === ns.getScriptName() && proc.pid !== ns.pid) ns.kill(proc.pid);
+	}
+	// For loadConfig's per-BitNode settings (`bitnodes` in config.js). getResetInfo is already paid for below.
+	ns.write(BITNODE_FILE, String(ns.getResetInfo().currentNode), "w");
+	// Costs 1GB (getResetInfo). Doesn't change during a run, so read once.
 	const sf4 = singularityInfo(ns);
+	// A new run (startup.js is started after every reset): every one-shot checks once again.
+	clearGates(ns);
+
+	const state = {
+		sf4,
+		restart: flags.restart,
+		firstPass: true,
+		stage: "",
+		daemons: new Map(),  // label -> { running, since, stoppedAt, wait }
+		lastShot: new Map(), // label -> time a one-shot was last started
+		reported: new Set(), // messages already printed (no room, missing file)
+	};
+
+	while (true) {
+		runPass(ns, requested, state);
+		if (flags.once) return;
+		await ns.sleep(CONFIG.passMs);
+	}
+}
+
+/** One pass: pick the stage, then start what should run and isn't. */
+function runPass(ns, requested, state) {
+	const config = loadConfig(ns);
+	const homeRam = ns.getServerMaxRam("home");
+	const stage = requested === "auto"
+		? STAGES.filter((name) => homeRam >= (config.startupStages[name] ?? Infinity)).pop()
+		: requested;
+	const level = STAGES.indexOf(stage);
 	const needsSingularity = (entry) => entry.needsSF4 || entry.script.startsWith("singularity/");
 	const inStage = SCRIPTS.filter((entry) =>
 		STAGES.indexOf(entry.stage) <= level &&
 		(!entry.until || STAGES.indexOf(entry.until) > level) &&
 		!config.startupSkip.includes(entry.script)
 	);
-	const wanted = inStage.filter((entry) => sf4.available || !needsSingularity(entry));
+	const wanted = inStage.filter((entry) => state.sf4.available || !needsSingularity(entry));
 	const noSingularity = inStage.length - wanted.length;
 
 	nukeAllServers(ns);
@@ -109,25 +151,70 @@ export async function main(ns) {
 	const hosts = getAllServers(ns).filter((host) =>
 		host !== "home" && host !== "darkweb" && ns.hasRootAccess(host) && ns.getServerMaxRam(host) > 0 && !ns.dnet.isDarknetServer(host)
 	);
-	const running = ["home", ...hosts].flatMap((host) => ns.ps(host).map((proc) => ({ ...proc, host })));
+	let running = ["home", ...hosts].flatMap((host) => ns.ps(host).map((proc) => ({ ...proc, host })));
 	const ourScripts = new Set(SCRIPTS.map((entry) => entry.script));
+
+	// --restart: stop every copy of our scripts once, so this pass starts them with the current code.
+	if (state.restart) {
+		for (const proc of running) if (ourScripts.has(proc.filename)) ns.kill(proc.pid);
+		running = running.filter((proc) => !ourScripts.has(proc.filename));
+		state.restart = false;
+	}
+
 	const offHomeTotal = hosts.reduce((sum, host) => sum + ns.getServerMaxRam(host), 0);
 	let offHomeUsed = running
 		.filter((proc) => proc.host !== "home" && ourScripts.has(proc.filename))
 		.reduce((sum, proc) => sum + ns.getScriptRam(proc.filename, proc.host) * proc.threads, 0);
+	// A one-shot script running with other args is an older looping copy (from before it was a
+	// one-shot, or started by hand): stop it, the one-shot takes over.
+	for (const entry of SCRIPTS.filter((item) => item.oneShot)) {
+		for (const proc of running) {
+			if (proc.filename === entry.script && !sameArgs(proc.args, entry.args ?? [])) ns.kill(proc.pid);
+		}
+	}
+	running = running.filter((proc) => ns.isRunning(proc.pid));
+	// Only one one-shot at a time, so they never all want their RAM at once. Of those that are due,
+	// the one that waited longest goes first, so one that is always ready can't starve the rest.
+	const now = Date.now();
+	const shotRunning = running.some((proc) => SCRIPTS.some((entry) => entry.oneShot && entry.script === proc.filename));
+	const due = shotRunning ? [] : wanted.filter((entry) => entry.oneShot &&
+		now - (state.lastShot.get(shotLabel(entry)) ?? 0) >= (entry.every ?? 0) &&
+		(!entry.ready || entry.ready(ns, config)));
+	const nextShot = due.sort((first, second) =>
+		(state.lastShot.get(shotLabel(first)) ?? 0) - (state.lastShot.get(shotLabel(second)) ?? 0))[0];
 
-	const started = [], alreadyRunning = [], noRoom = [], missing = [];
+	const started = [], restarted = [], alreadyRunning = [], noRoom = [], missing = [];
 	for (const entry of wanted) {
-		if (entry.ready && !entry.ready(ns, config)) continue;
 		const args = entry.args ?? [];
 		const label = [entry.script, ...args].join(" ");
-		if (!ns.fileExists(entry.script, "home")) {
-			missing.push(entry.script);
-			continue;
-		}
 		const copies = running.filter((proc) => proc.filename === entry.script);
+		const daemon = state.daemons.get(label);
 		if (copies.some((proc) => sameArgs(proc.args, args))) {
 			alreadyRunning.push(entry.script);
+			if (!entry.oneShot && !daemon?.running) {
+				state.daemons.set(label, { running: true, since: now, wait: daemon?.wait ?? CONFIG.restartMinMs });
+			}
+			continue;
+		}
+		// A daemon we saw running has stopped: wait a little before restarting it, longer each
+		// time it stops again soon (many exit on purpose: nothing to buy, no API, all done).
+		if (daemon?.running) {
+			const ranFor = now - daemon.since;
+			daemon.running = false;
+			daemon.stoppedAt = now;
+			daemon.wait = ranFor >= CONFIG.longRunMs ? CONFIG.restartMinMs : Math.min(daemon.wait * 2, CONFIG.restartMaxMs);
+			if (ranFor >= CONFIG.longRunMs) {
+				notify(ns, "[startup]", `${entry.script} stopped after ${ns.format.time(ranFor)}; restarting it in ${ns.format.time(daemon.wait)}.`, "warning");
+			} else {
+				ns.print(`[startup] ${entry.script} stopped; next try in ${ns.format.time(daemon.wait)}.`);
+			}
+		}
+		if (daemon && !daemon.running && now - daemon.stoppedAt < daemon.wait) continue;
+
+		if (entry.oneShot && entry !== nextShot) continue;
+		if (!entry.oneShot && entry.ready && !entry.ready(ns, config)) continue;
+		if (!ns.fileExists(entry.script, "home")) {
+			missing.push(entry.script);
 			continue;
 		}
 		if (entry.restartOnNewArgs) {
@@ -149,28 +236,60 @@ export async function main(ns) {
 			noRoom.push(`${entry.script} (${ns.format.ram(ram)})`);
 			continue;
 		}
-		started.push(host === "home" ? label : `${label} [on ${host}]`);
+		if (entry.oneShot) {
+			state.lastShot.set(label, now);
+			ns.print(`[startup] one-shot ${label}${host === "home" ? "" : ` [on ${host}]`}`);
+			continue;
+		}
+		const where = host === "home" ? label : `${label} [on ${host}]`;
+		(daemon ? restarted : started).push(where);
+		state.daemons.set(label, { running: true, since: now, wait: daemon?.wait ?? CONFIG.restartMinMs });
 	}
 
-	ns.tprint(`startup: stage "${stage}" on ${ns.format.ram(homeRam)} home`);
-	if (noSingularity > 0) {
-		ns.tprint(`  skipped ${noSingularity} Singularity scripts (need BitNode 4 or Source-File 4). ` +
-			"Buy home RAM and programs yourself, then run startup.js again for the next stage.");
-	} else if (sf4.ramMultiplier > 1 && noRoom.length) {
-		ns.tprint(`  note: Singularity calls cost ${sf4.ramMultiplier}x RAM at SF4.${sf4.level}, ` +
-			"so some of these may wait for more home RAM.");
-	}
-	if (started.length) ns.tprint(`  started: ${started.join(", ")}`);
-	if (alreadyRunning.length) ns.tprint(`  already running: ${alreadyRunning.join(", ")}`);
-	if (noRoom.length) ns.tprint(`  no room yet (starts after the next home upgrade): ${noRoom.join(", ")}`);
-	if (missing.length) ns.tprint(`  WARNING missing files: ${missing.join(", ")}`);
+	report(ns, state, { stage, homeRam, noSingularity, started, restarted, alreadyRunning, noRoom, missing });
+	state.firstPass = false;
+	state.stage = stage;
+}
 
-	// Typed by hand (no parent script): finish with the one-screen status. The automatic relaunches
-	// from upgrade-home-ram.js and buy-programs.js skip it, so the terminal isn't flooded.
-	if (ns.getRunningScript().parent === 0 && ns.fileExists(STATUS_SCRIPT, "home") &&
-		ns.exec(STATUS_SCRIPT, "home") === 0) {
-		ns.tprint(`  (no room on home for ${STATUS_SCRIPT} yet; type \`status\` once things settle)`);
+/** First pass: the full summary in the terminal. Later passes: only what changed. */
+function report(ns, state, pass) {
+	const { stage, homeRam, noSingularity, started, restarted, alreadyRunning, noRoom, missing } = pass;
+	if (state.firstPass) {
+		ns.tprint(`startup: stage "${stage}" on ${ns.format.ram(homeRam)} home; stays running to start the rest when ready`);
+		if (noSingularity > 0) {
+			ns.tprint(`  skipped ${noSingularity} Singularity scripts (need BitNode 4 or Source-File 4). ` +
+				"Buy home RAM and programs yourself; the next stage starts by itself.");
+		} else if (state.sf4.ramMultiplier > 1 && noRoom.length) {
+			ns.tprint(`  note: Singularity calls cost ${state.sf4.ramMultiplier}x RAM at SF4.${state.sf4.level}, ` +
+				"so some of these may wait for more home RAM.");
+		}
+		if (started.length) ns.tprint(`  started: ${started.join(", ")}`);
+		if (alreadyRunning.length) ns.tprint(`  already running: ${[...new Set(alreadyRunning)].join(", ")}`);
+		if (noRoom.length) ns.tprint(`  no room yet (starts once there is): ${noRoom.join(", ")}`);
+		if (missing.length) ns.tprint(`  WARNING missing files: ${missing.join(", ")}`);
+		for (const line of [...noRoom, ...missing]) state.reported.add(line);
+		// Typed by hand (no parent script): finish with the one-screen status. The automatic starts
+		// after a reset or a new BitNode skip it, so the terminal isn't flooded.
+		if (ns.getRunningScript().parent === 0 && ns.fileExists(STATUS_SCRIPT, "home") &&
+			ns.exec(STATUS_SCRIPT, "home") === 0) {
+			ns.tprint(`  (no room on home for ${STATUS_SCRIPT} yet; type \`status\` once things settle)`);
+		}
+		return;
 	}
+	if (stage !== state.stage) notify(ns, "[startup]", `stage "${stage}" on ${ns.format.ram(homeRam)} home`, "info");
+	if (started.length) notify(ns, "[startup]", `started ${started.join(", ")}`, "info");
+	if (restarted.length) ns.print(`[startup] restarted ${restarted.join(", ")}`);
+	for (const line of noRoom) {
+		if (!state.reported.has(line)) ns.print(`[startup] no room yet: ${line}`);
+	}
+	for (const file of missing) {
+		if (!state.reported.has(file)) notify(ns, "[startup]", `missing file ${file}`, "warning", true);
+	}
+	for (const line of [...noRoom, ...missing]) state.reported.add(line);
+}
+
+function shotLabel(entry) {
+	return [entry.script, ...(entry.args ?? [])].join(" ");
 }
 
 function freeRam(ns, host) {

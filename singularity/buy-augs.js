@@ -1,6 +1,7 @@
 import { readIncomeRate } from "/utils/income.js";
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";
+import { recordIncomeSample, buildIncomeModel, earnedOver, timeToEarn, incomeMultAt } from "/utils/income-curve.js";
 // Design: docs/aug-reset.md
 const NEUROFLUX = "NeuroFlux Governor";
 const RED_PILL = "The Red Pill";
@@ -103,6 +104,10 @@ export async function main(ns) {
 		const lastReset = ns.getResetInfo().lastAugReset;
 		const sameRun = previous?.checkedAt >= lastReset;
 		const income = readIncomeRate(ns).perSecond; // not getTotalScriptIncome: it misses batcher hacks
+		// Income curve: this run's income history (and the last run's), and how fast it's growing.
+		const sinceInstallMs = Date.now() - lastReset;
+		const incomeHistory = recordIncomeSample(previous?.incomeHistory, lastReset, Date.now(), income, RESET_RULE.incomeCurve);
+		const incomeModel = buildIncomeModel(incomeHistory, sinceInstallMs, RESET_RULE.incomeCurve);
 
 		// Each locked augment once (the faction closest to unlocking it), minus ones another faction sells.
 		const closest = new Map();
@@ -154,15 +159,16 @@ export async function main(ns) {
 		} : null;
 
 		const decision = decideReset({
-			queued, plan, upcoming, cash: cash() + stocks, income, sinceInstallMs: Date.now() - lastReset,
+			queued, plan, upcoming, cash: cash() + stocks, income, incomeModel, sinceInstallMs,
 			neuroflux, favors, daedalus, ratesMeasured: Object.keys(rates.perSecond).length > 0,
 		});
 
 		ns.write(PLAN_FILE, JSON.stringify({
 			time: rates.snapshotTime, rep: rates.snapshot, perSecond: rates.perSecond, checkedAt: Date.now(),
 			queued, affordable: fitNow.augs, cost: fitNow.cost, stocks, decision, daedalusSeenAt, bitnode: bitnodeGoal(ns, factions),
+			incomeHistory, incomeModel,
 		}), "w");
-		if (flags.dry) showAdvice(ns, plan, cash(), stocks, sellers, boosts, skipped, upcoming, queued, fitNow, decision, rates, income);
+		if (flags.dry) showAdvice(ns, plan, cash(), stocks, sellers, boosts, skipped, upcoming, queued, fitNow, decision, rates, income, incomeModel);
 		return;
 	}
 
@@ -206,7 +212,7 @@ export async function main(ns) {
  * augValue), plus the NeuroFlux levels the leftover cash buys, plus the favor the rep
  * earned this run turns into. e^value is roughly how much faster the next run goes.
  * Long-run progress grows by the value gained per hour, so for each moment ahead
- * (FORECAST_MINUTES, from income and rep rates) it works out value / (run age + overhead)
+ * (FORECAST_MINUTES, from the income curve and rep rates) it works out value / (run age + overhead)
  * and resets when no later moment beats now by more than waitMargin. Waiting pays less and
  * less over a run because each purchase makes the rest 1.9x dearer, so there is always a
  * best moment, and the slow start of every run is already inside the run age.
@@ -301,23 +307,25 @@ function daedalusRule(daedalus, income, horizonMs, eta) {
 }
 
 /**
- * The batch you'd install if you reset after waiting waitMs: cash grows with income,
+ * The batch you'd install if you reset after waiting waitMs: cash grows with income along
+ * the income curve (utils/income-curve.js; flat when it has nothing to go on),
  * locked augments unlock at their rep ETA, bought most expensive first like a real run,
  * then NeuroFlux with what's left, plus the favor the run's rep turns into.
  * Returns { value, augs, neuroflux }.
  */
-function valueAt({ queued, plan, upcoming, cash, income, neuroflux, favors }, waitMs) {
+function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux, favors }, waitMs) {
 	const waitS = waitMs / 1000;
+	const cashThen = cash + earnedOver(Math.max(0, income), incomeModel, waitS);
 	const unlocked = [...plan, ...upcoming.filter((entry) => entry.etaMs !== null && entry.etaMs <= waitMs)]
 		.sort((first, second) => second.price - first.price);
-	const fit = whatFits(unlocked, cash + Math.max(0, income) * waitS);
+	const fit = whatFits(unlocked, cashThen);
 	const valueOf = new Map(unlocked.map((entry) => [entry.aug, entry.value]));
 	let value = fit.augs.reduce((sum, aug) => sum + (valueOf.get(aug) ?? 0), 0);
 
 	// NeuroFlux levels from the leftover cash (each level 1.14x dearer in money and rep, plus the 1.9x markup).
 	let levels = 0;
 	if (neuroflux) {
-		let left = cash + Math.max(0, income) * waitS - fit.cost;
+		let left = cashThen - fit.cost;
 		let price = neuroflux.price * fit.mult;
 		let repReq = neuroflux.repReq;
 		const rep = neuroflux.rep + neuroflux.rate * waitS;
@@ -407,15 +415,19 @@ function repRates(ns, previous, rep) {
 }
 
 /** The --dry report: the augments in buy order, then the reset decision and why. */
-function showAdvice(ns, plan, cash, stocks, sellers, boosts, skipped, upcoming, queued, fit, decision, rates, income) {
+function showAdvice(ns, plan, cash, stocks, sellers, boosts, skipped, upcoming, queued, fit, decision, rates, income, incomeModel) {
 	const money = (amount) => "$" + ns.format.number(amount);
 	const { source } = readIncomeRate(ns);
 	const available = cash + stocks;
-	const timeFor = (amount) => (amount <= 0 ? "now" : income > 0 ? ns.format.time((amount / income) * 1000) : "never (no income)");
+	const timeFor = (amount) => (amount <= 0 ? "now" : income > 0 ? ns.format.time(timeToEarn(income, incomeModel, amount) * 1000) : "never (no income)");
 	const sinceInstallMs = Date.now() - ns.getResetInfo().lastAugReset;
 
 	ns.tprint(`${plan.length} useful augment(s) unlocked, ${queued.length} bought but not installed. Cash ${money(cash)}` +
 		`${stocks > 0 ? ` + ${money(stocks)} in stocks` : ""}, income ${money(income)}/s (${source}). Run is ${ns.format.time(sinceInstallMs)} old.`);
+	ns.tprint(incomeModel.growth > 0
+		? `Income curve: growing ${((Math.exp(incomeModel.growth) - 1) * 100).toFixed(0)}%/h (${incomeModel.source}, ${incomeModel.samples} samples), ` +
+			`forecast ${money(income * incomeMultAt(incomeModel, 1))}/s in 1h, ${money(income * incomeMultAt(incomeModel, RESET_RULE.horizonHours))}/s in ${RESET_RULE.horizonHours}h.`
+		: `Income curve: taken as flat (${incomeModel.source === "flat" ? "not enough samples yet" : `not growing, ${incomeModel.source}`}).`);
 	if (plan.length > 0) ns.tprint(`  ${"price now".padStart(10)}  ${"all so far".padStart(10)}  ${"value".padStart(5)}  augment   (+ = affordable now)`);
 	let total = 0;
 	let mult = 1;
@@ -426,7 +438,7 @@ function showAdvice(ns, plan, cash, stocks, sellers, boosts, skipped, upcoming, 
 		ns.tprint(`${mark} ${money(entry.price).padStart(10)}  ${money(total).padStart(10)}  ${entry.value.toFixed(2).padStart(5)}  ${entry.aug} (${sellers.get(entry.aug)}): ${boosts.get(entry.aug)}`);
 	}
 	if (fit.augs.length < plan.length) {
-		ns.tprint(`  All ${plan.length} together: ${money(total)}, ${money(total - available)} more, about ${timeFor(total - available)} at current income, if none of it is spent.`);
+		ns.tprint(`  All ${plan.length} together: ${money(total)}, ${money(total - available)} more, about ${timeFor(total - available)} on the income curve, if none of it is spent.`);
 	}
 
 	const working = Object.entries(rates.perSecond).filter(([, rate]) => rate > 0);

@@ -89,6 +89,18 @@ export const DEFAULTS = {
 			waitMargin: 0.05,     // wait only if a later moment beats now by more than 5% per hour
 			horizonHours: 6,      // how far ahead the forecast looks
 			daedalusFavor: true,  // Daedalus rule: reset for 150 favor (donations) when that beats working for The Red Pill
+			// Income curve (utils/income-curve.js): forecast cash with income that keeps growing
+			// the way it has this run, instead of flat. Also used by faction-goals' money budget.
+			incomeCurve: {
+				enabled: true,
+				sampleMinutes: 5,      // one income sample per this many minutes of run
+				fitHours: 2,           // fit growth on this much recent history
+				minSamples: 3,         // samples needed before this run's own fit is used
+				minSpanMinutes: 20,    // ...spread over at least this long
+				dampHours: 1.5,        // growth halves every this many hours ahead
+				maxGrowthPerHour: 1.4, // ln per hour (about 4x/h): ignore anything steeper
+				maxMult: 4,            // forecast income never above this many times today's
+			},
 			minRateGapMs: 120_000, // rep rates need two snapshots at least 2 minutes apart
 			maxRateGapMs: 3 * 3600_000,
 		},

@@ -8,6 +8,7 @@ const CONFIG = {
 
 /**
  * Buys home CPU core upgrades (Singularity) within the spending stages. Exits once home is maxed.
+ * startup.js runs it with --once whenever the cash it last asked for is there.
  *   run singularity/upgrade-home-cores.js          keep buying as money comes in
  *   run singularity/upgrade-home-cores.js --once   buy what's affordable now, then exit
  */
@@ -18,5 +19,6 @@ export async function main(ns) {
 		loopMs: CONFIG.loopMs,
 		costOf: () => ns.singularity.getUpgradeHomeCoresCost(),
 		doUpgrade: () => ns.singularity.upgradeHomeCores(),
+		gate: "home-cores",
 	});
 }

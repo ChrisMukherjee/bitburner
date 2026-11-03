@@ -90,7 +90,7 @@ async function spread(ns, { self, port, earn, stasis, passwords, opened, failed 
 		// holding the RAM; stop it (the new crawler restarts it) and try again.
 		const free = ns.getServerMaxRam(neighbour) - ns.getServerUsedRam(neighbour);
 		if (free < ns.getScriptRam(CRAWLER_SCRIPT, self)) {
-			ns.scriptKill(PHISH_SCRIPT, neighbour);
+			stopScript(ns, PHISH_SCRIPT, neighbour);
 			launch();
 		}
 	}
@@ -185,7 +185,7 @@ async function syncStasis(ns, self, port) {
 	else if (linked && !wanted) mode = "unlink";
 	else return;
 
-	ns.scriptKill(PHISH_SCRIPT, self);
+	stopScript(ns, PHISH_SCRIPT, self);
 	const free = ns.getServerMaxRam(self) - ns.getServerUsedRam(self) + ns.getScriptRam(CRAWLER_SCRIPT, self);
 	const need = ns.getScriptRam(STASIS_SCRIPT, self);
 	if (free >= need) {
@@ -224,4 +224,9 @@ function loadPasswords(ns) {
 
 function savePasswords(ns, passwords) {
 	ns.write(PASSWORD_FILE, JSON.stringify(passwords), "w");
+}
+
+/** Stops every copy of a script on a server. ps + kill by pid cost 0.7GB together; scriptKill alone costs 1GB. */
+function stopScript(ns, script, host) {
+	for (const proc of ns.ps(host)) if (proc.filename === script) ns.kill(proc.pid);
 }

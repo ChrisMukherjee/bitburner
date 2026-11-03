@@ -1,5 +1,6 @@
 import { notify } from "/utils/notify.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
+import { postGate } from "/singularity/ready.js";
 
 /**
  * Shared loop for the home RAM and home cores buyers. It references no singularity
@@ -15,9 +16,11 @@ import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spe
  *                read without the 2GB getServer, so the cores buyer leaves it out)
  *   onUpgrade  - optional () => called after each upgrade that went through
  *   afterPass  - optional () => called at the end of every pass (and before exiting)
+ *   gate       - key for singularity/ready.js: after each pass it posts the cash the next upgrade
+ *                needs (or that home is maxed), so startup.js only starts the --once pass again then
  *
- * Flags: --once buys whatever the budget allows right now, then exits (handy while home
- * RAM is too small to keep a loop running).
+ * Flags: --once buys whatever the budget allows right now, then exits. startup.js runs it
+ * that way, only when the gate says the next upgrade is affordable.
  */
 export async function runUpgradeLoop(ns, options) {
 	ns.disableLog("ALL");
@@ -50,11 +53,19 @@ export async function runUpgradeLoop(ns, options) {
 					`reserve ${formatMoney(ns, policy.reserve)})`;
 				if (bought > 0 || message !== lastIdleMessage) ns.print(message);
 				lastIdleMessage = message;
+				// Cash at which getBudget covers the cost: both the share cap and the reserve must allow it.
+				// No finite cost means home is maxed.
+				if (options.gate) {
+					postGate(ns, options.gate, Number.isFinite(cost)
+						? { needCash: Math.max(cost / policy.maxFraction, cost + policy.reserve) }
+						: { done: true });
+				}
 				break;
 			}
 			if (!options.doUpgrade()) {
 				// It was affordable, so a refusal means home is already at the maximum.
 				notify(ns, tag, `home is maxed${level ? ` (${level})` : ""}, nothing left to do.`, "success");
+				if (options.gate) postGate(ns, options.gate, { done: true });
 				if (options.afterPass) options.afterPass();
 				return;
 			}

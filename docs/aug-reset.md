@@ -2,7 +2,8 @@
 
 Used by [`singularity/buy-augs.js`](../singularity/buy-augs.js) (`decideReset`, shown by `augs`),
 [`singularity/auto-reset.js`](../singularity/auto-reset.js) and [`singularity/install-augs.js`](../singularity/install-augs.js).
-Settings: `augments.resetRule` in [`config.js`](../config.js).
+Settings: `augments.resetRule` in [`config.js`](../config.js). Income forecast:
+[`utils/income-curve.js`](../utils/income-curve.js) (`resetRule.incomeCurve`).
 
 ## The rule
 
@@ -42,6 +43,19 @@ start of a run is inside it; `overheadMinutes` covers the fixed cost of a reset.
   factions still needed (unbought wanted augments, or Daedalus before The Red Pill), weighted
   by how much rep each still needs, times `favorWeight` (0.5, since rep only limits part of a run).
 
+**Cash follows an income curve.** Income keeps climbing during a run (more RAM, better targets,
+higher hack level), so a flat forecast undervalues waiting and resets early. Each check stores an
+income sample (run age, $/s, every `sampleMinutes`) in `data/aug-plan.json`, next to the last run's
+samples. Growth is a log-linear fit of the last `fitHours` of this run, never more than the last run
+grew from the same run age onwards, and taken from the last run alone until this run has
+`minSamples` over `minSpanMinutes`. Forecast growth halves every `dampHours` and income tops out at
+`maxMult` x today's, so one lucky spike can't hold off a reset for hours; falling income counts as
+flat. `augs` prints the growth, where it came from and the forecast. The same model (passed through
+player-work) sets the money budget in faction-goals, so the two agree on what's affordable.
+Rejected: fitting a fixed shape (log or power curve) to the whole run, which the early-run jumps
+(batcher start, pserv waves) throw off; and the last run's curve as-is, which ignores this run's new
+augments.
+
 Stock positions count as cash: auto-reset sells them (`stock-trader.js --liquidate`) before
 buying, because the reset wipes held shares.
 
@@ -59,12 +73,14 @@ again (hack level and money). While Daedalus is joined and can't take donations 
 
 ## Known limits
 
-- Income is taken as flat, so later moments are slightly undervalued (leans towards resetting).
+- The income curve needs a few samples (about 20 min) before it uses this run; until then it borrows
+  the last run's growth, or stays flat on the first run. Income spent by other scripts (servers,
+  hacknet, home upgrades) isn't subtracted, here or before.
 - Rep rates are the current ones; when player-work moves to another faction the ETAs change.
 - Weights are judgement calls for a hacking run; set `wantStats` and `weights` for other BitNodes.
 - The favor formula is the game's (`favorToRep` = 25,000 x (1.02^favor - 1)); BitNode
   multipliers on donations aren't read (that needs Source-File 5).
 
-Replaced (2026-11) a count-based rule: 5 ready augments, wait up to 60 min for affordable
+Income curve added 2026-11 (before: income taken as flat). Replaced (2026-11) a count-based rule: 5 ready augments, wait up to 60 min for affordable
 unlocks within 30 min, smaller resets after 3 h. It treated a +1% and a +30% augment the
 same and ignored favor and NeuroFlux.

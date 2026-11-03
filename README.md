@@ -20,8 +20,9 @@ reset by themselves.
 
 - **One-command startup.** [`startup.js`](startup.js) launches everything for the current stage (start, early, mid, late,
   picked from home RAM) and works from a fresh 8GB home by running scripts on rooted servers.
-  It is re-run automatically after home RAM upgrades, new port openers, augmentation installs
-  and when entering a new BitNode.
+  It stays running: it moves to the next stage after a home upgrade, restarts scripts that stop, and
+  runs the Singularity buyers, invites and backdoors as short one-shots only when there is something
+  to do. It starts by itself after augmentation installs and when entering a new BitNode.
 - **Multi-target JIT batcher** ([`batcher.js`](hack/batcher.js)). Just-in-time HWGW batches across up to 25 targets,
   using Formulas.exe when owned and a cheap stats helper when not. Picks the hack fraction with
   the best $/s per target and posts its income rate for other scripts to read.
@@ -73,6 +74,7 @@ Files the game writes (anything in `data/`) never come back to disk.
 ```text
 run /startup.js          # pick the stage from home RAM (early >= 64GB, mid >= 128GB, late >= 256GB)
 run /startup.js mid      # force a stage
+run /startup.js --restart  # also restart running scripts, so freshly synced code takes effect
 run /tools/status.js     # one-screen summary of the whole run
 ```
 
@@ -82,7 +84,8 @@ Pill's requirement, then hacking level and root for `w0r1d_d43m0n`). The Red Pil
 numbers come from `data/aug-plan.json`, which [`auto-reset.js`](singularity/auto-reset.js) refreshes every 10 minutes.
 
 [`startup.js`](startup.js) holds one priority-ordered list of long-running scripts, each tagged with the
-stage it starts in. It skips anything already running and exits once everything is launched.
+stage it starts in. It skips anything already running and stays running (about 7GB) to start what
+becomes ready, restart what stops, and run the one-shots.
 Below 64GB home (a fresh BitNode) it is in the `start` stage: only the home/program buyers,
 the batcher, invites and backdoors, and [`player-work.js`](singularity/player-work.js) (study, faction and company work,
 Tian Di Hui and city factions) run, so the batcher gets the free servers' RAM; the Go bot, hacknet,
@@ -191,6 +194,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | 30 | Gang invite crimes (for player-work) |
 | 31 | Batcher RAM claim (free RAM its batches still need; share-manager leaves it alone) |
 | 32 | Contract wrong answers (solver to solve-contracts) |
+| 33 | One-shot gates (cash the next home upgrade or program needs, for startup.js) |
 
 ## Conventions
 
