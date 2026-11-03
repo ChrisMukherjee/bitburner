@@ -8,6 +8,7 @@ export const GOALS_PORT = 23;
 const STOCK_SUMMARY_PORT = 26; // stock-trader.js posts the value of its positions here
 const NEUROFLUX = "NeuroFlux Governor";
 const PRICE_MULT = 1.9;        // every purchase multiplies the price of the rest
+const FOCUS_AUG = "Neuroreceptor Management Implant"; // removes the penalty for unfocused work
 
 // "Worth it" is the shared rule in utils/aug-filter.js (same as buy-augs.js and
 // singularity/workers/city-plan.js), driven by `augments` in the config (config.js, data/config.json).
@@ -29,8 +30,9 @@ const PRICE_MULT = 1.9;        // every purchase multiplies the price of the res
  * Started by singularity/player-work.js with one JSON argument:
  *   { factions: [...in priority order], rates: { faction: rep/s }, ratesTime, incomeModel }
  * (rates and income model from data/aug-plan.json; ignored if from before the last reset). Writes
- *   { time, budget, horizonHours, timeChecked, goals: { faction: { rep, aug, count, skipped } } }
+ *   { time, budget, horizonHours, timeChecked, focusPenalty, goals: { faction: { rep, aug, count, skipped } } }
  * to port 23 and exits. count = augments picked there, skipped = wanted but out of reach this run.
+ * focusPenalty = the Neuroreceptor Management Implant isn't installed, so player-work.js works focused.
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -40,6 +42,7 @@ export async function main(ns) {
 	const horizonS = rule.horizonHours * 3600;
 	const joined = new Set(ns.getPlayer().factions);
 	const owned = new Set(ns.singularity.getOwnedAugmentations(true)); // true: bought-but-not-installed count too
+	const focusPenalty = !ns.singularity.getOwnedAugmentations(false).includes(FOCUS_AUG); // installed only
 	const order = [...factions.filter((faction) => joined.has(faction)), ...factions.filter((faction) => !joined.has(faction))];
 
 	// Who sells what (first in order), and the wanted augments with their numbers.
@@ -132,7 +135,7 @@ export async function main(ns) {
 	for (const aug of wanted) if (!picked.has(aug) && !forced.has(aug)) goals[sellerOf.get(aug)].skipped++;
 
 	ns.clearPort(GOALS_PORT);
-	ns.writePort(GOALS_PORT, JSON.stringify({ time: Date.now(), budget, horizonHours: rule.horizonHours, timeChecked, goals }));
+	ns.writePort(GOALS_PORT, JSON.stringify({ time: Date.now(), budget, horizonHours: rule.horizonHours, timeChecked, focusPenalty, goals }));
 }
 
 /** What stock-trader.js last said its positions are worth (0 if it isn't running). */

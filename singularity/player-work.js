@@ -17,7 +17,7 @@ const INVITE_MONEY = {
 	"Sector-12": 15e6, "Aevum": 40e6, "Chongqing": 20e6, "New Tokyo": 20e6, "Ishima": 30e6, "Volhaven": 50e6,
 };
 // Tian Di Hui: hacking 50 and $1m while in Chongqing, New Tokyo or Ishima. Not a city faction,
-// so it locks nobody out. Its Neuroreceptor Manager removes the penalty for unfocused work.
+// so it locks nobody out. Its Neuroreceptor Management Implant removes the penalty for unfocused work.
 const TIAN_DI_HUI = {
 	faction: "Tian Di Hui",
 	city: "Chongqing",
@@ -75,8 +75,14 @@ const CONFIG = {
  * joined (or nothing wanted), every faction at its goal, every megacorp faction joined, and no
  * gang invite still to get.
  *
- *   run singularity/player-work.js               unfocused (80% speed, you keep the screen)
- *   run singularity/player-work.js --focus       focused (full speed, takes over the screen)
+ * Focus: work is focused (full speed, takes over the screen) until the Neuroreceptor Management
+ * Implant is installed, then unfocused (no penalty any more, you keep the screen). The goals helper
+ * reports whether it's installed; until it first runs, work is focused. Work already running
+ * unfocused when the script starts is focused once, the first time the helper reports.
+ *
+ *   run singularity/player-work.js               focused until the implant is installed, then unfocused
+ *   run singularity/player-work.js --focus       always focused
+ *   run singularity/player-work.js --no-focus    always unfocused (80% speed without the implant)
  *   run singularity/player-work.js --study 100   study until hacking 100 instead of studying.hackLevel
  *   run singularity/player-work.js --no-company  never take megacorp jobs
  *   run singularity/player-work.js --plan        print the city plan and exit (travels and joins nothing)
@@ -84,11 +90,13 @@ const CONFIG = {
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	const flags = ns.flags([["focus", false], ["study", 0], ["no-company", false], ["plan", false]]);
+	const flags = ns.flags([["focus", false], ["no-focus", false], ["study", 0], ["no-company", false], ["plan", false]]);
 	const config = loadConfig(ns);
 	const state = {
 		config,
-		focus: flags.focus,
+		focus: !flags["no-focus"], // set from the goals helper unless a flag forces it
+		focusForced: flags.focus || flags["no-focus"],
+		focusChecked: false,
 		studyLevel: Number(flags.study) || config.studying.hackLevel,
 		noCompany: flags["no-company"],
 		studyStarted: false,
@@ -114,7 +122,17 @@ export async function main(ns) {
 			ns.singularity.getFactionRep(state.lastGoalFaction) >= state.goals[state.lastGoalFaction].rep;
 		if (!state.goals || joinedKey !== state.goalsFor || reached || Date.now() - state.goalsAt >= CONFIG.refreshMs) {
 			const fresh = await refreshGoals(ns, order);
-			if (fresh) Object.assign(state, { goals: fresh, goalsAt: Date.now(), goalsFor: joinedKey });
+			if (fresh) {
+				Object.assign(state, { goals: fresh.goals, goalsAt: Date.now(), goalsFor: joinedKey });
+				// Unfocused work is slower until the Neuroreceptor Management Implant is installed.
+				if (!state.focusForced && fresh.focusPenalty !== undefined) state.focus = fresh.focusPenalty;
+				// Once per run: work started unfocused before this run (e.g. by an older version) is
+				// focused too, since only new work would pick up state.focus.
+				if (!state.focusChecked) {
+					state.focusChecked = true;
+					if (state.focus && ns.singularity.getCurrentWork() !== null) ns.singularity.setFocus(true);
+				}
+			}
 		}
 		if (!state.cityDone && (!state.plan || Date.now() - state.planAt >= CONFIG.refreshMs)) {
 			const fresh = await refreshPlan(ns, config.cities);
@@ -403,7 +421,7 @@ async function refreshGoals(ns, order) {
 	}
 	const arg = JSON.stringify({ factions: order, rates, ratesTime, incomeModel });
 	const result = await runHelper(ns, CONFIG.goalsHelper, CONFIG.goalsImports, GOALS_PORT, arg);
-	return result?.goals ?? null;
+	return result?.goals ? result : null;
 }
 
 /** Runs singularity/workers/city-plan.js and returns the plan, or null if it couldn't run. */
