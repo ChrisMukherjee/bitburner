@@ -9,7 +9,7 @@ import { singularityInfo } from "/utils/singularity.js";
 import { gangReady } from "/gang/ready.js";
 import { dnetReady } from "/darknet/ready.js";
 import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
-import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady, playerWorkReady } from "/singularity/ready.js";
+import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady, playerWorkReady, donateReady } from "/singularity/ready.js";
 
 // Every script startup.js runs, in priority order: earlier entries get RAM first.
 // A stage starts everything tagged with that stage or an earlier one.
@@ -51,6 +51,8 @@ const SCRIPTS = [
 	{ stage: "early", script: "hacknet/hacknet-manager.js" },
 	// Destroys w0r1d_d43m0n once The Red Pill is installed and hacking/ports allow, then enters the next BitNode.
 	{ stage: "early", script: "singularity/auto-destroy.js" },
+	// Buys The Red Pill's rep with money once Daedalus has the favor for donations (otherwise it is ground by work).
+	{ stage: "early", script: "singularity/donate-rep.js", oneShot: true, every: 120_000, homeOnly: true, ready: donateReady },
 	// tools/track-income.js left out (2.7GB): the batcher, darknet and stock logs already show income. Run it by hand.
 	{ stage: "early", script: "go/ipvgo-bot.js", args: ["--opponent", "Netburners"], restartOnNewArgs: true, until: "mid" },
 	{ stage: "mid", script: "go/ipvgo-bot.js", args: ["--opponent", "The Black Hand"], restartOnNewArgs: true, until: "late" },

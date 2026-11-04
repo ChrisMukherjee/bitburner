@@ -104,7 +104,22 @@ NeuroFlux is bought as before.
 
 The Red Pill needs 2.5m Daedalus rep. With 150 favor (`getFavorToDonate`) a later run can buy
 that rep at $1m per point (divided by the rep multiplier), but only after earning the invite
-again (hack level and money). While Daedalus is joined and can't take donations yet:
+again (hack level and money).
+
+**The donation is made by [`singularity/donate-rep.js`](../singularity/donate-rep.js).** A one-shot that
+startup.js runs every 2 minutes: once a joined seller of a key augment has the favor, it donates the
+missing rep's worth of home cash (at $1m per rep over the rep multiplier, then topping up at the rate
+it saw, since BitNode multipliers on donations can't be read without Source-File 5). The next
+auto-reset check then finds The Red Pill ready and resets for it at once. Until this existed nothing
+donated, so the run after a favor reset ground the full 2.5m rep by work (with the 150-favor bonus),
+which is the slowest way to the end of the BitNode once money is plentiful. Kept out of player-work
+(it spends money, it doesn't move the player) and out of aug-buyer (that only runs at reset time).
+
+While Daedalus is joined and **can** take donations, the reset waits as long as the donation money
+comes within the horizon (home cash only: donations can't use stocks), since a reset would mean
+earning the invite again first. Before, the normal rule took over there and could reset mid-grind.
+
+While Daedalus is joined and can't take donations yet:
 
 1. Red Pill by work sooner than (time this run took to get the invite + donation money /
    income): keep working, no reset.
@@ -113,6 +128,9 @@ again (hack level and money). While Daedalus is joined and can't take donations 
 4. Otherwise the normal rule decides.
 
 ## Known limits
+
+- Only key augments are bought with donations. Every other faction with 150 favor could be too
+  (rep for money speeds up any run once money is plentiful); not done yet.
 
 - The income curve needs a few samples (about 20 min) before it uses this run; until then it borrows
   the last run's growth, or stays flat on the first run. Income spent by other scripts (servers,

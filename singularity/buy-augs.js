@@ -165,7 +165,7 @@ export async function main(ns) {
 	} : null;
 
 	const decision = decideReset({
-		queued, plan, upcoming, cash: cash() + stocks, income, incomeModel, sinceInstallMs,
+		queued, plan, upcoming, cash: cash() + stocks, homeCash: cash(), income, incomeModel, sinceInstallMs,
 		neuroflux, homeNeed: homeUpgradeNeed(ns), favors, daedalus, ratesMeasured: Object.keys(rates.perSecond).length > 0,
 	});
 
@@ -254,7 +254,7 @@ function decideReset(context) {
 		return result(false, `${count} ready, worth ${speed(now)}. Measuring rep rates before deciding (next check).`);
 	}
 
-	const fromDaedalus = daedalusRule(daedalus, income, horizonMs, eta);
+	const fromDaedalus = daedalusRule(daedalus, context, horizonMs, eta);
 	if (fromDaedalus) return result(fromDaedalus.reset, fromDaedalus.reason);
 
 	// Guarantee: an old run with a worthwhile batch resets now, whatever the forecast says.
@@ -273,16 +273,27 @@ function decideReset(context) {
 }
 
 /**
- * The Daedalus rule, while Daedalus is joined, The Red Pill isn't owned and Daedalus can't
- * take donations yet. With 150 favor (getFavorToDonate) a later run can buy The Red Pill's
- * rep with money, but only after getting the invite again (hack level and money).
+ * The Daedalus rule, while Daedalus is joined and The Red Pill isn't owned.
+ * Daedalus can take donations (150 favor, getFavorToDonate): singularity/donate-rep.js buys
+ * the rep with money, so hold the reset while that money comes within the horizon (a reset
+ * would mean earning the invite again first). Otherwise a later run can buy the rep, but only
+ * after getting the invite again (hack level and money):
  *  - Red Pill by work sooner than that: keep working, no reset (it would throw the rep away).
  *  - Otherwise, favor after a reset reaches the line: reset.
  *  - Otherwise, it reaches the line within the forecast horizon: hold until it does.
  * Returns { reset, reason } or null to leave it to the normal rule.
  */
-function daedalusRule(daedalus, income, horizonMs, eta) {
-	if (!RESET_RULE.daedalusFavor || !daedalus || daedalus.favor >= daedalus.threshold) return null;
+function daedalusRule(daedalus, { income, incomeModel, homeCash }, horizonMs, eta) {
+	if (!RESET_RULE.daedalusFavor || !daedalus) return null;
+	if (daedalus.favor >= daedalus.threshold) {
+		// Home cash only: donations can't use money held in stocks.
+		const missingMoney = Math.max(0, daedalus.redPillRep - daedalus.rep) * DONATE_MONEY_PER_REP / daedalus.repMult;
+		const waitMs = missingMoney <= homeCash ? 0 : income > 0 ? timeToEarn(income, incomeModel, missingMoney - homeCash) * 1000 : Infinity;
+		if (waitMs > horizonMs) return null;
+		const cost = missingMoney >= 1e12 ? `$${(missingMoney / 1e12).toFixed(1)}t` : `$${(missingMoney / 1e9).toFixed(1)}b`;
+		return { reset: false, reason: `Daedalus takes donations: The Red Pill's rep costs ${cost}` +
+			(waitMs > 0 ? `, earned in about ${eta(waitMs)}` : ", affordable now") + " (donate-rep.js buys it). No reset until then." };
+	}
 	const missing = Math.max(0, daedalus.redPillRep - daedalus.rep);
 	const workMs = daedalus.rate > 0 ? (missing / daedalus.rate) * 1000 : Infinity;
 	if (!Number.isFinite(workMs)) return null; // not working for Daedalus (or not measured yet)

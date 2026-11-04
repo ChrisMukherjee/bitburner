@@ -49,6 +49,8 @@ export function cashGate(key) {
 export const homeRamReady = cashGate("home-ram");
 export const homeCoresReady = cashGate("home-cores");
 export const programsReady = cashGate("programs");
+// donate-rep.js: done once the key augments are owned or no seller can take donations this run.
+export const donateReady = cashGate("donate");
 
 /** auto-backdoor.js: done once every target has a backdoor; until then startup.js runs it on a timer. */
 export const backdoorReady = (ns) => !readGates(ns).backdoor?.done;
