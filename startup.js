@@ -44,6 +44,8 @@ const SCRIPTS = [
 	// every 30 s while the state is "run"; player-work.js does the gym. One-shots, so their RAM is only held for a moment.
 	{ stage: "early", script: "bladeburner/bb-manage.js", oneShot: true, every: 180_000, ready: bladeburnerReady },
 	{ stage: "early", script: "bladeburner/bb-pass.js", oneShot: true, every: 30_000, ready: bladeburnerRunning },
+	// The route estimate (hacking or Bladeburner, hold or run) every 5 minutes; needs the Singularity API for the augmentation data.
+	{ stage: "early", script: "bladeburner/node-eta.js", oneShot: true, every: 300_000, needsSF4: true, ready: bladeburnerReady },
 	// Both keep $1m back for TOR and the port openers, so they buy nothing in the first minutes anyway.
 	{ stage: "early", script: "pserv/pserv-manager.js" },
 	{ stage: "early", script: "hacknet/hacknet-manager.js" },

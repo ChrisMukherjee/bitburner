@@ -1,3 +1,4 @@
+import { blackOpsDone } from "/bladeburner/state.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 
 const DAEMON = "w0r1d_d43m0n";
@@ -23,6 +24,11 @@ export async function main(ns) {
 	}
 	if (!ns.fileExists(AFTER, "home")) {
 		ns.tprint(`${AFTER} isn't on home; not leaving the BitNode without it.`);
+		return;
+	}
+	if (blackOpsDone(ns)) {
+		ns.tprint(`Every Black Op is done: ending the BitNode without hacking ${DAEMON}.`);
+		ns.singularity.destroyW0r1dD43m0n(nextBN, AFTER);
 		return;
 	}
 	if (!ns.serverExists(DAEMON)) {

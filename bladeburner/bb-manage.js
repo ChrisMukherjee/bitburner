@@ -1,4 +1,5 @@
 // Design: docs/bladeburner.md
+import { loadConfig } from "/utils/config.js";
 import { readIncomeRate } from "/utils/income.js";
 import { notify } from "/utils/notify.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
@@ -42,10 +43,11 @@ export async function main(ns) {
 	const skills = ns.getPlayer().skills;
 	const plan = bladeburnerPlan(ns);
 	// On the hacking route Bladeburner takes none of the player's time (no gym, no actions), so faction and
-	// company work and the hacking augments get all of it. No plan yet = the combat route.
-	if (plan?.route === "hacking") {
+	// company work and the hacking augments get all of it. No plan yet = `bladeburner.route` from the config.
+	const route = plan?.route ?? loadConfig(ns).bladeburner.route;
+	if (route === "hacking") {
 		clearAction();
-		return setState("hold", "hold: the route estimate says hacking is faster");
+		return setState("hold", `hold: the route is hacking (${plan?.route ? "estimate" : "config"})`);
 	}
 
 	// Start of a run: hacking and income first (they pay for everything else), unless the run is already an hour old

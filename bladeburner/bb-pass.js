@@ -56,8 +56,10 @@ export async function main(ns) {
 
 	// 2. The next Black Op, when rank allows and it is safe
 	let next = null;
+	let blackOpsDone; // true only when the game says no Black Op is left; undefined when not checked this pass
 	if (!done) {
 		next = bb.getNextBlackOp();
+		blackOpsDone = next === null;
 		if (next && rank >= next.rank) {
 			const [low, high] = bb.getActionEstimatedSuccessChance("Black Operations", next.name);
 			if (high - low > 0.1) done = start(GENERAL, "Field Analysis", `Black Op estimate too fuzzy (${Math.round(low * 100)}-${Math.round(high * 100)}%)`);
@@ -136,7 +138,7 @@ export async function main(ns) {
 	const perHour = span > 120_000 ? (rank - samples[0].rank) / (span / 3600_000) : NaN;
 	const summary = `rank ${Math.floor(rank)}${Number.isFinite(perHour) ? ` (${Math.round(perHour)}/h)` : ""}; stamina ${Math.round(ratio * 100)}%; ` +
 		`next Black Op: ${next ? `${next.name} at rank ${next.rank}` : "all done"}`;
-	postBladeburner(ns, { script: ns.getScriptName(), lines: [summary, ...notes.slice(0, 3)], rank: samples, ...(actions ? { actions } : {}) });
+	postBladeburner(ns, { script: ns.getScriptName(), lines: [summary, ...notes.slice(0, 3)], rank: samples, ...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(actions ? { actions } : {}) });
 }
 
 /** Live readings the route estimate scales to other skill levels with the game's formulas. */

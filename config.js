@@ -260,6 +260,11 @@ export const DEFAULTS = {
 		],
 	},
 
+	// Bladeburner (bladeburner/). route: "combat" plays Bladeburner (gym, then actions) and leaves the player to it;
+	// "hacking" holds it so faction and company work get all the player's time. A route estimate posted on
+	// port 36 (plan.route) wins over this. Black Ops done = the BitNode can end without w0r1d_d43m0n.
+	bladeburner: { route: "combat" },
+
 	// Where auto-destroy.js goes after w0r1d_d43m0n: the first entry whose Source-File level
 	// isn't reached yet (counting the level this destroy gives). When all are done it waits for you.
 	bitnodeRoute: [

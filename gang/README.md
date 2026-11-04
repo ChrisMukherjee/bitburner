@@ -1,6 +1,9 @@
 # gang/
 
-Gang manager for BitNode 2. Design: [`docs/gang.md`](../docs/gang.md). RAM figures are approximate; `mem <script>` in game gives the exact cost. Figures follow the game's static RAM check (base 1.6GB plus each NS function named in the script and what it imports).
+Gang manager. Design: [`docs/gang.md`](../docs/gang.md). RAM figures are approximate; `mem <script>` in game gives the exact cost. Figures follow the game's static RAM check (base 1.6GB plus each NS function named in the script and what it imports).
+
+> **Needs BitNode 2 or Source-File 2.** The Gang API only works there. Outside BitNode 2 the gang also needs
+> karma -54,000 (see [`utils/gang.js`](../utils/gang.js)). The manager exits cleanly without the API.
 
 > **Untested in game.** Written against the v3.0.0 Gang API before reaching BitNode 2. Tail
 > `gang/gang-manager.js` on the first run; every decision is logged.

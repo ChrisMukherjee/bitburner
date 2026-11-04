@@ -158,23 +158,23 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 
 Each folder's README lists its scripts with flags and RAM cost, and links its design note.
 
-| Folder | What it does |
-| --- | --- |
-| [`hack/`](hack/README.md) | Multi-target JIT hack/grow/weaken batcher and its workers |
-| [`pserv/`](pserv/README.md) | Buys and upgrades purchased servers |
-| [`hacknet/`](hacknet/README.md) | Buys hacknet upgrades while they pay back fast enough |
-| [`stocks/`](stocks/README.md) | Stock market trading |
-| [`contracts/`](contracts/README.md) | Finds and solves coding contracts |
-| [`share/`](share/README.md) | Shares spare RAM for faction rep during faction work |
-| [`singularity/`](singularity/README.md) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, next BitNode |
-| [`gang/`](gang/README.md) | Gang manager for BitNode 2 |
-| [`bladeburner/`](bladeburner/README.md) | Bladeburner (BitNode 6/7 or Source-File 6/7): state manager and the action pass |
-| [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links |
-| [`go/`](go/README.md) | IPvGO bot |
-| [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks, exploit achievements |
-| [`utils/`](utils/README.md) | Shared helpers |
-| [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do |
-| [`archive/`](archive/README.md) | Older versions of scripts, kept for history (not synced to the game) |
+| Folder | What it does | Needs |
+| --- | --- | --- |
+| [`hack/`](hack/README.md) | Multi-target JIT hack/grow/weaken batcher and its workers | nothing special |
+| [`pserv/`](pserv/README.md) | Buys and upgrades purchased servers | nothing special |
+| [`hacknet/`](hacknet/README.md) | Buys hacknet upgrades while they pay back fast enough | nothing special |
+| [`stocks/`](stocks/README.md) | Stock market trading | nothing special |
+| [`contracts/`](contracts/README.md) | Finds and solves coding contracts | nothing special |
+| [`share/`](share/README.md) | Shares spare RAM for faction rep during faction work | nothing special |
+| [`singularity/`](singularity/README.md) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, next BitNode | BitNode 4 or Source-File 4 |
+| [`gang/`](gang/README.md) | Gang manager | BitNode 2 or Source-File 2 |
+| [`bladeburner/`](bladeburner/README.md) | Bladeburner: state manager, action pass and route estimate | BitNode 6 or 7, or Source-File 6 or 7 |
+| [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links | `DarkscapeNavigator.exe` on home |
+| [`go/`](go/README.md) | IPvGO bot | nothing special |
+| [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks, exploit achievements | nothing special |
+| [`utils/`](utils/README.md) | Shared helpers | nothing special |
+| [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do | nothing special |
+| [`archive/`](archive/README.md) | Older versions of scripts, kept for history (not synced to the game) | nothing special |
 
 [`startup.js`](startup.js) (the stage-based launcher) and [`config.js`](config.js) (default settings and presets) stay at the root.
 

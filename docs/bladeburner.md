@@ -29,13 +29,41 @@ A state older than 15 minutes counts as `off`, so a stopped manager can't hold t
   a time, so read-modify-write is safe.
 - **One-shot passes.** The game keeps repeating the action between passes, so a pass only changes it when needed;
   no 53GB script waits idle.
-- **Route estimate is an input, not part of this folder.** `plan` on the port (`route`, `hold`, `trainTarget`)
-  lets an estimate say "hacking is faster, hold" or "train longer first". Without one, Bladeburner is the route.
+- **Route estimate.** `node-eta.js` writes `plan` on the port (`route`, `hold`) and `bb-manage.js` follows it. Without one, `bladeburner.route` in the
+  config decides (`"combat"` by default, `"hacking"` holds Bladeburner), so the choice can be made by hand.
 - **Never "done".** player-work never reports done while the API is usable, since the manager may ask for the
   gym or the whole player later in the run.
 
-## Not done
+## Ending the BitNode
 
-- The route estimate (`node-eta`) is still to be ported; until then `plan` is never written.
+All Black Ops done ends the BitNode without hacking w0r1d_d43m0n. `bb-pass.js` posts `blackOps: { done, time }`
+when `getNextBlackOp()` finds none; `blackOpsDone` in `state.js` is true for an hour after that.
+[`../singularity/auto-destroy.js`](../singularity/auto-destroy.js) then stops waiting for the daemon (Red Pill, hacking
+level, root) and [`../singularity/next-bitnode.js`](../singularity/next-bitnode.js) destroys it straight away. This needs
+the Singularity API too, as before.
+
+## Route estimate
+
+[`../bladeburner/node-eta.js`](../bladeburner/node-eta.js) (30GB at normal Singularity cost, a one-shot every 5 minutes) answers
+"hacking or Bladeburner?" from live game state only, with the models in
+[`../bladeburner/route-model.js`](../bladeburner/route-model.js). It walks both routes reset by reset: every installed aug keeps
+its multiplier, skill exp restarts at each install, income and exp grow with the hacking multiplier. Income growth is
+measured over earlier runs (`data/node-eta-history.json`, the one file, because it must survive resets); until 3 runs with
+different multipliers exist it shows three scenarios instead. The Bladeburner side is scaled from the live readings of
+`bb-pass.js` with the game's own formulas, and calibrated against the measured rank per hour. The readable report is
+`data/node-eta.txt`; the verdict is `plan` on the port.
+
+- **One route at a time.** The committed route changes only when the other is 25 % better by its own measure (hours when a
+  scenario finishes, else the income it would need), since flipping wastes the gym time, rank and rep already spent.
+- **No route before readings.** Until `bb-pass.js` has posted live action readings no route is written (the config route
+  applies), otherwise "hacking" would hold Bladeburner and the combat route could never be measured.
+- **Hold.** `plan.hold` is true when the best action's chance, rescaled to the current skills, is under 30 % (back above 40 %).
+- Left out of the original: its combat-aug shopping plan (faction-goals and buy-augs already decide what to buy) and the
+  long projected-multiplier report lines. `plan.trainTarget` is read by `bb-manage.js` but never written; the original did not
+  write it either.
+- Tradeoffs: the estimate is only as good as its inputs, and with no income measurement or exp rate it says "unknown" rather
+  than guessing. Rejected: running it on home (it needs about 30GB for a moment); a resident script.
+
+## Not done
 - Augment weights for the combat route are the `bladeburner` preset in [`../config.js`](../config.js), picked by hand
   with `"profile": "bladeburner"`; nothing switches it from the state yet.

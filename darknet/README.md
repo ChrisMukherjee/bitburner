@@ -2,6 +2,8 @@
 
 Maps and cracks darknet servers, phishes for money and keeps stasis links on the best servers. Design: [`docs/darknet.md`](../docs/darknet.md). RAM figures are approximate; `mem <script>` in game gives the exact cost. Figures follow the game's static RAM check (base 1.6GB plus each NS function named in the script and what it imports).
 
+> **Needs `DarkscapeNavigator.exe` on home.** The manager exits cleanly until it is there (see [`ready.js`](ready.js)).
+
 | Script | What it does | Flags | RAM |
 | --- | --- | --- | --- |
 | [`dnet-manager.js`](dnet-manager.js) | Entry point: starts crawlers, reads their reports, keeps the map and passwords; exits without DarkscapeNavigator.exe | `--once`, `--recon`, `--no-stasis` | 7GB |

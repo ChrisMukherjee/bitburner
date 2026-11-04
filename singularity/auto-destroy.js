@@ -1,6 +1,7 @@
 import { loadConfig } from "/utils/config.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 import { notify } from "/utils/notify.js";
+import { blackOpsDone } from "/bladeburner/state.js";
 import { nextRouteStep } from "/utils/bitnode-route.js";
 
 const DAEMON = "w0r1d_d43m0n";
@@ -71,6 +72,7 @@ export async function main(ns) {
 
 /** Why the daemon can't be destroyed yet, or "" when it can. */
 function waitingOn(ns) {
+	if (blackOpsDone(ns)) return ""; // Bladeburner route: the last Black Op ends the BitNode, no daemon needed
 	if (!ns.serverExists(DAEMON)) return "The Red Pill isn't installed yet";
 	const needed = ns.getServerRequiredHackingLevel(DAEMON);
 	if (ns.getHackingLevel() < needed) return `hacking ${ns.getHackingLevel()} of ${needed}`;
