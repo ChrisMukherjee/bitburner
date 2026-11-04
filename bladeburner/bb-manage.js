@@ -1,6 +1,7 @@
 // Design: docs/bladeburner.md
 import { loadConfig } from "/utils/config.js";
 import { readIncomeRate } from "/utils/income.js";
+import { postPass } from "/utils/pass-log.js";
 import { notify } from "/utils/notify.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
 import { bladeburnerPlan, postBladeburner, trainFloor } from "/bladeburner/state.js";
@@ -33,10 +34,13 @@ export async function main(ns) {
 		return;
 	}
 	const bb = ns.bladeburner;
-	const setState = (state, line) => postBladeburner(ns, {
-		state, stateTime: Date.now(), script: ns.getScriptName(),
-		lines: state === "run" ? undefined : [line], // while playing, bb-pass.js writes the lines
-	});
+	const setState = (state, line) => {
+		postPass(ns, ns.getScriptName(), [line ?? "run: stats ready, bb-pass.js plays"]);
+		return postBladeburner(ns, {
+			state, stateTime: Date.now(), script: ns.getScriptName(),
+			lines: state === "run" ? undefined : [line], // while playing, bb-pass.js writes the lines
+		});
+	};
 	// An action left running (for example from before a reset) would fight the gym or the study
 	const clearAction = () => { if (bb.inBladeburner() && bb.getCurrentAction()) bb.stopBladeburnerAction(); };
 

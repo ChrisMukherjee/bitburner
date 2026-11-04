@@ -1,4 +1,5 @@
 // Design: docs/player-work.md
+import { postPass } from "/utils/pass-log.js";
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { startHelper } from "/utils/start-helper.js";
@@ -140,6 +141,7 @@ export async function main(ns) {
 			if (flags.once || message !== lastMessages[part]) ns.print(message);
 			lastMessages[part] = message;
 		}
+		if (flags.once) postPass(ns, ns.getScriptName(), Object.values(done.messages));
 		if (done.all) {
 			postGate(ns, GATE_KEY, { done: true });
 			notify(ns, "[player-work]", "studied, joined and worked everything it can; done.", "success");

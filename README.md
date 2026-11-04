@@ -136,6 +136,7 @@ Single quotes outside, plain double quotes inside.
 ```text
 alias startup='run /startup.js'
 alias status='run /tools/status.js'
+alias debug-report='run /tools/debug-report.js; cat data/debug-report.txt'
 alias config='run /tools/show-config.js'
 alias track-income='run /tools/track-income.js; tail /tools/track-income.js'
 alias hack-only='run /tools/track-income.js; run /hack/batcher.js'
@@ -199,6 +200,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | 34 | RAM reservations (room kept free on a server for a script waiting to start; the batcher and share-manager leave it alone) |
 | 35 | player-work state between passes |
 | 36 | Bladeburner state, route estimate, rank samples and status lines (bladeburner/) |
+| 37 | Last pass of each one-shot, for the debug report ([`utils/pass-log.js`](utils/pass-log.js)) |
 
 ## Conventions
 

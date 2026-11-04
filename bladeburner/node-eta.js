@@ -2,6 +2,7 @@
 import { readIncomeRate } from "/utils/income.js";
 import { hasSingularity } from "/utils/singularity.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
+import { postPass } from "/utils/pass-log.js";
 import { readBladeburner, postBladeburner } from "/bladeburner/state.js";
 import * as RM from "/bladeburner/route-model.js";
 
@@ -55,6 +56,7 @@ export async function main(ns) {
 	const started = Date.now();
 	try {
 		const lines = estimate(ns);
+		postPass(ns, ns.getScriptName(), lines.filter((line) => /^(Hacking, |Bladeburner, |RECOMMENDED|Bladeburner "run"|Confidence)/.test(line)));
 		lines.push(`(computed in ${Date.now() - started} ms)`);
 		ns.write(REPORT_FILE, lines.join("\n") + "\n", "w");
 	} catch (error) {

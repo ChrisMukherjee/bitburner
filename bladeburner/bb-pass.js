@@ -1,4 +1,5 @@
 // Design: docs/bladeburner.md
+import { postPass } from "/utils/pass-log.js";
 import { bladeburnerState, postBladeburner, readBladeburner } from "/bladeburner/state.js";
 
 const CONTRACTS = ["Tracking", "Bounty Hunter", "Retirement"];
@@ -138,6 +139,7 @@ export async function main(ns) {
 	const perHour = span > 120_000 ? (rank - samples[0].rank) / (span / 3600_000) : NaN;
 	const summary = `rank ${Math.floor(rank)}${Number.isFinite(perHour) ? ` (${Math.round(perHour)}/h)` : ""}; stamina ${Math.round(ratio * 100)}%; ` +
 		`next Black Op: ${next ? `${next.name} at rank ${next.rank}` : "all done"}`;
+	postPass(ns, ns.getScriptName(), [summary, ...notes.slice(0, 3)]);
 	postBladeburner(ns, { script: ns.getScriptName(), lines: [summary, ...notes.slice(0, 3)], rank: samples, ...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(actions ? { actions } : {}) });
 }
 
