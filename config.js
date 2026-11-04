@@ -96,6 +96,12 @@ export const DEFAULTS = {
 			maxRunHours: 4,
 			guaranteeSpeed: 1.5,
 			daedalusFavor: true,  // Daedalus rule: reset for 150 favor (donations) when that beats working for The Red Pill
+			// Daedalus push: once the invite only lacks installed augments (hack level and money met), buy the
+			// cheapest augments, useful or not, and reset as soon as they cover the count. NeuroFlux levels
+			// count as one augment, so leftover cash on NeuroFlux doesn't help. daedalusPushSpare: extra ones
+			// in case a purchase fails (prerequisites).
+			daedalusPush: true,
+			daedalusPushSpare: 2,
 			// Income curve (utils/income-curve.js): forecast cash with income that keeps growing
 			// the way it has this run, instead of flat. Also used by faction-goals' money budget.
 			incomeCurve: {

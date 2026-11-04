@@ -111,3 +111,8 @@ City factions come in rival groups: joining one locks the others out for that ru
 The goals and plan helpers are big (about 29GB and 17GB) but run only for a moment, on home or any rooted
 server with room (see [`ram.md`](ram.md)). They're not imported, so their Singularity calls aren't charged
 to this script.
+
+**Daedalus push.** When buy-augs reports that the Daedalus invite only lacks installed augments
+(`daedalusPush` in `data/aug-plan.json`), player-work passes it to faction-goals, which first counts
+the augments closest to unlocking at joined factions, useful or not, until the missing count is
+covered ([`aug-reset.md`](aug-reset.md)).

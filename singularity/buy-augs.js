@@ -75,6 +75,7 @@ export async function main(ns) {
 	const boosts = new Map();
 	const values = new Map();
 	const skipped = [];
+	const anySeller = new Map(); // every augment a joined faction has the rep for, useful or not (Daedalus push)
 	const locked = []; // useful, but the faction rep isn't there yet
 	for (const faction of factions) {
 		for (const aug of ns.singularity.getAugmentationsFromFaction(faction)) {
@@ -93,6 +94,7 @@ export async function main(ns) {
 				}
 				continue;
 			}
+			if (!anySeller.has(aug)) anySeller.set(aug, faction);
 			if (summary || flags.all) sellers.set(aug, faction);
 			else if (!skipped.includes(aug)) skipped.push(aug);
 		}
@@ -128,6 +130,13 @@ export async function main(ns) {
 	}
 	const upcoming = [...closest.values()];
 	const fitNow = whatFits(plan, cash() + stocks);
+
+	// Daedalus push: when the invite only lacks installed augments, the cheapest ones, useful or not.
+	const push = daedalusPush(ns, factions, installed, queued);
+	if (push) {
+		const pool = [...anySeller.keys()].map((aug) => ({ aug, price: ns.singularity.getAugmentationPrice(aug) }));
+		push.fill = cheapestFill(pool, cash(), push.missing + (RESET_RULE.daedalusPushSpare ?? 0));
+	}
 
 	// NeuroFlux: bought from the joined faction with the most rep (its rep need climbs per level).
 	const nfgFaction = factions.reduce((top, faction) => (rep.get(faction) > (rep.get(top) ?? -1) ? faction : top), null);
@@ -166,8 +175,10 @@ export async function main(ns) {
 
 	const decision = decideReset({
 		queued, plan, upcoming, cash: cash() + stocks, homeCash: cash(), income, incomeModel, sinceInstallMs,
-		neuroflux, homeNeed: homeUpgradeNeed(ns), favors, daedalus, ratesMeasured: Object.keys(rates.perSecond).length > 0,
+		neuroflux, homeNeed: homeUpgradeNeed(ns), favors, daedalus, push, ratesMeasured: Object.keys(rates.perSecond).length > 0,
 	});
+	// A push reset buys the fill list (cheapest augments) instead of the usual plan.
+	const pushing = push && decision.reset && decision.push;
 
 	// When the advice first said RESET this run (null while it says wait), so auto-reset.js
 	// announces a reset once per stretch of RESET advice, even when it is restarted.
@@ -180,10 +191,18 @@ export async function main(ns) {
 		incomeHistory, incomeModel,
 		// For singularity/workers/aug-buyer.js: everything with the rep, most expensive first, and
 		// where to buy NeuroFlux (null when the config or --no-neuroflux says not to).
-		buyList: plan.map((entry) => ({ aug: entry.aug, faction: sellers.get(entry.aug) })),
+		buyList: pushing ? push.fill.map((aug) => ({ aug, faction: anySeller.get(aug) }))
+			: plan.map((entry) => ({ aug: entry.aug, faction: sellers.get(entry.aug) })),
 		neurofluxFaction: AUG_CONFIG.neuroflux && !flags["no-neuroflux"] ? nfgFaction : null,
+		daedalusPush: push ? { need: push.need, installed: push.installed, missing: push.missing, fill: push.fill } : null,
 	}), "w");
-	if (flags.dry) showAdvice(ns, plan, cash(), stocks, sellers, boosts, skipped, upcoming, queued, fitNow, decision, rates, income, incomeModel);
+	if (flags.dry) {
+		if (push) {
+			ns.tprint(`Daedalus push: the invite only lacks installed augments (${push.installed} + ${queued.length} bought of ${push.need}). ` +
+				`Cheapest ${push.fill.length} affordable now: ${push.fill.join(", ") || "none"}.`);
+		}
+		showAdvice(ns, plan, cash(), stocks, sellers, boosts, skipped, upcoming, queued, fitNow, decision, rates, income, incomeModel);
+	}
 	if (flags.dry || flags.plan) return;
 
 	// Buy: hand over to the small buyer, which starts once this script has exited and frees its RAM.
@@ -208,7 +227,7 @@ export async function main(ns) {
  * (daedalusRule) holds or forces a reset around Daedalus favor reaching the donation line.
  */
 function decideReset(context) {
-	const { queued, plan, upcoming, income, sinceInstallMs, daedalus, ratesMeasured } = context;
+	const { queued, plan, upcoming, income, sinceInstallMs, daedalus, push, ratesMeasured } = context;
 	const minutes = (ms) => `${Math.max(1, Math.round(ms / 60_000))} min`;
 	const eta = (ms) => (ms < 3600_000 ? minutes(ms) : `${(ms / 3600_000).toFixed(1)}h`);
 	const overheadMs = RESET_RULE.overheadMinutes * 60_000;
@@ -224,8 +243,8 @@ function decideReset(context) {
 	const maxWaitMs = (RESET_RULE.maxWaitMinutes ?? Infinity) * 60_000;
 	const later = points.slice(1).filter((point) => point.waitMs <= maxWaitMs).reduce((top, point) => (!top || point.rate > top.rate ? point : top), null);
 	const curve = points.map((point) => ({ inMinutes: Math.round(point.waitMs / 60_000), value: round(point.value), rate: round(point.rate), augs: point.augs.length, neuroflux: point.neuroflux }));
-	const result = (reset, reason) => ({
-		reset, reason, value: round(now.value), rate: round(now.rate), curve,
+	const result = (reset, reason, pushReset = false) => ({
+		reset, reason, push: pushReset, value: round(now.value), rate: round(now.rate), curve,
 		best: later ? { inMinutes: Math.round(later.waitMs / 60_000), value: round(later.value), rate: round(later.rate) } : null,
 	});
 	const speed = (point) => `x${Math.exp(point.value).toFixed(2)} (${point.rate.toFixed(3)}/h)`;
@@ -241,6 +260,11 @@ function decideReset(context) {
 	const ready = [...queued, ...now.augs];
 	const key = RESET_RULE.keyAugs.filter((aug) => ready.includes(aug));
 	if (key.length > 0) return result(true, `${key.join(" and ")} ready: reset for it right away.`);
+	// Daedalus push: enough cheap augments for the invite's count are affordable, so install them now.
+	if (push && push.fill.length >= push.missing) {
+		return result(true, `Daedalus invite only lacks installed augments (${push.installed} of ${push.need}): ` +
+			`buying the ${push.fill.length} cheapest, useful or not, and resetting for the invite.`, true);
+	}
 
 	const count = ready.length + now.neuroflux;
 	if (count === 0) {
@@ -354,6 +378,46 @@ function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux,
 		value += entry.repShare * repWeight * Math.log((100 + after) / (100 + entry.favor));
 	}
 	return { value, augs: fit.augs, neuroflux: levels };
+}
+
+/**
+ * Daedalus push (resetRule.daedalusPush): Daedalus hasn't invited you and every invite requirement
+ * except the installed augment count is met (hack level, money). Then the count is what stands
+ * between the run and The Red Pill, and any augment counts the same, so the cheapest win.
+ * NeuroFlux levels count as one augment however many there are. Returns
+ * { need, installed, missing } (missing after the bought-but-not-installed ones), or null.
+ */
+function daedalusPush(ns, factions, installed, queued) {
+	if (!RESET_RULE.daedalusPush || factions.includes(DAEDALUS) || installed.has(RED_PILL)) return null;
+	const requirements = ns.singularity.getFactionInviteRequirements(DAEDALUS);
+	const count = requirements.find((entry) => entry.type === "numAugmentations");
+	if (!count || installed.size >= count.numAugmentations) return null;
+	const player = ns.getPlayer();
+	if (!requirements.filter((entry) => entry !== count).every((entry) => requirementMet(entry, player))) return null;
+	return { need: count.numAugmentations, installed: installed.size, missing: Math.max(0, count.numAugmentations - installed.size - queued.length) };
+}
+
+/** Is one invite requirement met? Unknown kinds count as not met, so the push only starts when sure. */
+function requirementMet(entry, player) {
+	switch (entry.type) {
+		case "money": return player.money >= entry.money;
+		case "skills": return Object.entries(entry.skills).every(([skill, level]) => (player.skills[skill] ?? 0) >= level);
+		case "someCondition": return entry.conditions.some((inner) => requirementMet(inner, player));
+		case "everyCondition": return entry.conditions.every((inner) => requirementMet(inner, player));
+		default: return false;
+	}
+}
+
+/** Up to `count` augments, cheapest first, that fit the cash when bought most expensive first. */
+function cheapestFill(pool, cash, count) {
+	const picked = [];
+	for (const entry of [...pool].sort((first, second) => first.price - second.price)) {
+		if (picked.length >= count) break;
+		const trial = [...picked, entry].sort((first, second) => second.price - first.price);
+		const cost = trial.reduce((sum, item, index) => sum + item.price * Math.pow(PRICE_MULT, index), 0);
+		if (cost <= cash) picked.push(entry);
+	}
+	return picked.map((entry) => entry.aug);
 }
 
 /** Rep needed in total for this much favor, and back (the game's formulas). */

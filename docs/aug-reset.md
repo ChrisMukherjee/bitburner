@@ -100,6 +100,28 @@ buying NeuroFlux levels, since the upgrade survives the install and raises incom
 rule, reading the buyers' notes instead of the files it used; with no note yet (a fresh run, or startup.js not running)
 NeuroFlux is bought as before.
 
+## Daedalus push (getting the invite)
+
+The Daedalus invite needs a number of **installed** augments (30 by default) on top of hack level and
+money, and NeuroFlux Governor counts as one augment whatever its level. The value-per-hour rule only
+counts useful augments, so on its own it spends leftover cash on NeuroFlux levels and skips cheap
+useless augments, and the count creeps up a few per reset long after hack level and money are there.
+
+So once every other invite requirement is met (`daedalusPush`, read with getFactionInviteRequirements,
+which the planner already pays for), the count is all that stands between the run and The Red Pill,
+and any augment counts the same:
+
+- buy-augs picks the cheapest augments any joined faction has the rep for, useful or not, that fit
+  the cash with the 1.9x markup (bought most expensive first as usual), plus `daedalusPushSpare` (2)
+  in case a purchase fails on a prerequisite the planner can't see;
+- as soon as they cover the missing count (after the bought-but-not-installed ones) it resets,
+  buying that list instead of the usual plan (NeuroFlux still gets what's left);
+- until then faction-goals puts the augments closest to unlocking at joined factions first, so
+  player-work earns the rep for the cheapest-to-reach ones.
+
+Rejected: buying useless augments all along. Before the other requirements are met they only make
+the useful ones dearer, and the value-per-hour rule is the right one then.
+
 ## Daedalus
 
 The Red Pill needs 2.5m Daedalus rep. With 150 favor (`getFavorToDonate`) a later run can buy

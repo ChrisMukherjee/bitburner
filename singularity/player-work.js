@@ -520,15 +520,19 @@ async function refreshGoals(ns, order) {
 	let rates = {};
 	let ratesTime = 0;
 	let incomeModel = null;
+	let push = null;
+	let pushTime = 0;
 	try {
 		const plan = JSON.parse(ns.read(AUG_PLAN_FILE));
 		rates = plan.perSecond ?? {};
 		ratesTime = plan.time ?? 0;
 		incomeModel = plan.incomeModel ?? null; // income curve, for the money budget
+		push = plan.daedalusPush ?? null;      // Daedalus invite only lacks installed augments
+		pushTime = plan.checkedAt ?? 0;
 	} catch {
 		// no plan yet
 	}
-	const arg = JSON.stringify({ factions: order, rates, ratesTime, incomeModel });
+	const arg = JSON.stringify({ factions: order, rates, ratesTime, incomeModel, push, pushTime });
 	const result = await runHelper(ns, CONFIG.goalsHelper, CONFIG.goalsImports, GOALS_PORT, arg);
 	return result?.goals ? result : null;
 }

@@ -26,9 +26,11 @@ const FOCUS_AUG = "Neuroreceptor Management Implant"; // removes the penalty for
  * Daedalus keeps its goal for the Daedalus favor rule. A faction's goal is the highest rep
  * among its picked augments; the rest wait until income or rep rate catches up (refreshed
  * every 10 minutes). An augment sold by several factions counts for the first joined one.
+ * Daedalus push (push from buy-augs.js's plan): when the Daedalus invite only lacks installed
+ * augments, the augments closest to unlocking at joined factions come first, useful or not.
  *
  * Started by singularity/player-work.js with one JSON argument:
- *   { factions: [...in priority order], rates: { faction: rep/s }, ratesTime, incomeModel }
+ *   { factions: [...in priority order], rates: { faction: rep/s }, ratesTime, incomeModel, push, pushTime }
  * (rates and income model from data/aug-plan.json; ignored if from before the last reset). Writes
  *   { time, budget, horizonHours, timeChecked, focusPenalty, goals: { faction: { rep, aug, count, skipped } } }
  * to port 23 and exits. count = augments picked there, skipped = wanted but out of reach this run.
@@ -36,7 +38,7 @@ const FOCUS_AUG = "Neuroreceptor Management Implant"; // removes the penalty for
  */
 /** @param {NS} ns */
 export async function main(ns) {
-	const { factions, rates = {}, ratesTime = 0, incomeModel = null } = JSON.parse(String(ns.args[0]));
+	const { factions, rates = {}, ratesTime = 0, incomeModel = null, push = null, pushTime = 0 } = JSON.parse(String(ns.args[0]));
 	const augConfig = loadConfig(ns).augments;
 	const rule = augConfig.resetRule;
 	const horizonS = rule.horizonHours * 3600;
@@ -48,10 +50,12 @@ export async function main(ns) {
 	// Who sells what (first in order), and the wanted augments with their numbers.
 	const sellerOf = new Map();
 	const wanted = [];
+	const everything = []; // useful or not, for the Daedalus push
 	for (const faction of order) {
 		for (const aug of ns.singularity.getAugmentationsFromFaction(faction)) {
 			if (aug === NEUROFLUX || owned.has(aug) || sellerOf.has(aug)) continue;
 			sellerOf.set(aug, faction);
+			everything.push(aug);
 			const stats = ns.singularity.getAugmentationStats(aug);
 			if (wantedBoosts(aug, stats, augConfig)) wanted.push(aug);
 		}
@@ -112,17 +116,34 @@ export async function main(ns) {
 	const forced = new Set(wanted.filter((aug) => rule.keyAugs.includes(aug)));
 	forced.forEach(describe);
 	const picked = new Set();
+	const tryBundle = (aug) => {
+		const bundle = withPrereqs(aug);
+		if (!bundle) return false;
+		bundle.forEach(describe);
+		const trial = new Set([...picked, ...bundle]);
+		if (moneyFor(trial) > budget) return false;
+		if (timeChecked && secondsFor(trial) > horizonS) return false;
+		bundle.forEach((name) => picked.add(name));
+		return true;
+	};
+
+	// Daedalus push (buy-augs.js): the invite only lacks installed augments, so first the ones
+	// closest to unlocking at joined factions, useful or not, until the count is covered.
+	const pushing = push && pushTime >= ns.getResetInfo().lastAugReset && push.missing > 0;
+	if (pushing) {
+		const target = push.missing + (rule.daedalusPushSpare ?? 0);
+		const near = everything.filter((aug) => joined.has(sellerOf.get(aug))).map(describe)
+			.sort((first, second) => Math.max(0, first.rep - rep[first.faction]) - Math.max(0, second.rep - rep[second.faction]) || first.price - second.price);
+		for (const candidate of near) {
+			if (picked.size >= target) break;
+			if (!picked.has(candidate.aug)) tryBundle(candidate.aug);
+		}
+	}
+
 	const candidates = wanted.filter((aug) => !forced.has(aug)).map(describe)
 		.sort((first, second) => second.value / Math.max(1, second.price) - first.value / Math.max(1, first.price));
 	for (const candidate of candidates) {
-		if (picked.has(candidate.aug)) continue;
-		const bundle = withPrereqs(candidate.aug);
-		if (!bundle) continue;
-		bundle.forEach(describe);
-		const trial = new Set([...picked, ...bundle]);
-		if (moneyFor(trial) > budget) continue;
-		if (timeChecked && secondsFor(trial) > horizonS) continue;
-		bundle.forEach((aug) => picked.add(aug));
+		if (!picked.has(candidate.aug)) tryBundle(candidate.aug);
 	}
 
 	const goals = Object.fromEntries(factions.map((faction) => [faction, { rep: 0, aug: "", count: 0, skipped: 0 }]));
