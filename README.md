@@ -135,6 +135,7 @@ Single quotes outside, plain double quotes inside.
 
 ```text
 alias startup='run /startup.js'
+alias restart='run /startup.js --restart'
 alias status='run /tools/status.js'
 alias debug-report='run /tools/debug-report.js; cat data/debug-report.txt'
 alias config='run /tools/show-config.js'

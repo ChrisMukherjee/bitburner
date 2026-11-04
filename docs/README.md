@@ -17,6 +17,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`stocks.md`](stocks.md): longs only, 4S or estimates, steering prices through the batcher.
 - [`go-bot.md`](go-bot.md): Monte Carlo search at 0GB, opponent rotation, Illuminati on 5x5.
 - [`gang.md`](gang.md): BitNode 2 gang manager (untested in game).
+- [`reminders.md`](reminders.md): what a run without the Singularity API is told to do by hand, and why it is a one-shot.
 - [`debug-report.md`](debug-report.md): why one-shots keep their last result on a port and one tool writes it to a file to paste.
 - [`bladeburner.md`](bladeburner.md): state manager, action pass, route estimate, gym via player-work, state on a port.
 

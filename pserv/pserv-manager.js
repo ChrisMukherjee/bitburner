@@ -1,5 +1,7 @@
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
+import { postGate } from "/singularity/ready.js";
+import { PSERV_GATE } from "/pserv/ready.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
 
 const CONFIG = {
@@ -18,6 +20,8 @@ const CONFIG = {
  *   2. otherwise  -> upgrade the SMALLEST server IN PLACE (ns.cloud.upgradeServer),
  *                    so hostnames never change. Servers are never deleted or re-bought.
  * One purchase per pass, always within the stage's budget.
+ * Once every slot is filled and every server is at the RAM limit it posts that on port 33 and exits,
+ * so its RAM is free; startup.js (pserv/ready.js) doesn't start it again until the next run.
  */
 export async function main(ns) {
 	ns.disableLog("ALL");
@@ -38,7 +42,8 @@ export async function main(ns) {
 		const result = runPass(ns, policy);
 
 		if (result.finished) {
-			notify(ns, "[pserv]", result.message.replace(/^\[pserv\] /, ""), "success");
+			postGate(ns, PSERV_GATE, { done: true });
+			notify(ns, "[pserv]", `${result.message.replace(/^\[pserv\] /, "")} Exiting until the next run.`, "success");
 			return;
 		}
 		// Only print "waiting" messages when they change, so the log doesn't fill with repeats.
@@ -112,7 +117,10 @@ function upgradeSmallestServer(ns, policy, hostnames, ramLimit, budget) {
 		.sort((first, second) => first.ram - second.ram);
 
 	if (upgradable.length === 0) {
-		return { finished: true, message: "[pserv] every server is at the RAM limit, nothing left to do." };
+		const message = hostnames.length === 0
+			? "[pserv] no purchased servers allowed in this BitNode."
+			: `[pserv] all ${hostnames.length} servers are at the RAM limit (${ns.format.ram(ramLimit)}).`;
+		return { finished: true, message };
 	}
 
 	const target = upgradable[0];

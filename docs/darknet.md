@@ -31,3 +31,7 @@ Passwords come from [`hint-interpreter.js`](../darknet/hint-interpreter.js) and
   starts it once the program is owned ([`../darknet/ready.js`](../darknet/ready.js)); before that it kept
   restarting the manager, and each exit left a sticky toast. The exit message is now a normal toast plus a
   terminal line, since it only shows when the manager is run by hand.
+- **One implementation, not two.** The other player's `darkweb.js`/`scout.js` are a different design (a scout script on every
+  authenticated node, a shared password vault merged on home, `phish.js` filling free RAM). They were not ported next to this
+  one: two darknet managers would fight over the same servers. If that design beats this one in a side-by-side test, port its
+  ideas here, not the scripts.

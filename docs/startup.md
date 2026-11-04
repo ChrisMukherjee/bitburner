@@ -12,6 +12,11 @@
   next home upgrade, port opener or reset, and once those were maxed a crash late in a run stayed down. A script
   that stops soon after starting is retried after 30 seconds, doubling up to an hour, because many stop on purpose
   (nothing left to buy, no API, all done); one that stopped after 10 minutes or more gets a toast.
+  A daemon with a `ready` check that says no is left alone instead: no retry timer, no toast. pserv-manager uses
+  this: once every slot is filled and every server is at the RAM limit it posts `done` under `pserv` on port 33
+  ([`../pserv/ready.js`](../pserv/ready.js)) and exits, so its 6GB is free and its "all at limit" toast no longer
+  repeats. Like the one-shot notes, that is cleared when startup.js starts (a reset, a new BitNode or `--restart`),
+  when the servers are gone and it has work again.
 - **Singularity buyers, invites and backdoors are one-shots.** Upgrade-home-ram, upgrade-home-cores,
   buy-programs, join-factions and auto-backdoor used to loop on home, holding about 36GB in BitNode 4 (about
   390GB at SF4.1) to wake up every 10 to 60 seconds. Now they run `--once` for a moment. The buyers post the cash

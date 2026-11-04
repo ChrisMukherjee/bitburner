@@ -64,6 +64,7 @@ different multipliers exist it shows three scenarios instead. The Bladeburner si
 - Tradeoffs: the estimate is only as good as its inputs, and with no income measurement or exp rate it says "unknown" rather
   than guessing. Rejected: running it on home (it needs about 30GB for a moment); a resident script.
 
-## Not done
-- Augment weights for the combat route are the `bladeburner` preset in [`../config.js`](../config.js), picked by hand
-  with `"profile": "bladeburner"`; nothing switches it from the state yet.
+## Augment weights
+
+The augment weights for the combat route follow the state by themselves (`routeAdjust` in
+[`../utils/config.js`](../utils/config.js), see [`config.md`](config.md)); the `bladeburner` preset only forces them.

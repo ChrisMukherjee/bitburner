@@ -6,6 +6,7 @@ Scripts to run by hand. RAM figures are approximate; `mem <script>` in game give
 | --- | --- | --- | --- |
 | [`status.js`](status.js) | One-screen summary of the whole run | none | about 5GB |
 | [`show-config.js`](show-config.js) | Prints the settings the scripts will use. Design: [`docs/config.md`](../docs/config.md) | `[section]`, `--example` | 1.6GB |
+| [`reminders.js`](reminders.js) | Only without the Singularity API: startup.js runs it every minute and it tells you once each when a server worth backdooring can be (with the command to paste) and when you can afford TOR or programs. Design: [`docs/reminders.md`](../docs/reminders.md) | none | 5.55GB, for a moment |
 | [`track-income.js`](track-income.js) | Logs income every 10 seconds | none | 2.7GB |
 | [`debug-report.js`](debug-report.js) | Writes `data/debug-report.txt` to paste when something looks wrong: run, what is running, why startup skipped things, the last pass of every one-shot, every port. Design: [`docs/debug-report.md`](../docs/debug-report.md) | `--full` | 5.5GB |
 | [`dump-state.js`](dump-state.js) | Prints a snapshot of the game state to paste elsewhere | none | 8.7GB |

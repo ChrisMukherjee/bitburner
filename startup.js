@@ -9,6 +9,7 @@ import { singularityInfo } from "/utils/singularity.js";
 import { gangReady } from "/gang/ready.js";
 import { dnetReady } from "/darknet/ready.js";
 import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
+import { pservReady } from "/pserv/ready.js";
 import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady, playerWorkReady, donateReady } from "/singularity/ready.js";
 
 // Every script startup.js runs, in priority order: earlier entries get RAM first.
@@ -38,6 +39,8 @@ const SCRIPTS = [
 	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. A short pass every
 	// minute (the game keeps the work going), until it posts that everything is done.
 	{ stage: "start", script: "singularity/player-work.js", args: ["--once"], oneShot: true, every: 60_000, ready: playerWorkReady },
+	// Without the Singularity API nothing backdoors or buys programs by itself: this tells you when to, once each.
+	{ stage: "start", script: "tools/reminders.js", oneShot: true, every: 60_000, homeOnly: true, ready: (ns) => !singularityInfo(ns).available },
 	// Mechanics, one folder each. Started only once their ready check says there is work.
 	{ stage: "start", script: "gang/gang-manager.js", ready: gangReady },
 	// Bladeburner (BitNode 6/7 or Source-File 6/7): the manager decides the state every 3 minutes, the pass plays
@@ -47,7 +50,8 @@ const SCRIPTS = [
 	// The route estimate (hacking or Bladeburner, hold or run) every 5 minutes; needs the Singularity API for the augmentation data.
 	{ stage: "early", script: "bladeburner/node-eta.js", oneShot: true, every: 300_000, needsSF4: true, ready: bladeburnerReady },
 	// Both keep $1m back for TOR and the port openers, so they buy nothing in the first minutes anyway.
-	{ stage: "early", script: "pserv/pserv-manager.js" },
+	// Exits once every server is maxed; not started again until the next run (startup clears port 33).
+	{ stage: "early", script: "pserv/pserv-manager.js", ready: pservReady },
 	{ stage: "early", script: "hacknet/hacknet-manager.js" },
 	// Destroys w0r1d_d43m0n once The Red Pill is installed and hacking/ports allow, then enters the next BitNode.
 	{ stage: "early", script: "singularity/auto-destroy.js" },
@@ -217,6 +221,12 @@ function runPass(ns, requested, state) {
 			}
 			continue;
 		}
+		// Not ready (e.g. it exited because it is done for this run): forget it quietly, so it gets
+		// no "stopped" toast or retry timer, and starts fresh if it becomes ready again.
+		if (!entry.oneShot && entry.ready && !entry.ready(ns, config)) {
+			state.daemons.delete(label);
+			continue;
+		}
 		// A daemon we saw running has stopped: wait a little before restarting it, longer each
 		// time it stops again soon (many exit on purpose: nothing to buy, no API, all done).
 		if (daemon?.running) {
@@ -233,7 +243,6 @@ function runPass(ns, requested, state) {
 		if (daemon && !daemon.running && now - daemon.stoppedAt < daemon.wait) continue;
 
 		if (entry.oneShot && entry !== nextShot) continue;
-		if (!entry.oneShot && entry.ready && !entry.ready(ns, config)) continue;
 		if (!ns.fileExists(entry.script, "home")) {
 			missing.push(entry.script);
 			continue;

@@ -38,7 +38,39 @@ export function loadConfig(ns) {
 	const layers = [DEFAULTS, preset, custom].flatMap((layer) => [layer, layer?.bitnodes?.[node]]);
 	const config = layers.reduce((merged, layer) => mergeOver(merged, layer), {});
 	config.bitnode = node; // null until startup.js has run once
+	routeAdjust(ns, config);
 	return config;
+}
+
+// Port 36 is the Bladeburner state (bladeburner/state.js); read raw here so this file imports nothing from that folder
+// (every script that loads the config would otherwise need it copied along).
+const BLADEBURNER_PORT = 36;
+const BLADEBURNER_STATE_MAX_AGE_MS = 15 * 60_000; // as in bladeburner/state.js: an older state counts as off
+
+/**
+ * Logic, not config: while Bladeburner is the route (the state on port 36 is boot, train or run, or hold while the route estimate
+ * still says combat), what makes an augment worth buying changes. Rank comes from Contracts and Operations whose success chance
+ * depends on the combat stats, so combat and Bladeburner augments count (strongly) and hacking augments do not (they would
+ * only reset the combat stats for nothing). `profile: "bladeburner"` in data/config.json is no longer needed for this. 0GB.
+ * Ported from the other player's utils/config.js.
+ */
+/** @param {NS} ns */
+function routeAdjust(ns, config) {
+	let shared = null;
+	try { shared = JSON.parse(ns.peek(BLADEBURNER_PORT)); } catch { /* nothing posted */ }
+	if (!shared || typeof shared !== "object") return;
+	const state = Date.now() - (shared.stateTime ?? 0) < BLADEBURNER_STATE_MAX_AGE_MS ? shared.state : "off";
+	const aug = config.augments;
+	if (!aug || !(["boot", "train", "run"].includes(state) || (state === "hold" && shared.plan?.route === "combat"))) return;
+	const want = new Set((aug.wantStats ?? []).filter((group) => group !== "hacking"));
+	for (const group of ["combat", "bladeburner"]) want.add(group);
+	aug.wantStats = [...want];
+	const weights = aug.resetRule?.weights;
+	if (weights) {
+		for (const stat of ["strength", "defense", "dexterity", "agility"]) weights[stat] ??= 1;
+		for (const stat of ["strength_exp", "defense_exp", "dexterity_exp", "agility_exp"]) weights[stat] ??= 0.5;
+		for (const stat of ["bladeburner_success_chance", "bladeburner_max_stamina", "bladeburner_stamina_gain", "bladeburner_analysis"]) weights[stat] ??= 1;
+	}
 }
 
 /** The BitNode startup.js last saw, or null. */
