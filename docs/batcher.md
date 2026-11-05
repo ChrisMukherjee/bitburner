@@ -18,8 +18,10 @@
   first claim on freed RAM. A target that drops out just stops launching; nothing is killed.
 - **Batches are rate-limited, not RAM-reserved.** Since RAM isn't claimed up front any more, spacing is
   what keeps total use in budget.
-- **Ranking.** Money per unit of time at min security (with Formulas.exe: money per GB-second of real
-  batch RAM), so prepped and unprepped servers compare fairly. Active targets get a `stickiness` bonus so
+- **Ranking.** Money per GB-second of real batch RAM at min security, with or without Formulas.exe (without
+  it the grow threads come from target-stats.js's measured grow rate), so prepped and unprepped servers
+  compare fairly and a slow-growing server doesn't win on max money alone. Ranking by money per second
+  without the grow cost picked foodnstuff (growth 5) on a fresh BitNode, where little RAM made it earn nothing. Active targets get a `stickiness` bonus so
   the set doesn't churn. The score is scaled by `0.5 + 0.5 x money share`, so after a restart nearly
   full servers win over empty ones.
 - **Batch from 50% money.** Batching starts once a target is at min security and half its max money,
@@ -29,7 +31,9 @@
   money sampled between a hack and its grow looked short, turned on catch-up, and (since the hack fraction
   used to be chosen with catch-up included) flipped the plan to huge batches seconds apart. That made income
   and XP come in bursts and left RAM idle. The fraction is now chosen without catch-up and the extra grow
-  is added after.
+  is added after, halved until the batch still fits `maxBatchShare` of the target's share. Without that
+  cap, a slow grower on a small network needed a batch far bigger than all the RAM (2TB on 124GB), its
+  spacing stretched to 35 minutes and nothing was hacked.
 - **Formulas.exe is optional.** Checked every tick, so buying it mid-run just switches over. With it,
   sizes and timings are exact even before prep. Without it, a one-shot helper measures targets every 30s and
   posts them on port 27; its grow rate rescales exactly to min security, so the same hack fractions are safe

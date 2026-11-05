@@ -51,7 +51,9 @@ Stages already keep back what doesn't fit, and it would need the batcher to read
 highest-priority script that may run off home finds no room, startup.js reserves room for it on one server
 ([`ram.md`](ram.md)), one reservation at a time.
 - **player-work.js is a one-shot too**, a pass every minute that keeps its state on a port
-  ([`player-work.md`](player-work.md)), so its 30GB is no longer held all run.
+  ([`player-work.md`](player-work.md)), so its 30GB is no longer held all run. It starts at the early stage;
+  below that a 14.6GB stand-in (study, then crime) moves the player, since 32.5GB fits nowhere on a
+  32GB home and network.
 
 ## Structure across BitNodes
 

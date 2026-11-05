@@ -299,9 +299,9 @@ function noteLaunch(flight, target, ram) {
  * Steady state = one batch's RAM-time (each op's RAM x how long it runs) / batch spacing, using the plan
  * stepTarget would pick with the budget still left (so with Formulas.exe a top target that steals more
  * per batch leaves fewer targets needed).
- * Ranking: with Formulas.exe, money per batch / (batch RAM x weaken time), i.e. $ per GB-ms at a 10%
- * hack, which accounts for how many grow threads each target needs. Without it, money x chance per ms
- * of weaken time (same as utils/targets.js scoreTarget), from target-stats.js numbers.
+ * Ranking: money per batch / (batch RAM x weaken time), i.e. $ per GB-ms at a 10% hack, which accounts
+ * for how many grow threads each target needs. With Formulas.exe the game computes the threads; without
+ * it, they come from target-stats.js's measured grow rate.
  */
 function chooseTargets(ns, allServers, scriptRam, totalRam, currentlyActive, ctx) {
 	const hackingLevel = ns.getHackingLevel();
@@ -314,13 +314,12 @@ function chooseTargets(ns, allServers, scriptRam, totalRam, currentlyActive, ctx
 		if (!estimate || !(estimate.hackPerThread > 0) || !(estimate.chance > 0)) continue;
 
 		const maxMoney = ns.getServerMaxMoney(target);
-		let score;
-		if (ctx.fx) {
-			const plan = makePlan(ns, target, estimate.hackPerThread, CONFIG.hackFraction, scriptRam, ctx);
-			score = (plan.stolen * maxMoney * estimate.chance) / (plan.ramCost * estimate.weaken);
-		} else {
-			score = (maxMoney * estimate.chance) / estimate.weaken;
-		}
+		// Money per GB-ms at a 10% hack, so a target that needs many grow threads per dollar (foodnstuff:
+		// growth 5) ranks below one that regrows cheaply. Without Formulas the grow threads come from
+		// target-stats.js's measured grow rate; ranking by money alone picked foodnstuff on a fresh BitNode.
+		const plan = makePlan(ns, target, estimate.hackPerThread, CONFIG.hackFraction, scriptRam, ctx);
+		if (!Number.isFinite(plan.ramCost)) continue;
+		let score = (plan.stolen * maxMoney * estimate.chance) / (plan.ramCost * estimate.weaken);
 		// A target that is nearly prepped earns sooner (matters after a restart or on a fresh BitNode)
 		score *= 0.5 + 0.5 * Math.min(1, ns.getServerMoneyAvailable(target) / maxMoney);
 		if (currentlyActive.has(target)) score *= CONFIG.stickiness;
@@ -521,10 +520,19 @@ function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft,
 	const picked = pickPlan(ns, target, state.timings.hackPerThread, state.timings, budgetLeft, scriptRam, ctx);
 	if (!picked) return { batchId, ramUsed: 0 };
 	let { plan, ramMs } = picked;
-	const catchUp = atMaxMoney ? 1 : Math.min(CONFIG.catchUpPerBatch, maxMoney / Math.max(1, recentMoney));
-	if (catchUp > 1) {
-		plan = makePlan(ns, target, state.timings.hackPerThread, picked.fraction, scriptRam, ctx, catchUp);
-		ramMs = batchRamMs(plan, state.timings, scriptRam);
+	// The batch with catch-up must still fit pickPlan's per-batch limit (maxBatchShare of the share), or it
+	// can never get its RAM: on a slow-growing target with little RAM, a full 1.25x catch-up needed ~2TB of
+	// grow threads on a 124GB network, so the spacing stretched to 35 minutes and nothing was ever hacked.
+	// Halve the extra growth until it fits; with none left, batches just regrow what they steal.
+	let catchUp = atMaxMoney ? 1 : Math.min(CONFIG.catchUpPerBatch, maxMoney / Math.max(1, recentMoney));
+	while (catchUp > 1.001) {
+		const withCatchUp = makePlan(ns, target, state.timings.hackPerThread, picked.fraction, scriptRam, ctx, catchUp);
+		if (withCatchUp.ramCost <= budgetLeft * CONFIG.maxBatchShare) {
+			plan = withCatchUp;
+			ramMs = batchRamMs(plan, state.timings, scriptRam);
+			break;
+		}
+		catchUp = 1 + (catchUp - 1) / 2;
 	}
 	state.lastPlan = plan;
 

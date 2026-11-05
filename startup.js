@@ -35,10 +35,13 @@ const SCRIPTS = [
 	// Invites and backdoors from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.
 	{ stage: "start", script: "singularity/join-factions.js", args: ["--once"], oneShot: true, every: 60_000 },
 	{ stage: "start", script: "singularity/auto-backdoor.js", args: ["--once"], oneShot: true, every: 120_000, ready: backdoorReady },
+	// player-work.js (32.5GB) fits nowhere below a 64GB home, so until then this 14.6GB pass moves the
+	// player instead: the free course to studying.hackLevel, then the best-paying crime for cash.
+	{ stage: "start", until: "early", script: "singularity/player-work-start.js", oneShot: true, every: 60_000 },
 	// The one script that moves the player: study to studying.hackLevel, faction work to the real rep
 	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. A short pass every
 	// minute (the game keeps the work going), until it posts that everything is done.
-	{ stage: "start", script: "singularity/player-work.js", args: ["--once"], oneShot: true, every: 60_000, ready: playerWorkReady },
+	{ stage: "early", script: "singularity/player-work.js", args: ["--once"], oneShot: true, every: 60_000, ready: playerWorkReady },
 	// Without the Singularity API nothing backdoors or buys programs by itself: this tells you when to, once each.
 	{ stage: "start", script: "tools/reminders.js", oneShot: true, every: 60_000, homeOnly: true, ready: (ns) => !singularityInfo(ns).available },
 	// Mechanics, one folder each. Started only once their ready check says there is work.
