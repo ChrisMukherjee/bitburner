@@ -11,20 +11,43 @@ Settings: `augments.resetRule` in [`config.js`](../config.js). Income forecast:
 Reset at the moment that gives the most augment value **per hour of the run**. Every check
 (10 min) works out the value of the batch you could install now and at moments up to
 `horizonHours` (6 h) ahead, divides each by (run age at that moment + `overheadMinutes`), and
-resets when no later moment within `maxWaitMinutes` (60) beats now by more than `waitMargin` (5%).
+resets when no later moment within `maxWaitMinutes` (180) beats now by more than `waitMargin` (5%).
 
 On top of that:
 
 - The Red Pill ready: reset at once (`keyAugs`).
 - No reset in the first `minRunMinutes` (30), and none before rep rates are measured.
 - Daedalus rule (`daedalusFavor`), see below.
-- Guarantee: a run at least `maxRunHours` (4 h) old resets once the batch is worth at least
-  x`guaranteeSpeed` (1.5), whatever the forecast says.
+- Guarantee (off by default, `maxRunHours: null`): a run at least `maxRunHours` old resets once the
+  batch is worth at least x`guaranteeSpeed`, whatever the forecast says.
 
-The last two caps came from the other player's version of this rule: with a growing income the
-forecast can keep promising a slightly better moment a little further on, so the reset recedes for
-hours. A 60 min window and a 4 h guarantee stop that at the cost of sometimes resetting a little
-early. `maxRunHours: null` turns the guarantee off.
+The window and the guarantee came from the other player's version of this rule: with a growing income
+the forecast can keep promising a slightly better moment a little further on, so the reset recedes for
+hours. They started as a 60 min window and a 4 h guarantee. An offline simulation of BitNode 4 (below)
+showed both cut runs short and cost 5-25% of the time to The Red Pill, with no receding resets once the
+forecast bug below was fixed, so the window is now 180 min and the guarantee is off.
+
+## Checked offline (2026-11)
+
+A Node simulation of BitNode 4 ran the planner's own `decideReset` against the game's v3.0.0 data
+(augment prices, rep, stats and factions; servers; BitNode 4 multipliers) and formulas (hack time,
+percent, chance and exp, grow, skill level, faction rep, favor, donations), with a simple model of the
+batcher, server and home buying and player work. It found:
+
+- **A forecast bug made most resets too early.** The forecast left NeuroFlux out of any moment whose
+  leftover cash passed the next home upgrade's price (the buyer's "NeuroFlux waits for home" rule).
+  Resetting now counted NeuroFlux and later moments, with more cash, didn't, so waiting looked worse: the rule
+  reset every 1-2 hours, mostly for a level or two of NeuroFlux. Now the forecast counts NeuroFlux at
+  every moment (the buyer still gives a home upgrade the cash first at reset time).
+- Fixing it took The Red Pill from about 83 h to 54 h in the base case, and 44 resets to 14 before it
+  (median run 1.5 h to 2.7 h). Widening the window and dropping the guarantee took it to about 48 h.
+  The gain held with income at 0.1x to 3x the base, with or without megacorp factions.
+- Not worth changing: overhead, wait margin, horizon, income-curve settings, favor weight, picking the
+  batch by value per dollar instead of most expensive first, and the after-Red-Pill rebuild factor.
+- Small resets are fine when the batch is worth its run: the rule still resets with 1-2 augments when
+  a run is short and they are strong. What cost time was resetting for NeuroFlux alone, over and over.
+
+The model's income and rep numbers are rough, so the hours are only good for comparing rules.
 
 ## Why
 
@@ -95,10 +118,11 @@ after augments are bought (`--keep-cash` skips it). Home RAM first: it's usually
 bigger help to the next run's start.
 
 **NeuroFlux waits for home.** While a home RAM or cores upgrade is affordable (the cash its buyer last posted
-on port 33: cost plus its income reserve), the buyer and the forecast leave the leftover cash to it instead of
-buying NeuroFlux levels, since the upgrade survives the install and raises income. This is the other player's
+on port 33: cost plus its income reserve), the buyer leaves the leftover cash to it instead of buying
+NeuroFlux levels, since the upgrade survives the install and raises income. This is the other player's
 rule, reading the buyers' notes instead of the files it used; with no note yet (a fresh run, or startup.js not running)
-NeuroFlux is bought as before.
+NeuroFlux is bought as before. The forecast doesn't apply it: it counts NeuroFlux from the leftover cash at
+every moment, as a stand-in for whatever that cash buys (see "Checked offline").
 
 ## After The Red Pill
 

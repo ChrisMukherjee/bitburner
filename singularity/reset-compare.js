@@ -55,14 +55,14 @@ export async function main(ns) {
 
 	const rate = (point) => point.value / (runHours + point.inMinutes / 60 + overheadHours);
 	const nowRate = rate(now);
-	const maxWaitMinutes = Number(rule.maxWaitMinutes ?? 60);
+	const maxWaitMinutes = rule.maxWaitMinutes ?? Infinity; // null: no limit, as in the plan rule
 	const later = decision.curve.slice(1).filter((point) => point.inMinutes <= maxWaitMinutes)
 		.reduce((best, point) => (!best || rate(point) > rate(best) ? point : best), null);
 	say(`This run built up its income over ${lost.toFixed(1)} h of lost output; the next run (x${speedup.toFixed(2)} faster) would lose about ${rebuildHours.toFixed(2)} h of it.`);
 	say(`  Reset now: x${speedup.toFixed(2)} gained after a ${runHours.toFixed(1)} h run + ${overheadHours.toFixed(2)} h reset cost = ${nowRate.toFixed(3)} per hour.`);
 	if (later) say(`  Best later moment: in ${later.inMinutes} min, x${Math.exp(later.value).toFixed(2)} = ${rate(later).toFixed(3)} per hour.`);
 	// The same guarantee as the plan: an old run with a worthwhile batch resets
-	const guaranteed = runHours >= (rule.maxRunHours ?? 4) && now.value >= Math.log(rule.guaranteeSpeed ?? 1.5);
+	const guaranteed = rule.maxRunHours != null && runHours >= rule.maxRunHours && now.value >= Math.log(rule.guaranteeSpeed ?? 1.5);
 	const wait = Boolean(!guaranteed && later && rate(later) > nowRate * 1.05);
 	say(`  -> ${wait ? `WAIT (about ${later.inMinutes} min)` : "RESET"}${wait === Boolean(decision.reset) ? "  (differs from the plan rule)" : "  (agrees with the plan rule)"}`);
 }

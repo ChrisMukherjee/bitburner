@@ -89,11 +89,13 @@ export const DEFAULTS = {
 			waitMargin: 0.05,     // wait only if a later moment beats now by more than 5% per hour
 			horizonHours: 6,      // how far ahead the forecast looks
 			// Only moments this close count as a better "later", so a forecast that keeps promising a
-			// little more a bit further on can't postpone the reset for ever.
-			maxWaitMinutes: 60,
+			// little more a bit further on can't postpone the reset for ever (null: the whole horizon).
+			// 180, not 60: in the offline simulation a 60 min window and the 4h guarantee cut runs short
+			// and cost 5-25% of the time to The Red Pill (docs/aug-reset.md).
+			maxWaitMinutes: 180,
 			// Guarantee: a run this old resets once the batch is worth at least x guaranteeSpeed,
 			// whatever the forecast says (null turns it off).
-			maxRunHours: 4,
+			maxRunHours: null,
 			guaranteeSpeed: 1.5,
 			daedalusFavor: true,  // Daedalus rule: reset for 150 favor (donations) when that beats working for The Red Pill
 			// Daedalus push: once the invite only lacks installed augments (hack level and money met), buy the

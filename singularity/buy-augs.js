@@ -1,7 +1,6 @@
 import { readIncomeRate } from "/utils/income.js";
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";
-import { homeUpgradeNeed } from "/singularity/ready.js";
 import { recordIncomeSample, buildIncomeModel, earnedOver, timeToEarn, incomeMultAt } from "/utils/income-curve.js";
 // Design: docs/aug-reset.md
 const NEUROFLUX = "NeuroFlux Governor";
@@ -186,7 +185,7 @@ export async function main(ns) {
 
 	const decision = decideReset({
 		queued, plan, upcoming, cash: cash() + stocks, homeCash: cash(), income, incomeModel, sinceInstallMs,
-		neuroflux, homeNeed: homeUpgradeNeed(ns), favors, daedalus, push, endgame, ratesMeasured: Object.keys(rates.perSecond).length > 0,
+		neuroflux, favors, daedalus, push, endgame, ratesMeasured: Object.keys(rates.perSecond).length > 0,
 	});
 	// A push reset buys the fill list (cheapest augments) instead of the usual plan.
 	const pushing = push && decision.reset && decision.push;
@@ -360,7 +359,7 @@ function daedalusRule(daedalus, { income, incomeModel, homeCash }, horizonMs, et
  * then NeuroFlux with what's left, plus the favor the run's rep turns into.
  * Returns { value, augs, neuroflux }.
  */
-function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux, homeNeed, favors }, waitMs) {
+function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux, favors }, waitMs) {
 	const waitS = waitMs / 1000;
 	const cashThen = cash + earnedOver(Math.max(0, income), incomeModel, waitS);
 	const unlocked = [...plan, ...upcoming.filter((entry) => entry.etaMs !== null && entry.etaMs <= waitMs)]
@@ -370,9 +369,11 @@ function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux,
 	let value = fit.augs.reduce((sum, aug) => sum + (valueOf.get(aug) ?? 0), 0);
 
 	// NeuroFlux levels from the leftover cash (each level 1.14x dearer in money and rep, plus the 1.9x markup).
-	// Not when a home upgrade could use the leftover cash instead (homeNeed: singularity/ready.js).
+	// Counted at every moment, even when a home upgrade would get the cash at reset time (the buyer's rule):
+	// skipping it once the forecast cash passes the next home upgrade's price made every later moment look
+	// worse than now, so the rule reset early for a level or two of NeuroFlux (docs/aug-reset.md).
 	let levels = 0;
-	if (neuroflux && cashThen - fit.cost < homeNeed) {
+	if (neuroflux) {
 		let left = cashThen - fit.cost;
 		let price = neuroflux.price * fit.mult;
 		let repReq = neuroflux.repReq;
