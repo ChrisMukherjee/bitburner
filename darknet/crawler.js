@@ -1,12 +1,14 @@
 // Design: docs/darknet.md
-import { candidatePasswords } from "darknet/hint-interpreter.js";
-import { FACTORIOS_MODEL, solveDivisibility } from "darknet/feedback-solvers.js";
+import { candidatePasswords, fitsDetails } from "darknet/hint-interpreter.js";
+import { FACTORIOS_MODEL, DEEPGREEN_MODEL, solveDivisibility, solveMastermind } from "darknet/feedback-solvers.js";
+import { readLogs } from "darknet/heartbleed.js";
 import { login } from "darknet/auth.js";
 import {
 	REPORT_PORT, CRAWLER_SCRIPT, PHISH_SCRIPT, STASIS_SCRIPT,
 	CRAWLER_FILES, PASSWORD_FILE, STASIS_TARGET_FILE,
 } from "darknet/config.js";
 
+const MAX_REUSED_PASSWORDS = 10; // other servers' passwords tried on a server whose hint gave nothing
 const RESPREAD_INTERVAL = 60 * 1000; // ms between re-checks of our neighbours for new servers
 
 // Runs on a darknet server the manager (or another crawler) authenticated and exec'd us onto.
@@ -56,7 +58,7 @@ async function spread(ns, { self, port, earn, stasis, passwords, opened, failed 
 		}
 		let attempts = [];
 		if (password === undefined) {
-			const cracked = await crack(ns, neighbour, details);
+			const cracked = await crack(ns, neighbour, details, passwords);
 			if (cracked.later) { retryLater(ns, port, neighbour, cracked.later); continue; }
 			({ password, attempts } = cracked);
 		}
@@ -102,11 +104,25 @@ async function spread(ns, { self, port, earn, stasis, passwords, opened, failed 
  * Returns { later: result } instead when the server answered something other than "wrong password" (see
  * auth.js), so a timeout or a server drifting away mid-crack doesn't get it marked unsolvable.
  */
-async function crack(ns, host, details) {
-	if (details.modelId === FACTORIOS_MODEL) return await solveDivisibility(ns, host);
-	const { candidates } = candidatePasswords(details);
+async function crack(ns, host, details, passwords) {
+	// The server's logs first: another login's success, passcodes a model leaks, passwords already known to be wrong,
+	// and Mastermind replies that narrow DeepGreen. Costs one cheap call per neighbour.
+	const logs = await readLogs(ns, host);
 	const attempts = [];
-	for (const candidate of candidates) {
+	const tryFirst = [...logs.winners, ...logs.leaked].filter((candidate) => fitsDetails(candidate, details));
+	for (const candidate of new Set(tryFirst)) {
+		const result = await login(ns, host, candidate);
+		if (result.verdict === "ok") return { password: candidate, attempts };
+		if (result.verdict === "later") return { later: result };
+		attempts.push({ password: candidate, code: result.code, message: result.message, data: result.data });
+		logs.wrong.add(candidate);
+	}
+	if (details.modelId === FACTORIOS_MODEL) return await solveDivisibility(ns, host);
+	if (details.modelId === DEEPGREEN_MODEL) return await solveMastermind(ns, host, details, logs.observed);
+	const { candidates } = candidatePasswords(details);
+	// Last resort, after the hint's own candidates: passwords that opened other servers (people reuse them), capped.
+	const found = [...new Set(Object.values(passwords))].filter((candidate) => fitsDetails(candidate, details) && !candidates.includes(candidate));
+	for (const candidate of candidates.concat(found.slice(0, MAX_REUSED_PASSWORDS)).filter((candidate) => !logs.wrong.has(candidate))) {
 		const result = await login(ns, host, candidate);
 		if (result.verdict === "ok") return { password: candidate, attempts };
 		if (result.verdict === "later") return { later: result };

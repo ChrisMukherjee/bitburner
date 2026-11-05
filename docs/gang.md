@@ -16,8 +16,11 @@ the first run and tune; every decision is logged.
   less. The choice is `gang.factions`.
 - **The invite is a player-work step**, not its own script, because only player-work moves the player
   (see [`player-work.md`](player-work.md)).
-- **Best task by trying.** Each member's task is picked by trying each one and reading back the gain, so no
-  Formulas.exe is needed. This is the assumption most likely to need checking in game.
+- **Best task by the game's formula.** Each member's task is scored from `ns.gang.getTaskStats` (stat weights
+  x member stats minus 4 x difficulty, times base respect or money, times a territory factor for the
+  land-dependent tasks), so no Formulas.exe is needed and no task is tried out. The formula comes from a
+  gang script that has run in game; it replaced an earlier "try each task and read the gain back" version
+  that assumed the gains update right after `setMemberTask`.
 - **Respect until full, then money.** Members train to `trainLevel`, ascend at a 1.5x multiplier gain, and
   the weakest earners cool the wanted level when its penalty passes 5%.
 - **Territory:** with a full gang, half the trained members build power; clashes go on at 55% win chance

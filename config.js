@@ -102,6 +102,9 @@ export const DEFAULTS = {
 			// in case a purchase fails (prerequisites).
 			daedalusPush: true,
 			daedalusPushSpare: 2,
+			// After The Red Pill is installed, reset only if the batch gets hacking to w0r1d_d43m0n's level
+			// sooner than keeping on. rebuildFactor: a new run's exp rate as a share of today's (it starts slower).
+			afterRedPill: { rebuildFactor: 0.5 },
 			// Income curve (utils/income-curve.js): forecast cash with income that keeps growing
 			// the way it has this run, instead of flat. Also used by faction-goals' money budget.
 			incomeCurve: {
@@ -270,6 +273,10 @@ export const DEFAULTS = {
 	// "hacking" holds it so faction and company work get all the player's time. A route estimate posted on
 	// port 36 (plan.route) wins over this. Black Ops done = the BitNode can end without w0r1d_d43m0n.
 	bladeburner: { route: "combat" },
+
+	// XP farm (hack/xp-farm.js): weakens a cheap target with RAM the batcher leaves free, for hacking XP.
+	// target: any rooted server you can hack; headroom: share of the network's RAM always left free for the batcher.
+	xpFarm: { target: "joesguns", headroom: 0.15 },
 
 	// Where auto-destroy.js goes after w0r1d_d43m0n: the first entry whose Source-File level
 	// isn't reached yet (counting the level this destroy gives). When all are done it waits for you.

@@ -7,6 +7,7 @@ import { recordIncomeSample, buildIncomeModel, earnedOver, timeToEarn, incomeMul
 const NEUROFLUX = "NeuroFlux Governor";
 const RED_PILL = "The Red Pill";
 const DAEDALUS = "Daedalus";
+const DAEMON = "w0r1d_d43m0n"; // appears once The Red Pill is installed; destroying it ends the BitNode
 const PLAN_FILE = "data/aug-plan.json";
 const BUYER = "singularity/workers/aug-buyer.js"; // does the buying, so this script stays small
 const STOCK_SUMMARY_PORT = 26;   // stock-trader.js posts the value of its positions here
@@ -74,6 +75,7 @@ export async function main(ns) {
 	const sellers = new Map();
 	const boosts = new Map();
 	const values = new Map();
+	const statsOf = new Map(); // multipliers, for the after-Red-Pill rule
 	const skipped = [];
 	const anySeller = new Map(); // every augment a joined faction has the rep for, useful or not (Daedalus push)
 	const locked = []; // useful, but the faction rep isn't there yet
@@ -83,6 +85,7 @@ export async function main(ns) {
 			// Several factions can sell the same augment: read its stats once, but check the rep at each.
 			if (!boosts.has(aug)) {
 				const stats = ns.singularity.getAugmentationStats(aug);
+				statsOf.set(aug, stats);
 				boosts.set(aug, wantedBoosts(aug, stats, AUG_CONFIG));
 				values.set(aug, augValue(aug, stats, AUG_CONFIG));
 			}
@@ -173,9 +176,17 @@ export async function main(ns) {
 		repMult: player.mults.faction_rep,
 	} : null;
 
+	// After The Red Pill: only hacking level stands between the run and the end of the BitNode.
+	const hackExp = hackExpRate(previous, sameRun, player.exp.hacking);
+	let endgame = null;
+	if (installed.has(RED_PILL) && ns.serverExists(DAEMON)) {
+		for (const aug of [...queued, NEUROFLUX]) if (!statsOf.has(aug)) statsOf.set(aug, ns.singularity.getAugmentationStats(aug));
+		endgame = { daemonLevel: ns.getServerRequiredHackingLevel(DAEMON), level: player.skills.hacking, exp: player.exp.hacking, rate: hackExp.perSecond, statsOf };
+	}
+
 	const decision = decideReset({
 		queued, plan, upcoming, cash: cash() + stocks, homeCash: cash(), income, incomeModel, sinceInstallMs,
-		neuroflux, homeNeed: homeUpgradeNeed(ns), favors, daedalus, push, ratesMeasured: Object.keys(rates.perSecond).length > 0,
+		neuroflux, homeNeed: homeUpgradeNeed(ns), favors, daedalus, push, endgame, ratesMeasured: Object.keys(rates.perSecond).length > 0,
 	});
 	// A push reset buys the fill list (cheapest augments) instead of the usual plan.
 	const pushing = push && decision.reset && decision.push;
@@ -188,7 +199,7 @@ export async function main(ns) {
 	ns.write(PLAN_FILE, JSON.stringify({
 		time: rates.snapshotTime, rep: rates.snapshot, perSecond: rates.perSecond, checkedAt: Date.now(),
 		queued, affordable: fitNow.augs, cost: fitNow.cost, stocks, decision, resetSince, daedalusSeenAt, bitnode: bitnodeGoal(ns, factions),
-		incomeHistory, incomeModel,
+		incomeHistory, incomeModel, hackExp,
 		// For singularity/workers/aug-buyer.js: everything with the rep, most expensive first, and
 		// where to buy NeuroFlux (null when the config or --no-neuroflux says not to).
 		buyList: pushing ? push.fill.map((aug) => ({ aug, faction: anySeller.get(aug) }))
@@ -227,7 +238,7 @@ export async function main(ns) {
  * (daedalusRule) holds or forces a reset around Daedalus favor reaching the donation line.
  */
 function decideReset(context) {
-	const { queued, plan, upcoming, income, sinceInstallMs, daedalus, push, ratesMeasured } = context;
+	const { queued, plan, upcoming, income, sinceInstallMs, daedalus, push, endgame, ratesMeasured } = context;
 	const minutes = (ms) => `${Math.max(1, Math.round(ms / 60_000))} min`;
 	const eta = (ms) => (ms < 3600_000 ? minutes(ms) : `${(ms / 3600_000).toFixed(1)}h`);
 	const overheadMs = RESET_RULE.overheadMinutes * 60_000;
@@ -258,6 +269,10 @@ function decideReset(context) {
 	};
 
 	const ready = [...queued, ...now.augs];
+	if (endgame) {
+		const after = afterRedPillRule(endgame, ready, now.neuroflux, eta);
+		return result(after.reset, after.reason);
+	}
 	const key = RESET_RULE.keyAugs.filter((aug) => ready.includes(aug));
 	if (key.length > 0) return result(true, `${key.join(" and ")} ready: reset for it right away.`);
 	// Daedalus push: enough cheap augments for the invite's count are affordable, so install them now.
@@ -378,6 +393,54 @@ function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux,
 		value += entry.repShare * repWeight * Math.log((100 + after) / (100 + entry.favor));
 	}
 	return { value, augs: fit.augs, neuroflux: levels };
+}
+
+/**
+ * After The Red Pill is installed the BitNode ends once hacking reaches w0r1d_d43m0n's level
+ * (auto-destroy.js), and a reset throws the hacking exp away. So reset only when starting over
+ * with the batch gets there sooner: exp needed for the daemon's level with the batch's hacking
+ * multiplier, earned at today's exp rate times its hacking-exp multiplier times
+ * afterRedPill.rebuildFactor (a new run starts slower), plus overheadMinutes; against the exp
+ * still missing at today's rate. Level = mult x (32 ln(exp + 534.6) - 200), the game's formula,
+ * with the effective mult read back from the current level and exp (so BitNode multipliers count).
+ */
+function afterRedPillRule(endgame, ready, neurofluxLevels, eta) {
+	const { daemonLevel, level, exp, rate, statsOf } = endgame;
+	if (level >= daemonLevel) return { reset: false, reason: `Hacking ${level} reaches ${DAEMON} (${daemonLevel}): no reset, auto-destroy ends the BitNode.` };
+	if (!(rate > 0)) return { reset: false, reason: `The Red Pill is installed: hacking ${level} of ${daemonLevel} for ${DAEMON}. Measuring the hack exp rate before weighing a reset.` };
+	const base = 32 * Math.log(exp + 534.6) - 200;
+	const mult = base > 0 ? level / base : 1;
+	const expFor = (target, withMult) => Math.max(0, Math.exp((target / withMult + 200) / 32) - 534.6);
+	let hackMult = 1;
+	let expMult = 1;
+	const boost = (stats, times = 1) => {
+		hackMult *= Math.pow(stats?.hacking ?? 1, times);
+		expMult *= Math.pow(stats?.hacking_exp ?? 1, times);
+	};
+	for (const aug of ready) if (aug !== NEUROFLUX) boost(statsOf.get(aug));
+	const levels = neurofluxLevels + (ready.includes(NEUROFLUX) ? 1 : 0);
+	if (levels > 0) boost(statsOf.get(NEUROFLUX), levels);
+	const settings = RESET_RULE.afterRedPill ?? {};
+	const stayMs = (Math.max(0, expFor(daemonLevel, mult) - exp) / rate) * 1000;
+	const resetMs = (expFor(daemonLevel, mult * hackMult) / (rate * expMult * (settings.rebuildFactor ?? 0.5))) * 1000
+		+ RESET_RULE.overheadMinutes * 60_000;
+	if (resetMs * (1 + RESET_RULE.waitMargin) < stayMs) {
+		return { reset: true, reason: `The Red Pill is installed and ${ready.length} augment(s) (hack x${hackMult.toFixed(2)}, exp x${expMult.toFixed(2)}) ` +
+			`reach ${DAEMON}'s level ${daemonLevel} in about ${eta(resetMs)} after a reset, sooner than ${eta(stayMs)} without one. Resetting.` };
+	}
+	return { reset: false, reason: `The Red Pill is installed: hacking ${level} of ${daemonLevel} for ${DAEMON} in about ${eta(stayMs)}. ` +
+		`A reset with the ${ready.length} augment(s) ready would take about ${eta(resetMs)}, so keep hacking.` };
+}
+
+/** Hack exp per second from the snapshot in the last plan (same rules as the rep rates). */
+function hackExpRate(previous, sameRun, exp) {
+	const now = Date.now();
+	const last = sameRun ? previous?.hackExp : null;
+	if (!last || exp < last.exp) return { time: now, exp, perSecond: 0 };
+	const gap = now - last.time;
+	if (gap < RESET_RULE.minRateGapMs) return last;
+	if (gap > RESET_RULE.maxRateGapMs) return { time: now, exp, perSecond: 0 };
+	return { time: now, exp, perSecond: (exp - last.exp) / (gap / 1000) };
 }
 
 /**

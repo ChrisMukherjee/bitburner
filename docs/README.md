@@ -8,6 +8,7 @@ change a script, so they don't undo a choice that was made on purpose.
 ## Docs
 
 - [`batcher.md`](batcher.md): just-in-time multi-target batching, target ranking, Formulas.exe optional.
+- [`xp-farm.md`](xp-farm.md): spare RAM into weaken threads for hacking XP, yields to share.
 - [`startup.md`](startup.md): one priority list, stages from home RAM, running off home, skipping what can't run.
 - [`config.md`](config.md): one settings file with presets and per-player overrides, instead of per-BitNode copies.
 - [`aug-reset.md`](aug-reset.md): when to buy and install augments (value per hour of run).

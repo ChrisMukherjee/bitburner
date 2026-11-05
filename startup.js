@@ -63,6 +63,8 @@ const SCRIPTS = [
 	{ stage: "mid", script: "contracts/solve-contracts.js", homeOnly: true },
 	{ stage: "mid", script: "darknet/dnet-manager.js", homeOnly: true, ready: dnetReady },
 	{ stage: "mid", script: "singularity/upgrade-home-cores.js", args: ["--once"], oneShot: true, every: 30_000, ready: homeCoresReady },
+	// Spare RAM into weaken threads for hacking XP; yields to share-manager while it is sharing.
+	{ stage: "mid", script: "hack/xp-farm.js" },
 	// Last in mid: it only runs during faction work and only on RAM the batcher leaves free.
 	{ stage: "mid", script: "share/share-manager.js", needsSF4: true },
 	// Buys and installs augs by itself when the reset rule in buy-augs.js says so; startup.js comes

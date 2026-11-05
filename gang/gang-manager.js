@@ -151,10 +151,25 @@ function ascend(ns, settings, isHacking) {
 }
 
 /**
- * Gives every member a task. Tries each earning task on each member and reads the member's
- * respect/money/wanted gain back (getMemberInformation computes them for the current task), all
- * within one tick, so the game never runs a cycle on a trial task.
- * UNTESTED: assumes getMemberInformation's gains update right after setMemberTask.
+ * How much a member's stats are worth on a task: the game's own weight formula, so no trial
+ * assignment is needed. 0 or less means the task is too hard for them yet.
+ */
+function skillWeight(task, member) {
+	const sum = task.hackWeight * member.hack + task.strWeight * member.str + task.defWeight * member.def +
+		task.dexWeight * member.dex + task.agiWeight * member.agi + task.chaWeight * member.cha;
+	return sum / 100 - 4 * task.difficulty;
+}
+
+/** Territory scaling of a task's payout: the more land the gang owns, the more land-dependent tasks pay. */
+function landMult(task, field, territory) {
+	const exponent = task.territory[field];
+	return exponent <= 0 ? 1 : Math.max(0.005, Math.pow(territory * 100, exponent) / 100);
+}
+
+/**
+ * Gives every member a task. Scores each task with the game's formulas (skillWeight x base
+ * respect/money x territory scaling), the same maths as the game, within one tick.
+ * Formula and cleaner count follow a version that has run in game.
  */
 function assignTasks(ns, settings, isHacking, state, noWar) {
 	const gang = ns.gang.getGangInformation();
@@ -164,6 +179,7 @@ function assignTasks(ns, settings, isHacking, state, noWar) {
 	state.members = names.length;
 
 	const allTasks = ns.gang.getTaskNames();
+	state.taskStats ??= Object.fromEntries(allTasks.map((task) => [task, ns.gang.getTaskStats(task)])); // fixed for the game
 	const trainTask = isHacking ? settings.trainTasks.hacking : settings.trainTasks.combat;
 	const coolTasks = settings.coolTasks.filter((task) => allTasks.includes(task));
 	const special = new Set(["Unassigned", settings.warfareTask, ...coolTasks, ...Object.values(settings.trainTasks)]);
@@ -186,21 +202,25 @@ function assignTasks(ns, settings, isHacking, state, noWar) {
 	const warriors = (!noWar && full && territoryLeft) ? Math.round(trained.length * settings.warfareShare) : 0;
 	for (const member of trained.slice(0, warriors)) plan.set(member.name, { task: settings.warfareTask, value: 0, wanted: 0 });
 
-	// The rest earn: best task for the focus, by trying each one.
+	// The rest earn: best task for the focus, by the game formula.
 	const earners = [];
 	for (const member of trained.slice(warriors)) {
 		let best = null;
 		let bestCool = null;
 		for (const task of [...earnTasks, ...coolTasks]) {
-			ns.gang.setMemberTask(member.name, task);
-			const after = ns.gang.getMemberInformation(member.name);
-			const value = focus === "money" ? after.moneyGain : after.respectGain;
-			const trial = { task, value, wanted: after.wantedLevelGain };
+			const stats = state.taskStats[task];
+			if (!stats || (isHacking ? !stats.isHacking : !stats.isCombat)) continue;
+			const weight = skillWeight(stats, member.info);
+			if (weight <= 0) continue;
+			const wanted = stats.baseWanted * weight;
 			if (coolTasks.includes(task)) {
-				if (!bestCool || trial.wanted < bestCool.wanted) bestCool = trial;
-			} else if (value > 0 && (!best || value > best.value)) {
-				best = trial;
+				if (wanted < 0 && (!bestCool || wanted < bestCool.wanted)) bestCool = { task, value: 0, wanted };
+				continue;
 			}
+			if (stats.baseWanted < 0) continue; // wanted-lowering tasks are kept out of the earning ones
+			const value = (focus === "money" ? stats.baseMoney * landMult(stats, "money", gang.territory)
+				: stats.baseRespect * landMult(stats, "respect", gang.territory)) * weight;
+			if (value > 0 && (!best || value > best.value)) best = { task, value, wanted };
 		}
 		// Nothing earns yet (stats too low for every task): keep training.
 		const choice = best ?? { task: trainTask, value: 0, wanted: 0 };

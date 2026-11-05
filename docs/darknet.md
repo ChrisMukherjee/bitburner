@@ -11,10 +11,12 @@ Passwords come from [`hint-interpreter.js`](../darknet/hint-interpreter.js) and
   sees on port 20, opens its neighbours and copies itself on. Crawlers only report when they start, so the
   manager restarts every known crawler (and phishing worker) on start, reloads the last map, and keeps
   re-checking; the darknet keeps moving servers, so crawlers re-probe their neighbours every minute.
-- **Passwords from hints and feedback only.** Solvers read the answer from the server's hint, or narrow it
-  down from the server's replies to wrong guesses (Factori-Os is solved by prime factoring from
-  "divisible" feedback). Blind guessing from fixed word lists is out of scope; those passwords can be
-  entered by hand in `data/darknet-passwords.txt`. Other feedback-driven models can be added the same way.
+- **Passwords from what the server tells us.** Per neighbour, in order: the server's logs (`heartbleed.js`: a login that
+  worked, a passcode a model leaks, passwords known to be wrong, Mastermind replies), then the solvers read the answer
+  from the hint, or narrow it down from the replies to wrong guesses (Factori-Os by prime factoring from "divisible"
+  feedback, DeepGreen as Mastermind), and last a few passwords that opened other servers. Blind guessing from fixed
+  word lists is out of scope; those passwords can be entered by hand in `data/darknet-passwords.txt`. Other
+  feedback-driven models can be added the same way. Logs are read with `peek`, so the lines stay on the server.
 - **Only a 401 means a wrong password.** `login` retries 408 timeouts (they happen even with the right
   password); anything else (moved, offline, too little charisma) means "try again on the next re-check",
   not "unsolvable". Skips are counted in the manager's summary so they stay visible.
@@ -32,6 +34,8 @@ Passwords come from [`hint-interpreter.js`](../darknet/hint-interpreter.js) and
   restarting the manager, and each exit left a sticky toast. The exit message is now a normal toast plus a
   terminal line, since it only shows when the manager is run by hand.
 - **One implementation, not two.** The other player's `darkweb.js`/`scout.js` are a different design (a scout script on every
-  authenticated node, a shared password vault merged on home, `phish.js` filling free RAM). They were not ported next to this
-  one: two darknet managers would fight over the same servers. If that design beats this one in a side-by-side test, port its
-  ideas here, not the scripts.
+  authenticated node, a shared password vault merged on home, `phish.js` filling free RAM). Compared by reading, this one does
+  more (stasis links, earnings, restarts, 408 retries, the map), so it stayed the base. Three ideas were taken from the other
+  design: the heartbleed log pass, the DeepGreen solver, and trying known passwords on servers whose hint gave nothing. Not
+  taken: the controller on home, a blind list of default passwords, and her NIL solver (switched off in her own code because
+  the server never answered "yes"). The crawler is 0.6GB larger for the heartbleed call.

@@ -1,5 +1,5 @@
-// Solvers for server models that answer each wrong attempt with feedback we can learn from. So far: the
-// Factori-Os model ("The password is divisible by 1 ;)"). The password is a product
+// Solvers for server models that answer each wrong attempt with feedback we can learn from. So far: DeepGreen (Mastermind:
+// each wrong attempt replies "exact,misplaced") and the Factori-Os model ("The password is divisible by 1 ;)"). The password is a product
 // of primes, and each wrong attempt replies whether the password is divisible by what we sent (data "true"
 // or "false"). We build the password up one prime factor at a time: if it's divisible by found * p, then p
 // is another factor. An attempt that equals the password simply succeeds. Imported by the crawler; it only
@@ -8,6 +8,8 @@
 import { login } from "darknet/auth.js";
 
 export const FACTORIOS_MODEL = "Factori-Os";
+export const DEEPGREEN_MODEL = "DeepGreen";
+const MASTERMIND_MAX_LENGTH = 6; // 10^6 candidates is the most worth holding in memory
 
 // The primes the game builds these passwords from (bitburner-src, DarkNet/controllers/ServerGenerator.ts).
 // Small ones cover the random base and multipliers; large ones are only added on harder servers.
@@ -53,4 +55,58 @@ export async function solveDivisibility(ns, host) {
 		}
 	}
 	return { password: undefined, attempts: attempts.slice(-5) };
+}
+
+/**
+ * DeepGreen is Mastermind on a numeric password: a wrong attempt replies data "exact,misplaced" (digits in the right place /
+ * right digit in the wrong place). Start with every numeric string of the right length and, after each attempt, keep only the
+ * candidates that would have given the same reply. `observed` holds earlier replies read from the server's logs
+ * (heartbleed.js), which narrow the start. Same return shape as solveDivisibility. Ported from the other player's lib-auth.js.
+ * @param {NS} ns
+ */
+export async function solveMastermind(ns, host, details, observed = []) {
+	const length = details.passwordLength;
+	if (!length || details.passwordFormat !== "numeric" || length > MASTERMIND_MAX_LENGTH) return { password: undefined, attempts: [] };
+	const attempts = [];
+	let candidates = [];
+	for (let n = 0, total = 10 ** length; n < total; n++) candidates.push(String(n).padStart(length, "0"));
+	for (const seen of observed) {
+		candidates = candidates.filter((code) => {
+			const [exact, misplaced] = mastermindScore(seen.guess, code);
+			return exact === seen.exact && misplaced === seen.misplaced;
+		});
+	}
+	while (candidates.length > 0) {
+		const guess = candidates[0];
+		const result = await login(ns, host, guess);
+		if (result.verdict === "ok") return { password: guess, attempts: [] };
+		if (result.verdict === "later") return { later: result };
+		attempts.push({ password: guess, code: result.code, message: result.message, data: result.data });
+		const reply = /^\s*(\d+)\s*,\s*(\d+)\s*$/.exec(String(result.data ?? ""));
+		if (!reply) break; // no usable reply: stop instead of guessing blind
+		const exact = Number(reply[1]);
+		const misplaced = Number(reply[2]);
+		candidates = candidates.filter((code) => {
+			const [codeExact, codeMisplaced] = mastermindScore(guess, code);
+			return codeExact === exact && codeMisplaced === misplaced;
+		});
+	}
+	return { password: undefined, attempts: attempts.slice(-5) };
+}
+
+/** Mastermind scoring: [exact, misplaced] of guess against code (digit strings, repeats allowed). */
+function mastermindScore(guess, code) {
+	let exact = 0;
+	const guessCount = {};
+	const codeCount = {};
+	for (let i = 0; i < guess.length; i++) {
+		if (guess[i] === code[i]) exact++;
+		else {
+			guessCount[guess[i]] = (guessCount[guess[i]] || 0) + 1;
+			codeCount[code[i]] = (codeCount[code[i]] || 0) + 1;
+		}
+	}
+	let misplaced = 0;
+	for (const digit in guessCount) misplaced += Math.min(guessCount[digit], codeCount[digit] || 0);
+	return [exact, misplaced];
 }

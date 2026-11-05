@@ -103,6 +103,11 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`darknet/dnet-manager-v1.js`](darknet/dnet-manager-v1.js): the tutorial self-spreading probe and authenticate loop. Next (v2): runs on home, seeds a crawler on darkweb and collects the map, passwords, earnings and stasis links, with `--once`, `--recon`, `--no-stasis`.
 - [`darknet/dnet-manager-v2.js`](darknet/dnet-manager-v2.js): see above. Next: [`dnet-manager.js`](../darknet/dnet-manager.js) reports through [`utils/notify.js`](../utils/notify.js) and uses `ps` + kill by pid to save RAM.
 - [`darknet/factorios.js`](darknet/factorios.js): Factori-Os password solver for the crawler. Replaced by [`darknet/feedback-solvers.js`](../darknet/feedback-solvers.js), which logs in through [`darknet/auth.js`](../darknet/auth.js) and stops on timeouts or vanished servers instead of silently dropping a prime factor.
+- [`darknet/crawler-v1.js`](darknet/crawler-v1.js): cracked servers from hints, Factori-Os and a few found passwords only. Next: [`crawler.js`](../darknet/crawler.js) first tries passwords a server's logs show worked or leaked (via [`heartbleed.js`](../darknet/heartbleed.js)), adds the DeepGreen (Mastermind) solver and reuses up to ten found passwords, skipping known-wrong ones.
+
+## Gang
+
+- [`gang/gang-manager-v1.js`](gang/gang-manager-v1.js): picked each member's task by trying every task and reading the gain back from `getMemberInformation`. Next: [`gang-manager.js`](../gang/gang-manager.js) scores tasks with the game's own stat-weight formula from `getTaskStats`, with no trial assignments.
 
 ## Go
 

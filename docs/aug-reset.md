@@ -100,6 +100,18 @@ buying NeuroFlux levels, since the upgrade survives the install and raises incom
 rule, reading the buyers' notes instead of the files it used; with no note yet (a fresh run, or startup.js not running)
 NeuroFlux is bought as before.
 
+## After The Red Pill
+
+Once The Red Pill is installed, the BitNode ends as soon as hacking reaches w0r1d_d43m0n's level
+([`auto-destroy.js`](../singularity/auto-destroy.js)), and every reset throws the hacking exp away. The
+value-per-hour rule doesn't know that, so it kept resetting for small batches. Now, with The Red Pill
+installed, the usual rule is replaced: reset only if exp needed for the daemon's level with the batch's
+hacking multiplier, at today's exp rate x the batch's hacking-exp multiplier x `afterRedPill.rebuildFactor`
+(0.5, a new run starts slower), plus `overheadMinutes`, beats the exp still missing at today's rate by
+`waitMargin`. Never once the level is reached. The game's level formula, mult x (32 ln(exp + 534.6) - 200),
+with the mult read back from the current level and exp, so BitNode multipliers count without Source-File 5.
+Exp rate comes from snapshots in the plan, like rep rates; no reset until it is measured.
+
 ## Daedalus push (getting the invite)
 
 The Daedalus invite needs a number of **installed** augments (30 by default) on top of hack level and

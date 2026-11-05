@@ -14,7 +14,7 @@ const FORMAT_PATTERNS = {
 };
 
 /** True if a candidate matches the length and character set the server reports. Empty is only valid at length 0. */
-function fitsDetails(candidate, details) {
+export function fitsDetails(candidate, details) {
 	if (details.passwordLength > 0 && candidate.length !== details.passwordLength) return false;
 	if (details.passwordLength === 0 && candidate !== "") return false;
 	const pattern = FORMAT_PATTERNS[details.passwordFormat];

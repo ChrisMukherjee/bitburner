@@ -10,7 +10,7 @@ Gang manager. Design: [`docs/gang.md`](../docs/gang.md). RAM figures are approxi
 
 | Script | What it does | Flags | RAM |
 | --- | --- | --- | --- |
-| [`gang-manager.js`](gang-manager.js) | Runs the gang; settings are `gang` in the config; posts status lines on port 28 | `--no-buy`, `--no-war` | about 33GB |
+| [`gang-manager.js`](gang-manager.js) | Runs the gang; settings are `gang` in the config; posts status lines on port 28 | `--no-buy`, `--no-war` | about 34GB |
 | [`ready.js`](ready.js) | Library: tells [`startup.js`](../startup.js) when the manager has work | import only | 1.5GB |
 | [`workers/equipment.js`](workers/equipment.js) | One-shot: equipment list, on port 29 | none | 5.6GB, for a moment |
 | [`workers/invite.js`](workers/invite.js) | One-shot for player-work: the best-scoring crime for the invite (and for the karma grind outside BitNode 2), on port 30 | arg: JSON | 16.1GB (211.1GB at SF4.1, 55.1GB at SF4.2), for a moment |
@@ -27,7 +27,7 @@ gang can be created (BitNode 2, or Source-File 2 with karma -54,000; that rule l
 - **Recruits** whenever respect allows; **ascends** a member once their main stat multiplier would grow
   1.5x (`ascendAt`).
 - **Tasks:** members train until `trainLevel`; the rest earn respect until the gang is full (12), then
-  money. Each gets the task that pays them most, found by trying each task and reading the gain back.
+  money. Each gets the task that pays them most, scored with the game's own stat-weight formula.
   Above a 5% wanted penalty the weakest earners do Vigilante Justice / Ethical Hacking until it's below 1%.
 - **Territory:** with a full gang, half the trained members do Territory Warfare. Clashes go on at a 55%
   win chance against every gang still holding territory and off below 50%.
