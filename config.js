@@ -248,7 +248,7 @@ export const DEFAULTS = {
 		// Crimes player-work.js may commit for the gang (invite needs, and karma -54,000 outside BitNode 2).
 		// Each is scored by chance x (karma + crimeSkillWeight x stat exp) / seconds, best one wins.
 		inviteCrimes: ["Shoplift", "Rob Store", "Mug", "Larceny", "Deal Drugs", "Bond Forgery", "Traffick Arms",
-			"Homicide", "Grand Theft Auto", "Kidnap", "Assassinate", "Heist"],
+			"Homicide", "Grand Theft Auto", "Kidnap", "Assassination", "Heist"],
 		crimeSkillWeight: 0.02,     // how much a point of stat exp counts against a point of karma (0 = karma only)
 		crimeGoodChance: 0.75,      // once the best karma crime succeeds this often, stat exp stops counting
 		trainLevel: 200,            // members train until their main stat (combat average, or hacking) reaches this
