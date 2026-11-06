@@ -33,7 +33,7 @@ it reserves its size on one server through [`../utils/ram-reserve.js`](../utils/
 [`../utils/ram-pool.js`](../utils/ram-pool.js), which both the batcher and share-manager build from, leaves that RAM out,
 so no new workers start there and the room frees up as running ones finish. The server picked is the one big
 enough with the most free RAM right now. A reservation lasts 5 minutes unless the script asks again, and is dropped
-as soon as it starts. Tradeoffs: the reserved GB earns nothing until the script starts, and two scripts writing the
+as soon as it starts. A script that hands over to a bigger worker with `ns.spawn` (player-work-start.js) declares `needRam` in startup.js, so the room found and reserved is the worker's, not just its own. Tradeoffs: the reserved GB earns nothing until the script starts, and two scripts writing the
 port at the same moment can lose one reservation until the next try. Rejected: pausing the batcher or killing its
 workers to make room (lost batches cost more than a few seconds of waiting).
 

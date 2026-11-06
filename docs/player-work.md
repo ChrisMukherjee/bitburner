@@ -20,14 +20,15 @@ faction work, then megacorp jobs when no faction needs rep.
 
 player-work.js costs 32.5GB, so below a 64GB home (a fresh BitNode) it fits neither on home nor on any
 server (the early network's biggest are 32GB). A run once sat idle for 4.5 hours that way. So below the early
-stage [`../singularity/player-work-start.js`](../singularity/player-work-start.js) (about 19.6GB, fits a 32GB home or server)
+stage [`../singularity/player-work-start.js`](../singularity/player-work-start.js) (7.35GB, fits a 16GB server)
 moves the player instead: the free course to `studying.hackLevel`, then a missing port opener it can create (`createPrograms.maxMinutes`), then the crime that earns the most per
 second at the current chance. Crime is there for cash: at the start the batcher earns little and cash buys
 home RAM and the port openers, which matter more than faction rep then. Creating beats buying here: BruteSSH at hacking 113 takes about 5 minutes (600s x 50/113) against $500k the
 batcher hasn't made yet; FTPCrack about 18 minutes. It blocks crime meanwhile, and creating gets slower as the
 required level rises, hence the 30 minute cap; the cash buyer still buys whatever becomes affordable first. It leaves other work alone. Crime
 base times and money are hardcoded from the game source (getCrimeStats would add 5GB; the BitNode multiplier
-scales them all alike). The stages split the two (start vs early), so they never alternate.
+scales them all alike). The 5GB create and crime calls sit in workers it hands over to with `ns.spawn` (which
+frees its own RAM first), so the pass never needs more than the biggest worker (12.1GB). The stages split the two (start vs early), so they never alternate.
 Rejected: shrinking player-work.js below 32GB (it still wouldn't fit beside the batcher on a 32GB home) and
 splitting every step into workers (many scripts for one stage).
 
