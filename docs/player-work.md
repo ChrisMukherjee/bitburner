@@ -13,8 +13,8 @@ player's focus and flew them around behind each other's backs. Now only this scr
 or travels; a new player activity is a new step in it, not another script. It also saves RAM (one set of
 Singularity calls instead of five).
 
-Order, one at a time: study (free course to hacking 75), gang-invite crimes (BitNode 2, no gang yet),
-faction work, then megacorp jobs when no faction needs rep.
+Order, one at a time: study (free course to hacking 75), the gang invite (BitNode 2, no gang yet: a crime for
+the karma, the gym for the combat stats), faction work, then megacorp jobs when no faction needs rep.
 
 ## Start stage: a small stand-in
 
@@ -66,18 +66,37 @@ work speed.
 
 When the state on port 36 is `run`, `bb-pass.js` plays and anything started here would cancel its action, so
 player-work starts nothing (invites, travel and city joins still go on). When it is `train`, the lowest combat
-stat goes to the Sector-12 gym first (Powerhouse when there is cash for ten minutes, otherwise Iron), before
-study or faction work. It never reports done while the Bladeburner API is usable. See
+stat goes to the gym first, before study or faction work (see "The gym" below). It never reports done while the Bladeburner API is usable. See
 [`bladeburner.md`](bladeburner.md).
 
-## Gang crimes
+## Gang invite: karma, then the gym
 
-Crimes for the gang are scored, not fixed. `gang/workers/invite.js` rates every crime in `gang.inviteCrimes`
-by chance x (karma + `crimeSkillWeight` x stat exp) / seconds, so an easy crime wins early and harder ones take
-over as the stats rise; stat exp stops counting once the best karma crime succeeds `crimeGoodChance` of the time.
-Where a gang also needs karma -54,000 (Source-File 2, outside BitNode 2) that grind takes hours, so it comes
-last: only when no faction or company work needs the player. Rejected: running it before faction work, which
-would stall the rep the augments need. The scoring and the order came from the other player's crime script.
+In BitNode 2 a gang needs only the invite of `gang.factions[0]` (Slum Snakes: karma -9, every combat stat 30,
+$1m); karma -54,000 is the rule everywhere else (Source-File 2). `gang/workers/invite.js` decides every 2 minutes:
+
+- **Karma first, by expected karma per minute.** Each crime (`gang.inviteCrimes`, default every
+  `ns.enums.CrimeType`) is rated `(chance + 0.25 x (1 - chance)) x karma / minutes` at the current success
+  chance: a failure still gives a quarter of the karma and stat exp (v3.0.0 `CrimeWork.ts`). With the game's
+  numbers Homicide wins at any chance (3 karma in 3 s, so 0.25/s even when it always fails, more than any
+  other crime that always succeeds). Karma -9 takes well under a minute.
+- **Then the combat stats in the gym** (`gang.inviteGym`). A gym gives several times the exp of any crime,
+  and the crimes that give strength and defense exp need strength and defense to succeed. With the gym off,
+  the crime with the most expected exp per minute for the stats still missing is used instead.
+- **Rejected: the old score** `chance x (karma + 0.02 x all stat exp) / seconds`. It ignored what a failure gives,
+  and once karma was met it counted exp of every stat, so Shoplift (dexterity and agility only, near 100%) beat
+  Mug for good: strength and defense never grew, Mug's chance never rose, and the invite never came.
+
+Where a gang also needs karma -54,000 (outside BitNode 2) that grind takes hours, so it comes last: only when no
+faction or company work needs the player. Rejected: running it before faction work, which would stall the rep the
+augments need.
+
+## The gym
+
+Bladeburner and the gang invite share one gym step: the lowest combat stat trains until all reach the floor, at
+the best gym in the current city (Sector-12: Powerhouse x10 exp, Iron x1; Aevum: Snap Fitness x5, Crush x2;
+Volhaven: Millenium x4), the better one only with cash for ten minutes of it. In a city without a gym it flies
+to Sector-12, unless the travel step is waiting there for a faction invite (it would otherwise fly back and
+forth every pass and the invite would never come): then the gang's crime stands in, and Bladeburner waits.
 
 ## Real rep goals
 

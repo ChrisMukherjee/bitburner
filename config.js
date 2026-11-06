@@ -241,16 +241,17 @@ export const DEFAULTS = {
 		// Factions to create the gang with, in order: the first one you're a member of is used, and
 		// that decides the gang type for good. Slum Snakes and the others here make a COMBAT gang
 		// (best money, Human Trafficking, and the strongest territory power); the invite needs combat
-		// 30 and karma -9, which player-work.js gets with crimes in BitNode 2 (gang.factions[0]).
+		// 30, karma -9 and $1m, which player-work.js gets in BitNode 2 (gang.factions[0]): Homicide for
+		// the karma, then the gym for the stats.
 		// For a HACKING gang use ["NiteSec", "The Black Hand"]: no crimes needed (your hacking already
 		// gets the NiteSec invite), but less money and weaker in territory clashes.
 		factions: ["Slum Snakes", "Tetrads", "The Syndicate", "Speakers for the Dead", "The Dark Army"],
-		// Crimes player-work.js may commit for the gang (invite needs, and karma -54,000 outside BitNode 2).
-		// Each is scored by chance x (karma + crimeSkillWeight x stat exp) / seconds, best one wins.
-		inviteCrimes: ["Shoplift", "Rob Store", "Mug", "Larceny", "Deal Drugs", "Bond Forgery", "Traffick Arms",
-			"Homicide", "Grand Theft Auto", "Kidnap", "Assassination", "Heist"],
-		crimeSkillWeight: 0.02,     // how much a point of stat exp counts against a point of karma (0 = karma only)
-		crimeGoodChance: 0.75,      // once the best karma crime succeeds this often, stat exp stops counting
+		// Crimes player-work.js may commit for the gang (invite needs, and karma -54,000 outside BitNode 2):
+		// the one with the most expected karma per minute at your success chance (a failure still gives a
+		// quarter), re-picked every 2 minutes. That is Homicide at any chance. null = every crime in the game,
+		// or a list of names, e.g. ["Mug", "Homicide"].
+		inviteCrimes: null,
+		inviteGym: true,            // once karma is met, missing combat stats go to the gym (much faster); false = crimes
 		trainLevel: 200,            // members train until their main stat (combat average, or hacking) reaches this
 		trainTasks: { combat: "Train Combat", hacking: "Train Hacking" },
 		focus: "auto",              // "respect", "money", or "auto": respect until the gang is full (12), then money

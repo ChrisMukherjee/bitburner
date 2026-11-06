@@ -11,11 +11,12 @@ the first run and tune; every decision is logged.
 ## Decisions
 
 - **Combat gang by default (Slum Snakes).** The faction decides the gang type for good. Combat gangs make
-  more money and win territory clashes more easily. The cost is getting the invite: in BitNode 2 the player
-  commits crimes for karma and combat stats. A hacking gang (NiteSec, The Black Hand) needs no crimes but earns
+  more money and win territory clashes more easily. The cost is getting the invite: in BitNode 2 karma -9
+  and combat 30. A hacking gang (NiteSec, The Black Hand) needs no crimes but earns
   less. The choice is `gang.factions`.
 - **The invite is a player-work step**, not its own script, because only player-work moves the player
-  (see [`player-work.md`](player-work.md)).
+  (see [`player-work.md`](player-work.md)): the crime with the most expected karma per minute (Homicide)
+  for the karma, then the gym for the combat stats.
 - **Best task by the game's formula.** Each member's task is scored from `ns.gang.getTaskStats` (stat weights
   x member stats minus 4 x difficulty, times base respect or money, times a territory factor for the
   land-dependent tasks), so no Formulas.exe is needed and no task is tried out. The formula comes from a

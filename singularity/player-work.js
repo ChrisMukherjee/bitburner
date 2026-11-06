@@ -11,7 +11,7 @@ import { bladeburnerState, trainFloor } from "/bladeburner/state.js";
 // Singularity calls to this script too).
 const GOALS_PORT = 23; // singularity/workers/faction-goals.js: rep goal per faction
 const PLAN_PORT = 25;  // singularity/workers/city-plan.js: which city factions still sell something wanted
-const GANG_PORT = 30;  // gang/workers/invite.js: crimes for the gang invite (BitNode 2)
+const GANG_PORT = 30;  // gang/workers/invite.js: crime or gym for the gang invite (BitNode 2)
 const AUG_PLAN_FILE = "data/aug-plan.json"; // buy-augs.js --plan: rep rates for the goals helper
 // What one pass leaves for the next (goals, city plan, what was started or announced), so a
 // --once pass can pick up where the last one stopped. Ports work from any server; a new run
@@ -45,7 +45,7 @@ const CONFIG = {
 	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	gangHelper: "gang/workers/invite.js",
 	gangImports: ["utils/gang.js"],
-	gangRefreshMs: 2 * 60_000, // re-check the gang invite needs (and the best crime) this often
+	gangRefreshMs: 2 * 60_000, // re-check the gang invite needs (and the best crime, as the stats grow) this often
 };
 
 /**
@@ -55,13 +55,14 @@ const CONFIG = {
  *
  * Work, one at a time, in this order:
  *   0. Bladeburner (bladeburner/bb-manage.js posts its state on port 36): while it plays ("run") nothing else
- *      is started; while the combat stats are too low ("train") the lowest goes to the Sector-12 gym first.
+ *      is started; while the combat stats are too low ("train") the lowest goes to the gym first.
  *   1. Study: below studying.hackLevel (75), takes the free course (`studying` in the config) once
  *      and leaves the class alone. The class keeps running past the target until something
  *      better below takes over.
- *   2. Gang invite (BitNode 2, no gang yet): the best-scoring crime from gang.inviteCrimes until the karma
- *      and combat stats for gang.factions[0] (Slum Snakes) are met; join-factions.js accepts the invite
- *      and gang/gang-manager.js creates the gang. Asked of gang/workers/invite.js every 2 minutes.
+ *   2. Gang invite (BitNode 2, no gang yet): for gang.factions[0] (Slum Snakes), first the crime with the
+ *      most expected karma per minute at the current chance (Homicide) until the karma is met, then the
+ *      combat stats in the gym (gang.inviteGym; crimes otherwise); join-factions.js accepts the
+ *      invite and gang/gang-manager.js creates the gang. Asked of gang/workers/invite.js every 2 minutes.
  *      Where a gang also needs karma -54,000 (Source-File 2, outside BitNode 2) that grind is slow, so it
  *      is done last, in step 4's gap, only when nothing else needs the player.
  *   3. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
@@ -181,8 +182,8 @@ async function onePass(ns, state) {
 	}
 
 	if (!state.gangDone && Date.now() - state.gangAt >= CONFIG.gangRefreshMs) {
-		const { factions, inviteCrimes: crimes, crimeSkillWeight: skillWeight, crimeGoodChance: goodChance } = config.gang;
-		const arg = JSON.stringify({ factions, crimes, skillWeight, goodChance });
+		const { factions, inviteCrimes: crimes, inviteGym: gym } = config.gang;
+		const arg = JSON.stringify({ factions, crimes, gym: gym !== false });
 		// Once the gang faction is joined, startup.js starts gang/gang-manager.js by itself (gang/ready.js).
 		const fresh = await runHelper(ns, CONFIG.gangHelper, CONFIG.gangImports, GANG_PORT, arg);
 		if (fresh) Object.assign(state, { gang: fresh, gangAt: Date.now(), gangDone: !fresh.applies });
@@ -190,6 +191,7 @@ async function onePass(ns, state) {
 
 	const trip = travelStep(ns, state, player);
 	player = ns.getPlayer(); // a join or flight above changes factions, city and money
+	state.holdCity = !!trip.hold; // waiting here for an invite: the gym doesn't fly away
 	const work = workStep(ns, state, player);
 	return { messages: { travel: trip.message, work: work.message }, all: trip.done && work.done };
 }
@@ -207,7 +209,7 @@ function loadState(ns, resetAt) {
 		studyStarted: false, studyAnnounced: false,
 		goals: null, goalsAt: 0, goalsFor: "", lastGoalFaction: "", factionAnnounced: false,
 		plan: null, planAt: 0, lastAnnounced: "", cityDone: false, cityMessage: "",
-		gang: null, gangAt: 0, gangDone: false, gangCrime: false,
+		gang: null, gangAt: 0, gangDone: false, gangCrime: false, gangGym: false, holdCity: false,
 	};
 	if (saved?.resetAt !== resetAt) return state;
 	const { planGroups, resetAt: _, ...rest } = saved;
@@ -279,7 +281,7 @@ function workStep(ns, state, player) {
 		return { message: "[bladeburner] playing: nothing else is started (see `status`)", done };
 	}
 	if (bladeburner === "train") {
-		const trained = gymStep(ns, state, player, current);
+		const trained = gymStep(ns, state, player, current, trainFloor(ns), "[bladeburner]");
 		if (trained) return { message: trained, done };
 	}
 
@@ -287,20 +289,14 @@ function workStep(ns, state, player) {
 	if (hacking < state.studyLevel) {
 		return { message: studyStep(ns, state, player, current, studying), done };
 	}
-	// 2. Crimes for the gang invite (BitNode 2). Stopped once gang/workers/invite.js says they're no longer needed.
+	// 2. Crime or gym for the gang invite (BitNode 2). Stopped once gang/workers/invite.js says they're no longer needed.
 	// The slow karma grind outside BitNode 2 waits until nothing else needs the player (step 4).
-	const invite = state.gang;
-	const crimes = invite?.applies && invite.crime ? invite : null;
-	if (crimes && !crimes.slow) {
-		return { message: crimeStep(ns, state, current, crimes), done };
+	const invite = state.gang?.applies && (state.gang.crime || state.gang.gym) ? state.gang : null;
+	if (invite && !invite.slow) {
+		const message = gangStep(ns, state, player, current, invite);
+		if (message) return { message, done };
 	}
-	if (!crimes) {
-		if (state.gangCrime && current?.type === "CRIME") {
-			ns.singularity.stopAction();
-			current = null;
-		}
-		state.gangCrime = false;
-	}
+	current = stopGangWork(ns, state, current, invite);
 	// 3. Faction work.
 	if (goalFaction) {
 		const already = current?.type === "FACTION" && current.factionName === goalFaction;
@@ -316,8 +312,9 @@ function workStep(ns, state, player) {
 	}
 	// 4. Company work, filling the gaps.
 	if (companies.length === 0) {
-		if (crimes && (!current || ["CLASS", "CRIME"].includes(current.type))) {
-			return { message: crimeStep(ns, state, current, crimes), done };
+		if (invite && (!current || ["CLASS", "CRIME"].includes(current.type))) {
+			const message = gangStep(ns, state, player, current, invite);
+			if (message) return { message, done };
 		}
 		return { message: `${factionMessage}; ${state.noCompany ? "company work off (--no-company)" : "every megacorp faction is joined"}`, done };
 	}
@@ -338,42 +335,78 @@ function workStep(ns, state, player) {
 
 // [skill, the GymType the API wants, the class name the game reports for the current work]
 const GYM_STATS = [["strength", "str", "GYMSTRENGTH"], ["defense", "def", "GYMDEFENSE"], ["dexterity", "dex", "GYMDEXTERITY"], ["agility", "agi", "GYMAGILITY"]];
-const GYM_CITY = "Sector-12";
-// Powerhouse Gym gives 10x the exp of the Iron Gym but costs 20x (about $2400/s, v3.0.1 source): only with cash for ~10 minutes.
-const POWERHOUSE_MONEY = 2400 * 600;
+// Gyms by city, best first, with their cost per second (v3.0.0 LocationsMetadata.ts: $120/s x costMult). Exp is
+// x10 / x1 in Sector-12, x5 / x2 in Aevum, x4 in Volhaven. The better one only with cash for GYM_CASH_SECONDS.
+const GYMS = {
+	"Sector-12": [["Powerhouse Gym", 2400], ["Iron Gym", 120]],
+	"Aevum": [["Snap Fitness Gym", 1200], ["Crush Fitness Gym", 360]],
+	"Volhaven": [["Millenium Fitness Gym", 840]],
+};
+const GYM_CITY = "Sector-12"; // where to fly when the current city has no gym
+const GYM_CASH_SECONDS = 600;
 
 /**
- * Trains the lowest combat stat in the Sector-12 gym until every one reaches the floor Bladeburner needs
- * (bladeburner/state.js trainFloor). Returns the log line, or null when no stat needs it.
+ * Trains the lowest combat stat in the gym until every one reaches the floor (Bladeburner's bladeburner/state.js
+ * trainFloor, or the gang invite's): the best gym in this city, else flies to Sector-12, unless the travel step is
+ * waiting here for a faction invite (state.holdCity). Returns the log line, or null when no stat needs it.
  */
-function gymStep(ns, state, player, current) {
-	const floor = trainFloor(ns);
+function gymStep(ns, state, player, current, floor, tag) {
 	const [stat, gymType] = GYM_STATS.slice().sort((first, second) => player.skills[first[0]] - player.skills[second[0]])[0];
 	if (player.skills[stat] >= floor) return null;
 	// Keep a gym class that is running for a stat still below the floor, so the lowest stat changing doesn't swap it every pass.
 	const running = String(current?.classType ?? "").toUpperCase();
 	const runningStat = GYM_STATS.find(([, type, className]) => running === className || running === type.toUpperCase())?.[0];
 	if (current?.type === "CLASS" && runningStat && player.skills[runningStat] < floor) {
-		return `[bladeburner] training ${runningStat} (${Math.floor(player.skills[runningStat])} / ${floor})`;
+		return `${tag} training ${runningStat} (${Math.floor(player.skills[runningStat])} / ${floor})`;
 	}
-	if (player.city !== GYM_CITY) {
+	if (!GYMS[player.city]) {
+		if (state.holdCity) return `${tag} no gym in ${player.city}; staying here for a faction invite first`;
 		if (player.money < CONFIG.travelCost || !ns.singularity.travelToCity(GYM_CITY)) {
-			return `[bladeburner] waiting to fly to ${GYM_CITY} for the gym ($${ns.format.number(CONFIG.travelCost)})`;
+			return `${tag} waiting to fly to ${GYM_CITY} for the gym ($${ns.format.number(CONFIG.travelCost)})`;
 		}
 	}
-	const gym = player.money >= POWERHOUSE_MONEY ? "Powerhouse Gym" : "Iron Gym";
-	if (!ns.singularity.gymWorkout(gym, gymType, state.focus)) return `[bladeburner] ${gym} refused ${stat}, will retry`;
-	notify(ns, "[bladeburner]", `training ${stat} at ${gym} (now ${Math.floor(player.skills[stat])} / ${floor})`, "info");
-	return `[bladeburner] training ${stat} at ${gym}`;
+	const gyms = GYMS[GYMS[player.city] ? player.city : GYM_CITY];
+	const [gym] = gyms.find(([, cost]) => player.money >= cost * GYM_CASH_SECONDS) ?? gyms[gyms.length - 1];
+	if (!ns.singularity.gymWorkout(gym, gymType, state.focus)) return `${tag} ${gym} refused ${stat}, will retry`;
+	notify(ns, tag, `training ${stat} at ${gym} (now ${Math.floor(player.skills[stat])} / ${floor})`, "info");
+	return `${tag} training ${stat} at ${gym}`;
 }
 
-/** Commits the crime gang/workers/invite.js picked (it repeats until other work replaces it). Returns the log line. */
-function crimeStep(ns, state, current, invite) {
+/**
+ * What gang/workers/invite.js asked for: the gym for the combat stats, else its crime (which repeats until other
+ * work replaces it). The crime also stands in for the gym while the travel step waits for an invite in a city
+ * without one. Returns the log line, or null when there's nothing to do (the stats got there since it asked).
+ */
+function gangStep(ns, state, player, current, invite) {
+	const needs = `needs ${invite.missing.join(", ")}`;
+	if (invite.gym && (GYMS[player.city] || !state.holdCity || !invite.crime)) {
+		const trained = gymStep(ns, state, player, current, invite.gym, "[gang-invite]");
+		if (trained) state.gangGym = true;
+		return trained && `${trained} for the gang: ${needs}`;
+	}
+	if (!invite.crime) return null;
 	if (!(current?.type === "CRIME" && current.crimeType === invite.crime)) {
 		ns.singularity.commitCrime(invite.crime, state.focus);
 		state.gangCrime = true;
 	}
-	return `[gang-invite] ${invite.crime} for the gang${invite.slow ? " (karma grind, when nothing else needs you)" : ""}: needs ${invite.missing.join(", ")}`;
+	// (An answer posted by an older invite.js has no rate; the next refresh brings one.)
+	const sign = invite.gain === "karma" ? "-" : "+";
+	const expected = typeof invite.rate === "number"
+		? ` (${Math.round(100 * invite.chance)}% success, ${sign}${ns.format.number(invite.rate)} ${invite.gain}/min expected)` : "";
+	return `[gang-invite] ${invite.crime} for the gang${expected}${invite.slow ? ", karma grind when nothing else needs you" : ""}: ${needs}`;
+}
+
+/** Stops a gang crime or gym class this script started once the gang asks for nothing. Returns the current work. */
+function stopGangWork(ns, state, current, invite) {
+	if (invite) return current;
+	const running = String(current?.classType ?? "").toUpperCase();
+	const gymRunning = current?.type === "CLASS" && GYM_STATS.some(([, type, className]) => running === className || running === type.toUpperCase());
+	const stop = (state.gangCrime && current?.type === "CRIME") || (state.gangGym && gymRunning);
+	state.gangCrime = false;
+	state.gangGym = false;
+	if (!stop) return current;
+	ns.singularity.stopAction();
+	return null;
 }
 
 /** Starts the class once (flying to its city if needed); after that leaves the player's work alone. */
@@ -407,18 +440,21 @@ function travelStep(ns, state, player) {
 			return { message: `[tdh] joined ${tdh.faction}`, done: false };
 		}
 		let message;
+		let hold = false;
 		if (tdh.inviteCities.includes(player.city)) {
 			message = `[tdh] in ${player.city}, waiting for the invite (keep $1m and hacking ${tdh.minHacking})`;
+			hold = true;
 		} else if (player.skills.hacking < tdh.minHacking) {
 			message = `[tdh] waiting for hacking ${tdh.minHacking} (now ${player.skills.hacking})`;
 		} else if (player.money < tdh.minMoney + CONFIG.travelCost) {
 			message = `[tdh] waiting for $${ns.format.number(tdh.minMoney + CONFIG.travelCost)}`;
 		} else if (ns.singularity.travelToCity(tdh.city)) {
 			message = `[tdh] flew to ${tdh.city}`;
+			hold = true;
 		} else {
 			message = `[tdh] flight to ${tdh.city} failed, will retry`;
 		}
-		return { message, done: false };
+		return { message, done: false, hold };
 	}
 	if (state.cityDone) return { message: state.cityMessage, done: true };
 	const plan = state.plan;
@@ -447,7 +483,7 @@ function travelStep(ns, state, player) {
 	}
 	const message = pursue(ns, player, todo, plan, group);
 	if (message.startsWith("[city] joined")) state.planAt = 0; // refresh: the next faction or group may change
-	return { message, done: false };
+	return { message, done: false, hold: todo.includes(ns.getPlayer().city) };
 }
 
 /** One step towards the first faction in todo: join it, fly there, or say what we wait for. */

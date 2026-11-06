@@ -90,7 +90,7 @@ async function waitForGang(ns, settings) {
 		let message;
 		if (!faction) {
 			message = `${TAG} no gang yet: waiting to join one of ${settings.factions.join(", ")} ` +
-				`(in BitNode 2, singularity/player-work.js commits crimes for the invite)`;
+				`(in BitNode 2, singularity/player-work.js gets the invite: a crime for the karma, the gym for the stats)`;
 		} else if (ns.gang.createGang(faction)) {
 			notify(ns, TAG, `created a gang with ${faction}`, "success");
 			return;
