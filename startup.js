@@ -19,6 +19,7 @@ import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady,
 //                     most every `every` ms, and only one one-shot at a time. Never "restarted".
 //   restartOnNewArgs: if a copy with different args is running (anywhere), kill it first
 //                     (otherwise two go bots would fight over the same board). One-shots do this too.
+//   needRam:          GB to find (and reserve) when the script hands over to a bigger worker with ns.spawn.
 //   homeOnly:         reads or writes data files on its own server, so it must run on home.
 //   ready:            (ns, config) => false leaves it out this time. For a mechanic's manager,
 //                     imported from its folder, so startup.js knows nothing about the mechanic.
@@ -37,7 +38,7 @@ const SCRIPTS = [
 	{ stage: "start", script: "singularity/auto-backdoor.js", args: ["--once"], oneShot: true, every: 120_000, ready: backdoorReady },
 	// player-work.js (32.5GB) fits nowhere below a 64GB home, so until then this 7.35GB pass (workers up to 12.1GB) moves the
 	// player instead: the free course to studying.hackLevel, then the best-paying crime for cash.
-	{ stage: "start", until: "early", script: "singularity/player-work-start.js", oneShot: true, every: 60_000 },
+	{ stage: "start", until: "early", script: "singularity/player-work-start.js", oneShot: true, every: 60_000, needRam: 12.2 },
 	// The one script that moves the player: study to studying.hackLevel, faction work to the real rep
 	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. A short pass every
 	// minute (the game keeps the work going), until it posts that everything is done.
@@ -259,7 +260,8 @@ function runPass(ns, requested, state) {
 			}
 		}
 
-		const ram = ns.getScriptRam(entry.script, "home");
+		// entry.needRam: a script that hands over to a bigger worker (ns.spawn) needs room for that worker.
+		const ram = Math.max(ns.getScriptRam(entry.script, "home"), entry.needRam ?? 0);
 		let host = null;
 		if (ram <= freeRam(ns, "home") && ns.exec(entry.script, "home", 1, ...args) !== 0) {
 			host = "home";
