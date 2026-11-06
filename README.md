@@ -87,7 +87,7 @@ numbers come from `data/aug-plan.json`, which [`auto-reset.js`](singularity/auto
 stage it starts in. It skips anything already running and stays running (about 7GB) to start what
 becomes ready, restart what stops, and run the one-shots.
 Below 64GB home (a fresh BitNode) it is in the `start` stage: only the home/program buyers,
-the batcher, invites and backdoors, and [`player-work-start.js`](singularity/player-work-start.js) (study, then crime for cash; a
+the batcher, invites and backdoors, and [`player-work-start.js`](singularity/player-work-start.js) (study, create port openers, then crime for cash; a
 short pass every minute) run, so the batcher gets the free servers' RAM. From 64GB home [`player-work.js`](singularity/player-work.js)
 (study, faction and company work, Tian Di Hui and city factions) takes over the player, and the Go bot, hacknet,
 server buying and auto-destroy follow after the first home upgrades. The batcher

@@ -137,6 +137,10 @@ export const DEFAULTS = {
 		course: "Computer Science", // the free course
 	},
 
+	// Start stage only (player-work-start.js): create a port opener yourself when your hacking level allows it
+	// and it would take no more than maxMinutes (the darkweb price needs cash the batcher hasn't made yet).
+	createPrograms: { maxMinutes: 30 },
+
 	// Factions player-work.js works for, in order. Each one's rep goal comes from the augments
 	// still worth buying there. An augment sold by several counts for the first joined one.
 	factionWork: {

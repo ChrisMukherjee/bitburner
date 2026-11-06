@@ -20,22 +20,34 @@ const CRIMES = [
 	["Heist", 600e3, 120e6],
 ];
 
+// Port openers you can create (v3.0.0 src/Programs/data/ProgramsMetadata.ts): [file, hacking level, seconds at that
+// level]. Creating takes seconds * required level / your hacking level (focused; 80% speed unfocused).
+const OPENERS = [
+	["BruteSSH.exe", 50, 600],
+	["FTPCrack.exe", 100, 1200],
+	["relaySMTP.exe", 250, 3000],
+	["HTTPWorm.exe", 500, 6000],
+	["SQLInject.exe", 750, 12000],
+];
+
 /**
  * The start stage's stand-in for player-work.js, which needs 32.5GB and so can't run on a home below
  * 64GB (a fresh BitNode) or on any server that small. One short pass, run by startup.js every minute
  * until the early stage, when player-work.js takes over:
  *   1. below studying.hackLevel (and in studying.city): the free course from the `studying` config;
- *   2. then the crime that earns the most per second at your current chance, for cash towards home RAM
+ *   2. then a missing port opener you can create at your hacking level in at most `createPrograms.maxMinutes`
+ *      (the darkweb price is far out of reach at this point, and the opener unlocks more servers for the batcher);
+ *   3. then the crime that earns the most per second at your current chance, for cash towards home RAM
  *      and the port openers (the batcher earns little on a small network).
  * Leaves alone any other work (faction, company, ...), whoever started it. A class keeps running only
  * below the study target; past it, crime takes over. Focused unless `playerFocus` is false in the config.
- * About 14.6GB (normal Singularity cost), for a moment; it can run on a 16GB server.
+ * About 19.6GB (normal Singularity cost; estimated, not yet checked in game), for a moment; fits a 32GB home or a 32GB server.
  *   run /singularity/player-work-start.js
  */
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	const { studying, playerFocus } = loadConfig(ns);
+	const { studying, playerFocus, createPrograms } = loadConfig(ns);
 	const focus = playerFocus !== false;
 	const player = ns.getPlayer();
 	const current = ns.singularity.getCurrentWork();
@@ -55,6 +67,21 @@ export async function main(ns) {
 			return;
 		}
 		ns.print(`[start-work] can't study here (in ${player.city}, not ${studying.city}); crime instead`);
+	}
+
+	// Creating beats buying while cash is scarce. Skip what the darkweb sale could cover right now.
+	const speed = focus ? 1 : 0.8;
+	const creatable = OPENERS
+		.filter(([file]) => !ns.fileExists(file, "home"))
+		.map(([file, level, seconds]) => [file, level, seconds * level / hacking / speed / 60])
+		.filter(([, level, minutes]) => hacking >= level && minutes <= createPrograms.maxMinutes)
+		.sort((first, second) => first[2] - second[2]);
+	if (creatable.length > 0) {
+		const [file, , minutes] = creatable[0];
+		if (ns.singularity.createProgram(file, focus)) {
+			notify(ns, "[start-work]", `creating ${file} (about ${Math.ceil(minutes)} min) instead of waiting for the cash`, "info");
+			return;
+		}
 	}
 
 	const [crime, , , rate] = CRIMES
