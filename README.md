@@ -203,6 +203,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | 35 | player-work state between passes |
 | 36 | Bladeburner state, route estimate, rank samples and status lines (bladeburner/) |
 | 37 | Last pass of each one-shot, for the debug report ([`utils/pass-log.js`](utils/pass-log.js)) |
+| 38 | This run's money by source, for the augment weights ([`utils/income-mix.js`](utils/income-mix.js), posted by buy-augs.js) |
 
 ## Conventions
 

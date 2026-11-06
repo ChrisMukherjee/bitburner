@@ -1,5 +1,6 @@
 import { readIncomeRate } from "/utils/income.js";
 import { loadConfig } from "/utils/config.js";
+import { postIncomeMix } from "/utils/income-mix.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";
 import { recordIncomeSample, buildIncomeModel, earnedOver, timeToEarn, incomeMultAt } from "/utils/income-curve.js";
 // Design: docs/aug-reset.md
@@ -24,7 +25,8 @@ let RESET_RULE = null;
 
 /**
  * Buys the augments worth having (by default: ones that help hacking, hacknet, darknet or
- * rep gain, plus The Red Pill, Neuroreceptor Management Implant and CashRoot) that you have the rep
+ * rep gain, plus The Red Pill, Neuroreceptor Management Implant and CashRoot; money stats such as hacknet
+ * money only while their source earns a real part of this run's money, see `augments.incomeMix`) that you have the rep
  * for, most expensive first (each purchase raises the price of the rest by 1.9x, so the
  * big ones go first), then spends what's left on NeuroFlux Governor levels. By default
  * combat, charisma, crime and Bladeburner augments are skipped, since they'd only make the
@@ -59,6 +61,7 @@ let RESET_RULE = null;
  */
 export async function main(ns) {
 	ns.disableLog("ALL");
+	postIncomeMix(ns); // first: loadConfig weighs the money stats by where this run's money comes from (port 38)
 	AUG_CONFIG = loadConfig(ns).augments;
 	RESET_RULE = AUG_CONFIG.resetRule;
 	const flags = ns.flags([["dry", false], ["all", false], ["no-neuroflux", false], ["reserve", 0], ["plan", false]]);
@@ -565,6 +568,11 @@ function showAdvice(ns, plan, cash, stocks, sellers, boosts, skipped, upcoming, 
 		? `Income curve: growing ${((Math.exp(incomeModel.growth) - 1) * 100).toFixed(0)}%/h (${incomeModel.source}, ${incomeModel.samples} samples), ` +
 			`forecast ${money(income * incomeMultAt(incomeModel, 1))}/s in 1h, ${money(income * incomeMultAt(incomeModel, RESET_RULE.horizonHours))}/s in ${RESET_RULE.horizonHours}h.`
 		: `Income curve: taken as flat (${incomeModel.source === "flat" ? "not enough samples yet" : `not growing, ${incomeModel.source}`}).`);
+	const portions = Object.entries(AUG_CONFIG.incomePortions ?? {}).filter(([, part]) => part >= 0.005).sort((first, second) => second[1] - first[1]);
+	if (AUG_CONFIG.incomeMix?.enabled) {
+		ns.tprint(`Income mix (${AUG_CONFIG.incomeMixSource}): ${portions.map(([source, part]) => `${source} ${(part * 100).toFixed(0)}%`).join(", ") || "nothing earned"}. ` +
+			`Money augments count by these portions (docs/aug-reset.md, "Income mix").`);
+	}
 	if (plan.length > 0) ns.tprint(`  ${"price now".padStart(10)}  ${"all so far".padStart(10)}  ${"value".padStart(5)}  augment   (+ = affordable now)`);
 	let total = 0;
 	let mult = 1;
@@ -587,7 +595,7 @@ function showAdvice(ns, plan, cash, stocks, sellers, boosts, skipped, upcoming, 
 		const eta = (entry) => (entry.etaMs === null ? "not being worked on" : `~${ns.format.time(entry.etaMs)}`);
 		ns.tprint(`Next rep unlocks: ${order.slice(0, 3).map((entry) => `${entry.aug} (${entry.faction}, value ${entry.value.toFixed(2)}, ${ns.format.number(entry.missing)} rep, ${eta(entry)})`).join("; ")}`);
 	}
-	if (skipped.length > 0) ns.tprint(`Skipped (no hacking/rep stats, use --all to buy): ${skipped.join(", ")}`);
+	if (skipped.length > 0) ns.tprint(`Skipped (nothing they boost counts now, use --all to buy): ${skipped.join(", ")}`);
 
 	// The forecast the decision came from: batch value and value per hour of run, now and later.
 	const shown = decision.curve.filter((point, index) => index === 0 || [30, 60, 120, 240, 360, 720].includes(point.inMinutes)

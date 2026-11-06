@@ -18,6 +18,7 @@ export function wantedBoosts(augName, stats, augConfig) {
 		for (const [key, label] of Object.entries(STAT_GROUPS[group] ?? {})) {
 			const value = stats[key];
 			if (value === undefined) continue;
+			if (incomeFactor(key, augConfig) < (augConfig.incomeMix?.minPortion ?? 0)) continue; // its money source earns too little
 			if (LOWER_IS_BETTER.includes(key)) {
 				if (value < 1) parts.push(`${label} -${Math.round((1 - value) * 100)}%`);
 			} else if (value > 1) {
@@ -28,6 +29,14 @@ export function wantedBoosts(augName, stats, augConfig) {
 	return parts.join(", ");
 }
 
+/**
+ * How much a money stat counts: the portion of this run's money its source earns (augConfig.incomeFactors, set by
+ * loadConfig from the income mix, docs/aug-reset.md). 1 for stats that aren't tied to one money source.
+ */
+export function incomeFactor(key, augConfig) {
+	return augConfig.incomeFactors?.[key] ?? 1;
+}
+
 /** Stat group names in augConfig.wantStats that STAT_GROUPS doesn't know (typos). */
 export function unknownStatGroups(augConfig) {
 	return augConfig.wantStats.filter((group) => !(group in STAT_GROUPS));
@@ -36,7 +45,7 @@ export function unknownStatGroups(augConfig) {
 /**
  * What an augment is worth for the reset rule (buy-augs.js decideReset): the weighted sum of
  * ln(multiplier) over the stats in augConfig.wantStats, so e^value is roughly how much faster
- * it makes a run. Weights are augConfig.resetRule.weights (per stat, else defaultWeight);
+ * it makes a run. Weights are augConfig.resetRule.weights (per stat, else defaultWeight), times incomeFactor for money stats;
  * augments without useful stats get resetRule.specialValue[name], or 0. Never negative. 0GB.
  */
 export function augValue(augName, stats, augConfig) {
@@ -48,7 +57,7 @@ export function augValue(augName, stats, augConfig) {
 		for (const key of Object.keys(STAT_GROUPS[group] ?? {})) {
 			const multiplier = stats[key];
 			if (multiplier === undefined || multiplier <= 0) continue;
-			const weight = rule.weights[key] ?? rule.defaultWeight;
+			const weight = (rule.weights[key] ?? rule.defaultWeight) * incomeFactor(key, augConfig);
 			value += weight * (LOWER_IS_BETTER.includes(key) ? -Math.log(multiplier) : Math.log(multiplier));
 		}
 	}
