@@ -135,26 +135,26 @@ Aliases always use absolute paths starting with `/` so they work from any direct
 Single quotes outside, plain double quotes inside.
 
 ```text
-alias startup='run /startup.js'
-alias restart='run /startup.js --restart'
-alias status='run /tools/status.js'
-alias debug-report='run /tools/debug-report.js; cat data/debug-report.txt'
-alias config='run /tools/show-config.js'
-alias track-income='run /tools/track-income.js; tail /tools/track-income.js'
-alias hack-only='run /tools/track-income.js; run /hack/batcher.js'
-alias gobot='run /go/ipvgo-bot.js --opponent "The Black Hand"'
-alias solve-contracts='run /contracts/solve-contracts.js'
-alias list-backdoors='run /tools/list-backdoors.js'
-alias check-servers='run /tools/check-servers.js'
-alias darknet-phishing='run /darknet/dnet-manager.js'
-alias stock-trading='run /stocks/stock-trader.js'
-alias upgrade-home='run /singularity/upgrade-home-ram.js --once; run /singularity/upgrade-home-cores.js --once'
-alias auto-backdoor='run /singularity/auto-backdoor.js --once'
-alias player-work='run /singularity/join-factions.js --once; run /singularity/player-work.js --once'
-alias augs='run /singularity/buy-augs.js --dry'
-alias buy-augs='run /singularity/buy-augs.js'
-alias install-augs='run /singularity/install-augs.js /startup.js'
-alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compression.js; run /tools/exploits/prototype-tampering.js; run /tools/exploits/unclickable.js'
+alias startup='run /startup.js';
+alias restart='run /startup.js --restart';
+alias status='run /tools/status.js';
+alias debug-report='run /tools/debug-report.js; cat data/debug-report.txt';
+alias config='run /tools/show-config.js';
+alias track-income='run /tools/track-income.js; tail /tools/track-income.js';
+alias hack-only='run /tools/track-income.js; run /hack/batcher.js';
+alias gobot='run /go/ipvgo-bot.js --opponent "The Black Hand"';
+alias solve-contracts='run /contracts/solve-contracts.js';
+alias list-backdoors='run /tools/list-backdoors.js';
+alias check-servers='run /tools/check-servers.js';
+alias darknet-phishing='run /darknet/dnet-manager.js';
+alias stock-trading='run /stocks/stock-trader.js';
+alias upgrade-home='run /singularity/upgrade-home-ram.js --once; run /singularity/upgrade-home-cores.js --once';
+alias auto-backdoor='run /singularity/auto-backdoor.js --once';
+alias player-work='run /singularity/join-factions.js --once; run /singularity/player-work.js --once';
+alias augs='run /singularity/buy-augs.js --dry';
+alias buy-augs='run /singularity/buy-augs.js';
+alias install-augs='run /singularity/install-augs.js /startup.js';
+alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compression.js; run /tools/exploits/prototype-tampering.js; run /tools/exploits/unclickable.js';
 ```
 
 ## Folders
