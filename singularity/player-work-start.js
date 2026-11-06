@@ -2,24 +2,6 @@
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 
-// Base time (ms) and money of every crime (v3.0.0 src/Crime/Crimes.ts). The BitNode's crime money
-// multiplier scales them all alike, so it doesn't change which one is best. Hardcoded because
-// getCrimeStats would cost another 5GB; only the chance (which grows with the stats) is asked of the game.
-const CRIMES = [
-	["Shoplift", 2e3, 15e3],
-	["Rob Store", 60e3, 400e3],
-	["Mug", 4e3, 36e3],
-	["Larceny", 90e3, 800e3],
-	["Deal Drugs", 10e3, 120e3],
-	["Bond Forgery", 300e3, 4.5e6],
-	["Traffick Arms", 40e3, 600e3],
-	["Homicide", 3e3, 45e3],
-	["Grand Theft Auto", 80e3, 1.6e6],
-	["Kidnap", 120e3, 3.6e6],
-	["Assassination", 300e3, 12e6],
-	["Heist", 600e3, 120e6],
-];
-
 // Port openers you can create (v3.0.0 src/Programs/data/ProgramsMetadata.ts): [file, hacking level, seconds at that
 // level]. Creating takes seconds * required level / your hacking level (focused; 80% speed unfocused).
 const OPENERS = [
@@ -29,6 +11,8 @@ const OPENERS = [
 	["HTTPWorm.exe", 500, 6000],
 	["SQLInject.exe", 750, 12000],
 ];
+const CREATE = "/singularity/workers/start-create.js";
+const CRIME = "/singularity/workers/start-crime.js";
 
 /**
  * The start stage's stand-in for player-work.js, which needs 32.5GB and so can't run on a home below
@@ -41,7 +25,9 @@ const OPENERS = [
  *      and the port openers (the batcher earns little on a small network).
  * Leaves alone any other work (faction, company, ...), whoever started it. A class keeps running only
  * below the study target; past it, crime takes over. Focused unless `playerFocus` is false in the config.
- * About 19.6GB (normal Singularity cost; estimated, not yet checked in game), for a moment; fits a 32GB home or a 32GB server.
+ * The 5GB calls (create, crime) live in two workers in singularity/workers/ that it hands over to with
+ * ns.spawn, which frees its own RAM first, so no step needs more than the biggest worker. 7.35GB
+ * here, 6.6GB (create) or 12.1GB (crime) in the worker; it fits a 16GB server.
  *   run /singularity/player-work-start.js
  */
 /** @param {NS} ns */
@@ -76,23 +62,10 @@ export async function main(ns) {
 		.map(([file, level, seconds]) => [file, level, seconds * level / hacking / speed / 60])
 		.filter(([, level, minutes]) => hacking >= level && minutes <= createPrograms.maxMinutes)
 		.sort((first, second) => first[2] - second[2]);
-	if (creatable.length > 0) {
-		const [file, , minutes] = creatable[0];
-		if (ns.singularity.createProgram(file, focus)) {
-			notify(ns, "[start-work]", `creating ${file} (about ${Math.ceil(minutes)} min) instead of waiting for the cash`, "info");
-			return;
-		}
-	}
-
-	const [crime, , , rate] = CRIMES
-		.map(([name, time, money]) => [name, time, money, ns.singularity.getCrimeChance(name) * money / time])
-		.sort((first, second) => second[3] - first[3])[0];
-	const perSecond = `$${ns.format.number(1000 * rate)}/s before BitNode multipliers`;
-	if (current?.type === "CRIME" && current.crimeType === crime) {
-		ns.print(`[start-work] ${crime} (${perSecond})`);
-		return;
-	}
-	ns.singularity.commitCrime(crime, focus);
-	if (current?.type === "CRIME") ns.print(`[start-work] switched to ${crime} (${perSecond})`);
-	else notify(ns, "[start-work]", `${crime} for cash (${perSecond}) until home reaches the early stage`, "info");
+	// The 5GB create and crime calls live in workers; ns.spawn frees this script's RAM before the worker
+	// starts. The worker's file may be missing on the server this runs on (startup only copies imports).
+	const worker = creatable.length > 0 ? CREATE : CRIME;
+	ns.scp(worker, ns.getHostname(), "home");
+	if (creatable.length > 0) ns.spawn(worker, { spawnDelay: 0 }, creatable[0][0], Math.ceil(creatable[0][2]), focus);
+	else ns.spawn(worker, { spawnDelay: 0 }, focus);
 }
