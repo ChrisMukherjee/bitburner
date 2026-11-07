@@ -3,6 +3,7 @@ import { nukeAllServers } from "/utils/nuke-all.js";
 
 const DAEMON = "w0r1d_d43m0n";
 const AFTER = "startup.js"; // runs on the fresh 8GB home in the next BitNode
+const WORKER = "singularity/workers/destroy-daemon.js"; // holds the 32GB destroy call
 
 /**
  * Destroys w0r1d_d43m0n and goes straight into the BitNode you name, skipping the BitVerse
@@ -13,7 +14,9 @@ const AFTER = "startup.js"; // runs on the fresh 8GB home in the next BitNode
  *   run singularity/next-bitnode.js 5    finish it and go to BitNode 5
  *
  * Needs The Red Pill installed and your hacking level at w0r1d_d43m0n's requirement.
- * About 34GB in BitNode 4 or with SF4.3 (destroyW0r1dD43m0n alone is 32GB there).
+ * This file only checks and is small (about 3GB). The destroy call itself (32GB in BitNode 4 or with
+ * SF4.3, 16x at SF4.1) is in workers/destroy-daemon.js, which this hands over to as its last step, so
+ * a missing Red Pill or too little hacking is reported even when home is too small for the destroy.
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -28,7 +31,7 @@ export async function main(ns) {
 	}
 	if (blackOpsDone(ns)) {
 		ns.tprint(`Every Black Op is done: ending the BitNode without hacking ${DAEMON}.`);
-		ns.singularity.destroyW0r1dD43m0n(nextBN, AFTER);
+		destroy(ns, nextBN);
 		return;
 	}
 	if (!ns.serverExists(DAEMON)) {
@@ -46,5 +49,15 @@ export async function main(ns) {
 		return;
 	}
 	ns.tprint(`Destroying ${DAEMON}, next stop BitNode ${nextBN}...`);
-	ns.singularity.destroyW0r1dD43m0n(nextBN, AFTER);
+	destroy(ns, nextBN);
+}
+
+/** Hands over to the worker: spawn ends this script first, so its few GB are free for the worker. */
+function destroy(ns, nextBN) {
+	const need = ns.getScriptRam(WORKER);
+	if (ns.getServerMaxRam("home") < need) {
+		ns.tprint(`Home has ${ns.format.ram(ns.getServerMaxRam("home"))}; destroying ${DAEMON} needs ${ns.format.ram(need)} free. Upgrade home RAM first.`);
+		return;
+	}
+	ns.spawn(WORKER, { threads: 1, spawnDelay: 0 }, nextBN, AFTER);
 }

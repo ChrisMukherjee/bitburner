@@ -11,15 +11,17 @@ const LOOP_MS = 60_000;
 // Which BitNode to go to next: `bitnodeRoute` in the config (config.js, data/config.json),
 // a list of { bitNode, level }, read by utils/bitnode-route.js. The first entry whose Source-File level isn't reached yet wins,
 // counting the level this destroy is about to give. When every entry is done, it waits for
-// you to pick (run next-bitnode.js, or use --bn).
+// you to pick (run next-bitnode.js <n>, or use --bn). It never backdoors w0r1d_d43m0n itself, so the
+// BitNode stays open until you choose.
 
 /**
  * Destroys w0r1d_d43m0n as soon as it can, so the BitNode ends without anyone at the keyboard.
  * The daemon only appears once The Red Pill is installed (buy-augs.js buys it and auto-reset.js
  * resets for it straight away). Then this waits until your hacking level reaches the daemon's
  * requirement and it has root (5 port openers), stops the other scripts on home to make room,
- * and runs next-bitnode.js, which destroys it and starts startup.js in the next BitNode.
+ * and runs next-bitnode.js, which checks and hands over to workers/destroy-daemon.js to destroy it and starts startup.js in the next BitNode.
  *
+ * With no BitNode left on the route it only tells you once (sticky toast + terminal) and keeps waiting.
  * Small (about 5GB) and cheap to leave running: until the daemon exists it only checks once a minute.
  *
  *   run singularity/auto-destroy.js           next BitNode from bitnodeRoute in the config
@@ -45,7 +47,9 @@ export async function main(ns) {
 
 		const nextBN = flags.bn > 0 ? flags.bn : (nextRouteStep(ns, route)?.bitNode ?? null);
 		if (nextBN === null) {
-			if (!toldReady) notify(ns, "[daemon]", `${DAEMON} is ready to destroy, but bitnodeRoute in the config is done. Pick the next BitNode: run /singularity/next-bitnode.js <n>`, "warning", true);
+			if (!toldReady) notify(ns, "[daemon]", `${DAEMON} is ready, but bitnodeRoute is done, so nothing is destroyed and the BitNode stays as it is (go for achievements first if you like). ` +
+				`When you want to move on, run: run /singularity/next-bitnode.js <n>  (n = the BitNode to enter, e.g. 5; with alias next-bitnode='run /singularity/next-bitnode.js' just: next-bitnode 5). ` +
+				`Or add entries to bitnodeRoute in data/config.json and this goes by itself.`, "warning", true);
 			toldReady = true;
 			await ns.sleep(LOOP_MS);
 			continue;
@@ -57,7 +61,7 @@ export async function main(ns) {
 			continue;
 		}
 
-		// Ending the BitNode stops everything anyway, so free home for the 34GB destroyer.
+		// Ending the BitNode stops everything anyway, so free home for the 34GB destroy (next-bitnode.js, then its worker).
 		ns.toast(`Destroying ${DAEMON}, next stop BitNode ${nextBN}`, "success", 10_000);
 		for (const proc of ns.ps("home")) {
 			if (proc.pid !== ns.pid) ns.kill(proc.pid);

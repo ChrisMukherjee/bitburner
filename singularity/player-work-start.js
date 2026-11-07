@@ -3,7 +3,9 @@ import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 
 // Port openers you can create (v3.0.0 src/Programs/data/ProgramsMetadata.ts): [file, hacking level, seconds at that
-// level]. Creating takes seconds * required level / your hacking level (focused; 80% speed unfocused).
+// level]. Your hacking level beyond the requirement speeds creation up only a fifth as much as it grows, so the
+// time is seconds / (1 + (hacking / level - 1) / 5), focused (80% speed unfocused). This is an upper bound: it
+// was measured at 4 min estimated against 6.5 real with the old seconds * level / hacking formula.
 const OPENERS = [
 	["BruteSSH.exe", 50, 600],
 	["FTPCrack.exe", 100, 1200],
@@ -59,7 +61,7 @@ export async function main(ns) {
 	const speed = focus ? 1 : 0.8;
 	const creatable = OPENERS
 		.filter(([file]) => !ns.fileExists(file, "home"))
-		.map(([file, level, seconds]) => [file, level, seconds * level / hacking / speed / 60])
+		.map(([file, level, seconds]) => [file, level, seconds / (1 + (hacking / level - 1) / 5) / speed / 60])
 		.filter(([, level, minutes]) => hacking >= level && minutes <= createPrograms.maxMinutes)
 		.sort((first, second) => first[2] - second[2]);
 	// The 5GB create and crime calls live in workers; ns.spawn frees this script's RAM before the worker

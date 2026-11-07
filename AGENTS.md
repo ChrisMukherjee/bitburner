@@ -55,6 +55,15 @@ Each BitNode adds a mechanic. These rules keep the scripts from growing a branch
 - The user commits and pushes themselves unless they ask otherwise.
 - Writing to the user's PC from a cloud session: the shared project folder can serve a stale copy for a few seconds after an edit. After every copy to the device, read the file back from the device and confirm it has your change before saying it's done.
 
+## Which model for which task
+
+Advice only; the user or coordinator picks per thread.
+
+- **Default:** Sonnet 5.5 (`claude-sonnet-5-5`) at medium effort for routine work: small fixes, READMEs and docs, config tweaks, ports, archiving, status checks.
+- **Hard logic:** Opus (`claude-opus-5-5`) at high effort for batcher timing and bugs, aug-reset and Red Pill decisions, income-curve forecasting, root-causing stalls, and multi-file redesigns.
+- **Trivial edits:** low effort.
+- **If a Sonnet fix fails in game,** rerun it on Opus.
+
 ## Write for any user
 
 Docs (including [`docs/`](docs/)), rules, script output and code comments should make sense to anyone who uses these scripts. Don't name people or refer to one person's machine, folders or setup; say "the user" instead.

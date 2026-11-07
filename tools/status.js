@@ -132,6 +132,9 @@ export async function main(ns) {
 			out.push(`  ${RED_PILL} installed | ${DAEMON}: hacking ${player.skills.hacking} / ${needed}` +
 				(player.skills.hacking >= needed ? " (ready)" : ` (${needed - player.skills.hacking} to go)`) +
 				` | root ${root ? "yes" : "no (needs all 5 port openers)"}`);
+			if (player.skills.hacking >= needed && root && !step && !forcedBN) {
+				out.push(`  READY, nothing is destroyed until you pick a BitNode: run /singularity/next-bitnode.js <n> (or add to bitnodeRoute)`);
+			}
 		} else {
 			out.push(`  ${RED_PILL} installed, but ${DAEMON} not found`);
 		}

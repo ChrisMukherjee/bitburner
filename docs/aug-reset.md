@@ -137,7 +137,7 @@ purchase, so it needs neither the stats nor the rep calls. Rejected: one script 
 32GB home can run) and a buyer that re-plans (needs the planner's RAM again). Moving the planner off
 home was also rejected for now: it keeps its income history in a home file.
 A local property named `share` in the planner cost 2.4GB (the RAM check matches it to `ns.share`);
-it's `repShare` now. next-bitnode.js stays about 34GB (`destroyW0r1dD43m0n` alone is 32GB), so the
+it's `repShare` now. The destroy call (`destroyW0r1dD43m0n`, 32GB alone) lives in singularity/workers/destroy-daemon.js (33.6GB); next-bitnode.js only checks (4.8GB). So the
 last step of a BitNode needs a 64GB home, which every run has long before The Red Pill.
 
 **A plan belongs to one run.** Readers ignore a plan checked before the last install

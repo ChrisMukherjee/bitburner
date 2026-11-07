@@ -23,8 +23,8 @@ server (the early network's biggest are 32GB). A run once sat idle for 4.5 hours
 stage [`../singularity/player-work-start.js`](../singularity/player-work-start.js) (7.35GB, fits a 16GB server)
 moves the player instead: the free course to `studying.hackLevel`, then a missing port opener it can create (`createPrograms.maxMinutes`), then the crime that earns the most per
 second at the current chance. Crime is there for cash: at the start the batcher earns little and cash buys
-home RAM and the port openers, which matter more than faction rep then. Creating beats buying here: BruteSSH at hacking 113 takes about 5 minutes (600s x 50/113) against $500k the
-batcher hasn't made yet; FTPCrack about 18 minutes. It blocks crime meanwhile, and creating gets slower as the
+home RAM and the port openers, which matter more than faction rep then. Creating beats buying here: BruteSSH at hacking 113 takes up to about 8 minutes (600s / (1 + (113/50 - 1)/5); the first estimate, 600s x 50/113, said 5 and a real run took 6.5 against a 4 minute toast, so the estimate is now an upper bound) against $500k the
+batcher hasn't made yet; FTPCrack about 20 minutes. It blocks crime meanwhile, and creating gets slower as the
 required level rises, hence the 30 minute cap; the cash buyer still buys whatever becomes affordable first. It leaves other work alone. Crime
 base times and money are hardcoded from the game source (getCrimeStats would add 5GB; the BitNode multiplier
 scales them all alike). The 5GB create and crime calls sit in workers it hands over to with `ns.spawn` (which

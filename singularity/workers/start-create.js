@@ -11,6 +11,6 @@ import { notify } from "/utils/notify.js";
 export async function main(ns) {
 	const [file, minutes, focus] = ns.args;
 	if (ns.singularity.createProgram(file, focus !== false)) {
-		notify(ns, "[start-work]", `creating ${file} (about ${minutes} min) instead of waiting for the cash`, "info");
+		notify(ns, "[start-work]", `creating ${file} (up to about ${minutes} min) instead of waiting for the cash`, "info");
 	}
 }

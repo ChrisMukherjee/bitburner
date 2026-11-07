@@ -98,7 +98,7 @@ keeps at most a quarter of home (up to 64GB) free for typed commands.
 The choices that depend on where you are in the game live in [`config.js`](config.js): which augment
 stats are worth buying, the reset rule, faction and company order, study target, city-faction
 groups, hacknet/server/stock spending stages, how much income the home upgrades keep back, [`startup.js`](startup.js) stage thresholds and scripts to
-skip, and the BitNode route for [`auto-destroy.js`](singularity/auto-destroy.js). The defaults suit a hacking run with no
+skip, and the BitNode route for [`auto-destroy.js`](singularity/auto-destroy.js) (when the route is done and `w0r1d_d43m0n` is ready, nothing is destroyed or backdoored: you get a sticky notice, and `next-bitnode <n>` ends the BitNode when you choose; alias below). The defaults suit a hacking run with no
 gang (for example BitNode 4).
 
 To change them, don't edit [`config.js`](config.js): create `data/config.json` in the game
@@ -154,6 +154,7 @@ alias player-work='run /singularity/join-factions.js --once; run /singularity/pl
 alias augs='run /singularity/buy-augs.js --dry';
 alias buy-augs='run /singularity/buy-augs.js';
 alias install-augs='run /singularity/install-augs.js /startup.js';
+alias next-bitnode='run /singularity/next-bitnode.js';
 alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compression.js; run /tools/exploits/prototype-tampering.js; run /tools/exploits/unclickable.js';
 ```
 
