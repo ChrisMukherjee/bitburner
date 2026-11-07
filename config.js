@@ -313,6 +313,7 @@ export const DEFAULTS = {
 	bitnodeRoute: [
 		{ bitNode: 4, level: 3 },
 		{ bitNode: 2, level: 1 }, // gangs (gang/gang-manager.js)
+		{ bitNode: 5, level: 1 }, // Intelligence, plus a hacking boost
 	],
 
 	// Per-BitNode overrides, keyed by BitNode number: laid over the settings above only while

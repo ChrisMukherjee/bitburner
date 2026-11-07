@@ -10,7 +10,7 @@ import { hasSingularity } from "/utils/singularity.js";
  *   run /tools/status.js
  *   alias status='run /tools/status.js'   (absolute path, so it works from any directory)
  *
- * Shows: stage and home RAM, cash and income, current work, faction rep goals with ETAs, the
+ * Shows: stage and home RAM, cash and income, Intelligence (only once above 0), current work, faction rep goals with ETAs, the
  * reset advice, how close the BitNode is to ending (Daedalus, The Red Pill, w0r1d_d43m0n and
  * the next BitNode on the route), Go progress, the city-faction plan, stocks, one block per mechanic (gang ...), and which
  * startup.js scripts run.
@@ -70,6 +70,10 @@ export async function main(ns) {
 	out.push(`Stage ${stage} | home ${ns.format.ram(ns.getServerUsedRam("home"))} / ${ns.format.ram(homeRam)} used` +
 		(nextStage ? ` | ${nextStage} at ${ns.format.ram(thresholds[nextStage])}` : ""));
 	out.push(`Cash ${money(player.money)} | income ${money(income.perSecond)}/s (${income.source})`);
+	// Intelligence only grows with Source-File 5 (or by other means); stay quiet at 0. Plain player fields, no extra RAM.
+	if (player.skills.intelligence > 0) {
+		out.push(`Intelligence ${player.skills.intelligence} (${ns.format.number(player.exp.intelligence)} exp)`);
+	}
 
 	// --- Current work and faction goals ---
 	// Work and rep need the Singularity API (BitNode 4 or Source-File 4); without it those lines say so.
