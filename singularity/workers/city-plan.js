@@ -1,7 +1,7 @@
 // Design: docs/player-work.md
 // Same "worth it" rule as buy-augs.js and singularity/workers/faction-goals.js, from the config.
 import { loadConfig } from "/utils/config.js";
-import { wantedBoosts } from "/utils/aug-filter.js";
+import { wantedBoosts, augValue } from "/utils/aug-filter.js";
 
 // Port singularity/player-work.js reads the plan from (20 darknet, 21 stock influence,
 // 22 hacked total, 23 faction goals, 24 income rate).
@@ -17,7 +17,11 @@ const NEUROFLUX = "NeuroFlux Governor";
  * factions the scripts reach anyway, e.g. DataJack also comes from NiteSec). Inside a group,
  * an augment sold by two cities counts for the first one only.
  *
- * Writes { time, groups: [{ factions, needs: { faction: [augs] } }] } to port 25 and exits.
+ * Groups come back best first: by the summed augValue (the reset rule's value, so the Bladeburner route's
+ * combat weights count while that route is on) of the augments the group still sells, not by the order in the
+ * config. Ties keep the config order.
+ *
+ * Writes { time, groups: [{ factions, value, needs: { faction: [augs] } }] } to port 25 and exits.
  * About 17GB, but only for a moment.
  */
 /** @param {NS} ns */
@@ -35,8 +39,9 @@ export async function main(ns) {
 				aug !== NEUROFLUX && !owned.has(aug) && !elsewhere.has(aug) && !claimed.has(aug) && wantedBoosts(aug, ns.singularity.getAugmentationStats(aug), augConfig));
 			needs[faction].forEach((aug) => claimed.add(aug));
 		}
-		return { factions, needs };
-	});
+		const value = [...claimed].reduce((sum, aug) => sum + augValue(aug, ns.singularity.getAugmentationStats(aug), augConfig), 0);
+		return { factions, value, needs };
+	}).sort((first, second) => second.value - first.value); // stable: ties keep the config order
 
 	ns.clearPort(PLAN_PORT);
 	ns.writePort(PLAN_PORT, JSON.stringify({ time: Date.now(), groups: plan }));

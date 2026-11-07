@@ -5,7 +5,7 @@ import { notify } from "/utils/notify.js";
 import { startHelper } from "/utils/start-helper.js";
 import { postGate } from "/singularity/ready.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
-import { bladeburnerState, trainFloor } from "/bladeburner/state.js";
+import { bladeburnerState, bladeburnerPlan, trainFloor } from "/bladeburner/state.js";
 
 // Ports the one-shot helpers write to (not imported: the static RAM check would charge their
 // Singularity calls to this script too).
@@ -464,6 +464,14 @@ function travelStep(ns, state, player) {
 
 	const wanted = (group) => group.factions.filter((faction) => plan.needs(group, faction).length > 0);
 	const lockedIndex = plan.groups.findIndex((group) => group.factions.some((faction) => joined.has(faction)));
+	// A join can't be undone this run, and what the augments are worth follows the Bladeburner route (utils/config.js).
+	// While Bladeburner is starting up, training or playing without a committed combat route, those weights are
+	// temporary: pick no group yet (a group already joined stays). "hold" means the estimate chose hacking (or
+	// Bladeburner isn't worth it right now), so that case is settled.
+	const bladeburner = bladeburnerState(ns);
+	if (lockedIndex < 0 && ["boot", "train", "run"].includes(bladeburner) && !bladeburnerPlan(ns)) {
+		return { message: `[city] waiting: Bladeburner is "${bladeburner}" and the route estimate isn't in yet, so the augment values aren't settled`, done: false };
+	}
 	const groupIndex = lockedIndex >= 0 ? lockedIndex : plan.groups.findIndex((group) => wanted(group).length > 0);
 	state.lastAnnounced = announcePlan(ns, plan, groupIndex, joined, wanted, state.lastAnnounced);
 

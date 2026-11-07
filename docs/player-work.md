@@ -131,9 +131,14 @@ goals jumpy).
 
 City factions come in rival groups: joining one locks the others out for that run.
 
-- One group per run, in the order in `cities.groups`: Sector-12 + Aevum (CashRoot, PCMatrix), then
-  Chongqing (Neuregen). New Tokyo, Ishima and Volhaven sell nothing a hacking run wants that isn't sold
-  elsewhere, so they're never sought out.
+- One group per run, the best first: `city-plan.js` ranks the groups in `cities.groups` by the summed
+  `augValue` of the augments each still sells (the reset rule's value, so a combat or Bladeburner run values
+  combat augments higher and may pick Chongqing + New Tokyo + Ishima or Volhaven over Sector-12 + Aevum).
+  Ties keep the config order. A group that sells nothing wanted is never sought out.
+- While Bladeburner is `boot`, `train` or `run` and the route estimate hasn't been posted yet, no group is
+  picked: the augment weights follow the route and a join can't be undone this run. A group already joined
+  stays. (From the other player's `city-pass.js`; her flight-only-when-the-invite-needs-nothing-else rule
+  is `pursue()`'s existing cash check here.)
 - A group is only joined if it sells a wanted aug that no faction in `cities.otherSources` sells. Owned and
   queued augs decide the group, so no state file is needed across resets.
 - A city invite is still accepted when it locks out nothing wanted (a faction of the same group is already

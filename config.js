@@ -310,11 +310,9 @@ export const DEFAULTS = {
 
 	// Where auto-destroy.js goes after w0r1d_d43m0n: the first entry whose Source-File level
 	// isn't reached yet (counting the level this destroy gives). When all are done it waits for you.
-	bitnodeRoute: [
-		{ bitNode: 4, level: 3 },
-		{ bitNode: 2, level: 1 }, // gangs (gang/gang-manager.js)
-		{ bitNode: 5, level: 1 }, // Intelligence, plus a hacking boost
-	],
+	// Empty by default, since the route is each player's own plan: set it in data/config.json, e.g.
+	//   "bitnodeRoute": [{ "bitNode": 4, "level": 3 }, { "bitNode": 2, "level": 1 }, { "bitNode": 5, "level": 1 }]
+	bitnodeRoute: [],
 
 	// Per-BitNode overrides, keyed by BitNode number: laid over the settings above only while
 	// in that BitNode (startup.js records which one). Same merge rules as data/config.json, which
