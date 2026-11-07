@@ -382,7 +382,8 @@ function withImports(ns, script) {
 		const file = queue.pop().replace(/^\//, "");
 		if (found.has(file)) continue;
 		found.add(file);
-		for (const match of ns.read(file).matchAll(/from\s+["']([^"']+)["']/g)) queue.push(match[1]);
+		// Only real import/export lines count; "from ..." inside comments or messages is not a file.
+		for (const match of ns.read(file).matchAll(/^\s*(?:import|export)\b[^;]*?\bfrom\s+["']([^"'\s]+\.js)["']/gm)) queue.push(match[1]);
 	}
 	return [...found];
 }
