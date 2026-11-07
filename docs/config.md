@@ -38,5 +38,7 @@ depends on progress is a setting, and scripts don't hardcode new ones.
 Presets: `hacking` (the defaults) and `bladeburner` (combat and Bladeburner augments instead of hacking
 ones, from the other player's Bladeburner route). `loadConfig` also adjusts the augment weights by itself while
 Bladeburner is the route (state boot, train or run on port 36, or hold while the route estimate says combat): combat and
-Bladeburner augments count and hacking ones do not, as the preset does, so the preset is only needed to force it. `bitnodes` in `config.js` is still empty:
+Bladeburner augments count and hacking ones do not, as the preset does, so the preset is only needed to force it. It also
+weighs the money stats by where this run's money comes from (`augments.incomeMix`, "Income mix" in
+[`aug-reset.md`](aug-reset.md)), so hacknet or a gang paying more needs no setting either. `bitnodes` in `config.js` is still empty:
 entries get added as each BitNode is played (a `"2"` entry for the gang run is the likely first).

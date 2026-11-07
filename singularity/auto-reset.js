@@ -1,6 +1,7 @@
 // Design: docs/aug-reset.md
 const CONFIG = {
 	checkMinutes: 10,
+	retryMinutes: 30, // after a reset that bought nothing (so didn't install), RESET advice is held this long
 	afterReset: "startup.js", // run on home after the install
 	planFile: "data/aug-plan.json",
 	planner: "singularity/buy-augs.js",
@@ -25,6 +26,12 @@ const CONFIG = {
  * Before buying it sells every stock position (stock-trader.js --liquidate): the reset
  * wipes held shares, so their value would otherwise be lost.
  *
+ * It installs only when the buyer bought something, or when every augment the advice counted was
+ * already bought (`queued` in the plan). Otherwise (the buyer was refused, e.g. it couldn't get
+ * the NeuroFlux levels the plan counted) it restarts startup.js, since everything on home was
+ * stopped, says why on the terminal, and holds RESET advice for 30 min (retryMinutes) so it
+ * doesn't stop everything again on the next check.
+ *
  * This script itself is small (about 4GB); the planner only fits when home has about 30GB
  * free, otherwise that check is skipped and logged. The buyer needs about 9GB.
  *
@@ -41,6 +48,7 @@ export async function main(ns) {
 
 	let lastReason = "";
 	let seen = null;          // augments already ready (bought or affordable); null until the first plan
+	let holdUntil = 0;        // after a reset that bought nothing: no new attempt before this time
 	while (true) {
 		const askedAt = Date.now();
 		const ran = await runAndWait(ns, CONFIG.planner, "--plan");
@@ -63,10 +71,12 @@ export async function main(ns) {
 			if (plan.decision.reset) {
 				if (flags.dry) {
 					ns.print("[auto-reset] would reset now (--dry, not doing it)");
+				} else if (Date.now() < holdUntil) {
+					ns.print(`[auto-reset] holding the reset until ${new Date(holdUntil).toLocaleTimeString()}: the last attempt bought nothing`);
 				} else {
 					ns.toast(`Resetting: ${plan.decision.reason}`, "warning", 10_000);
-					await resetNow(ns);
-					return;
+					if (await resetNow(ns, plan)) return;
+					holdUntil = Date.now() + CONFIG.retryMinutes * 60_000;
 				}
 			}
 		}
@@ -80,8 +90,11 @@ function notify(ns, message, variant) {
 	ns.toast(message, variant, null); // sticky until clicked: these need acting on
 }
 
-/** Frees home for the buyer, sells stocks, buys, then installs (the install ends this script too). */
-async function resetNow(ns) {
+/**
+ * Frees home for the buyer, sells stocks, buys, then installs (the install ends this script too).
+ * Returns false when it didn't install; then startup.js is running again.
+ */
+async function resetNow(ns, plan) {
 	for (const proc of ns.ps("home")) {
 		if (proc.pid !== ns.pid) ns.kill(proc.pid);
 	}
@@ -92,12 +105,37 @@ async function resetNow(ns) {
 	if (ns.fileExists(CONFIG.stockTrader, "home") && !await runAndWait(ns, CONFIG.stockTrader, "--liquidate", "--no-buy-tix")) {
 		ns.tprint(`auto-reset: couldn't run ${CONFIG.stockTrader} --liquidate; any stock positions will be lost.`);
 	}
-	if (!await runAndWait(ns, CONFIG.buyer)) {
-		ns.tprint(`auto-reset: couldn't run ${CONFIG.buyer} even on an empty home. Not installing.`);
-		return;
-	}
+	const buyStart = Date.now();
+	if (!await runAndWait(ns, CONFIG.buyer)) return giveUp(ns, `couldn't run ${CONFIG.buyer} even on an empty home`);
+	const why = notWorthInstalling(ns, plan, buyStart);
+	if (why) return giveUp(ns, why);
 	// --force: the check just ran. It spends what's left on home RAM and cores, then installs.
-	ns.exec(CONFIG.installer, "home", 1, "--force", CONFIG.afterReset);
+	if (ns.exec(CONFIG.installer, "home", 1, "--force", CONFIG.afterReset) === 0) return giveUp(ns, `couldn't start ${CONFIG.installer}`);
+	return true;
+}
+
+/**
+ * Why installing now would be wrong, or "" when it's fine. The buyer records what it bought in the
+ * plan (lastBuy). Installing needs something bought: this pass, or before it when the advice
+ * counted nothing new (every augment it counted was already queued).
+ */
+function notWorthInstalling(ns, before, buyStart) {
+	const after = readPlan(ns, 0);
+	const lastBuy = after?.lastBuy;
+	if (!lastBuy || lastBuy.at < buyStart) return `${CONFIG.buyer} didn't record a purchase pass (see its terminal lines)`;
+	if (lastBuy.augs.length + lastBuy.neuroflux > 0) return "";
+	const augs = before.decision.push ? (before.daedalusPush?.fill?.length ?? 0) : before.affordable.length;
+	const neuroflux = before.decision.push ? 0 : before.decision.curve?.[0]?.neuroflux ?? 0;
+	if (augs + neuroflux > 0) return `the advice counted ${augs} augment(s) and ${neuroflux} NeuroFlux level(s) to buy, but the buyer got none`;
+	if (after.queued.length === 0) return "nothing is bought, so an install would do nothing";
+	return "";
+}
+
+/** A reset that stopped short of installing: say why and start startup.js again (everything on home was stopped). */
+function giveUp(ns, why) {
+	notify(ns, `Not installing: ${why}. Restarting ${CONFIG.afterReset}; no new reset attempt for ${CONFIG.retryMinutes} min.`, "error");
+	if (ns.exec(CONFIG.afterReset, "home", 1) === 0) ns.tprint(`auto-reset: couldn't start ${CONFIG.afterReset}; run it by hand.`);
+	return false;
 }
 
 /** Every server reachable from home (purchased ones included). */

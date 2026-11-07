@@ -25,7 +25,9 @@ const HOME_BUYERS = ["singularity/upgrade-home-ram.js", "singularity/upgrade-hom
  *   run singularity/install-augs.js --force [startup.js]   install without the check
  *   run singularity/install-augs.js --keep-cash ...        don't spend the cash on home first
  *
- * The script after the reset gets no arguments and 1 thread.
+ * The script after the reset gets no arguments and 1 thread. If the game refuses the install
+ * (nothing bought, even with --force), that script is started right away instead, since
+ * auto-reset.js has stopped everything on home by then.
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -44,7 +46,11 @@ export async function main(ns) {
 		}
 	}
 	ns.tprint("Installing augments...");
-	ns.singularity.installAugmentations(afterReset);
+	// The game returns false when nothing is bought (typed void, but v3.0.0 does); a real install ends this script.
+	if (ns.singularity.installAugmentations(afterReset) === false) {
+		ns.tprint("Not installed: no augments are bought, so there is nothing to install.");
+		if (afterReset !== undefined && ns.exec(afterReset, "home", 1) !== 0) ns.tprint(`Started ${afterReset} again instead.`);
+	}
 }
 
 /** Checks the plan (running the planner if it's old) and prints why not, if the rule says to wait. */

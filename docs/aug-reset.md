@@ -90,6 +90,43 @@ augments.
 Stock positions count as cash: auto-reset sells them (`stock-trader.js --liquidate`) before
 buying, because the reset wipes held shares.
 
+## Income mix (which augments count)
+
+**The decision:** money stats count by where this run's money actually comes from. Each stat listed in
+`augments.incomeMix.stats` belongs to one money source (`hacking_money` and `hacking_grow` to hacking, the hacknet
+stats to hacknet, `dnet_money` to darknet, `crime_money` to crime, `work_money` to work). Its weight is the value when that source earns
+everything, multiplied by the source's portion of the money earned. Below `minPortion` (5%) the stat stops making
+an augment worth buying at all. So hacknet augments count once hacknet pays a real part of the bills, and
+hacking-money augments count for less while a gang earns most of the money.
+
+**Why:** a +10% money multiplier on a source that earns 20% of the money is +2% income, not +10%. The old fixed
+weights assumed a hacking run (hacknet at 0.2 whatever it earned), which is wrong in a hacknet-heavy BitNode and
+in BitNode 2 once the gang pays. The rest (hacking level, exp, speed, faction and company rep, combat for
+Bladeburner) keeps its full weight: those speed up progress whatever pays for it (hack level for Daedalus and
+w0r1d_d43m0n, rep for every augment).
+
+**Gangs raise no player augment stat.** Gang members have their own stats and multipliers; checked in the v3.0.0 source,
+gang money and respect never read the player's multipliers. The one exception is faction rep: the gang faction's rep
+from respect is multiplied by the player's `faction_rep`, already a full-weight stat. So strength or defense augments
+do nothing for a gang, and a big gang income only lowers the money stats' share. Combat augments count when
+Bladeburner is the route (`routeAdjust` in [`utils/config.js`](../utils/config.js)), not because of a gang.
+
+**How:** [`singularity/buy-augs.js`](../singularity/buy-augs.js) reads `getMoneySources()` (1GB) at the start of every
+check and posts the positive amounts on port 38 ([`utils/income-mix.js`](../utils/income-mix.js)). `loadConfig` reads
+the port (0GB) and sets `augments.incomeFactors`, so faction-goals, city-plan and aug-dataset use the same weights
+without paying the 1GB. Portions come from this run once it has earned `minEarned` ($100m), from the whole BitNode
+before that, and default to a hacking run (`unknownPortions`) when nothing fresh is posted. `augs` prints the mix.
+Stocks, the gang, contracts and the rest count in the total but raise no stat.
+
+**Rejected:** a share of income per second (the last few minutes) instead of the run's total: it swings with the
+batcher's prep and stock sales, and the run's total is what the augments would have multiplied. A BitNode table of
+weights (`bitnodes` in the config): the measured mix already follows the BitNode, and also a player's own choices
+within one. Separate per-source presets: same reason.
+
+**Extending it:** a new money source or stat is one line in `incomeMix.stats` (and the stat's weight in `resetRule.weights`).
+For example, if a BitNode makes charisma pay through a source, list `charisma` under that source and add `"charisma"`
+to `wantStats`.
+
 ## Planning, buying, installing
 
 **Plan and buy are two scripts, so a 32GB home can reset.** buy-augs.js plans (about 30GB) and
@@ -116,6 +153,20 @@ restarting it (`startup --restart`, `--dry` runs) doesn't repeat the toast.
 cash doesn't, so install-augs runs both home buyers with `--spend-all` (no reserve, no cap)
 after augments are bought (`--keep-cash` skips it). Home RAM first: it's usually the
 bigger help to the next run's start.
+
+**No install without a purchase.** auto-reset stops everything on home, sells stocks and runs the buyer,
+which records what that pass bought in the plan (`lastBuy`). It installs only when something was bought, or
+when every augment the advice counted was already queued. Otherwise it starts startup.js again (home is empty
+by then), says why on the terminal, and ignores RESET advice for 30 minutes so it doesn't stop everything on
+every check. install-augs also starts its after-reset script itself when the game refuses an install because
+nothing is queued, so home is never left with nothing running.
+
+**NeuroFlux comes from a faction that sells it.** The planner counts NeuroFlux levels at the joined faction
+with the most rep among those that list it. A gang's faction sells no special augments (NeuroFlux is one), and
+Bladeburners, Shadows of Anarchy and Church of the Machine God don't sell it either; picking the top-rep faction
+regardless made the advice count levels the buyer could never get. The buyer says when a faction refuses
+NeuroFlux, and reads the stock value for its "in stocks" note when it runs (port 26, which `--liquidate`
+clears), not from the plan made before the sell-off.
 
 **NeuroFlux waits for home.** While a home RAM or cores upgrade is affordable (the cash its buyer last posted
 on port 33: cost plus its income reserve), the buyer leaves the leftover cash to it instead of buying
@@ -194,7 +245,9 @@ While Daedalus is joined and can't take donations yet:
   the last run's growth, or stays flat on the first run. Income spent by other scripts (servers,
   hacknet, home upgrades) isn't subtracted, here or before.
 - Rep rates are the current ones; when player-work moves to another faction the ETAs change.
-- Weights are judgement calls for a hacking run; set `wantStats` and `weights` for other BitNodes.
+- Weights are judgement calls; the money stats follow the income mix, the rest stays as set (`wantStats`, `weights`).
+- The income mix is the run's total so far, so a source that only took off late (hacknet after a big upgrade)
+  counts less than it will by the end of the run.
 - The favor formula is the game's (`favorToRep` = 25,000 x (1.02^favor - 1)); BitNode
   multipliers on donations aren't read (that needs Source-File 5).
 

@@ -38,6 +38,7 @@ export function loadConfig(ns) {
 	const layers = [DEFAULTS, preset, custom].flatMap((layer) => [layer, layer?.bitnodes?.[node]]);
 	const config = layers.reduce((merged, layer) => mergeOver(merged, layer), {});
 	config.bitnode = node; // null until startup.js has run once
+	incomeAdjust(ns, config);
 	routeAdjust(ns, config);
 	return config;
 }
@@ -71,6 +72,40 @@ function routeAdjust(ns, config) {
 		for (const stat of ["strength_exp", "defense_exp", "dexterity_exp", "agility_exp"]) weights[stat] ??= 0.5;
 		for (const stat of ["bladeburner_success_chance", "bladeburner_max_stamina", "bladeburner_stamina_gain", "bladeburner_analysis"]) weights[stat] ??= 1;
 	}
+}
+
+// Port 38 is the income mix (utils/income-mix.js, posted by buy-augs.js); read raw here so loading the config stays 0GB.
+const INCOME_MIX_PORT = 38;
+
+/**
+ * Logic, not config: money stats count by where this run's money comes from. Sets augments.incomeFactors, one number per
+ * stat listed in augments.incomeMix.stats (the summed portion of money its sources earned); aug-filter.js multiplies that
+ * stat's weight by it, and drops the stat from "worth buying" below incomeMix.minPortion. Portions come from this run's
+ * earnings, or the whole BitNode's while this run has earned less than minEarned, or unknownPortions without a fresh post.
+ * Sets augments.incomeMixSource too ("this run", "this BitNode" or "default"), for display. 0GB.
+ */
+/** @param {NS} ns */
+function incomeAdjust(ns, config) {
+	const aug = config.augments;
+	const mix = aug?.incomeMix;
+	if (!mix?.enabled) return;
+	let post = null;
+	try { post = JSON.parse(ns.peek(INCOME_MIX_PORT)); } catch { /* nothing posted */ }
+	const fresh = post && typeof post === "object" && Date.now() - (post.time ?? 0) < (mix.maxAgeMinutes ?? 30) * 60_000;
+	const total = (earned) => Object.values(earned ?? {}).reduce((sum, amount) => sum + amount, 0);
+	let earned = null;
+	aug.incomeMixSource = "default";
+	if (fresh && total(post.sinceInstall) >= mix.minEarned) [earned, aug.incomeMixSource] = [post.sinceInstall, "this run"];
+	else if (fresh && total(post.sinceStart) >= mix.minEarned) [earned, aug.incomeMixSource] = [post.sinceStart, "this BitNode"];
+	const sum = earned ? total(earned) : 1;
+	const portions = {};
+	for (const [source, amount] of Object.entries(earned ?? mix.unknownPortions ?? {})) portions[source] = amount / sum;
+	aug.incomePortions = portions;
+	const factors = {};
+	for (const [source, stats] of Object.entries(mix.stats ?? {})) {
+		for (const stat of stats) factors[stat] = (factors[stat] ?? 0) + (portions[source] ?? 0);
+	}
+	aug.incomeFactors = factors;
 }
 
 /** The BitNode startup.js last saw, or null. */

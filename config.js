@@ -64,19 +64,42 @@ export const DEFAULTS = {
 		},
 		// Never worth buying, even if they boost a wanted stat.
 		never: [],
+		// Money stats count by where this run's money comes from (docs/aug-reset.md, "Income mix"). Each stat listed
+		// under a source below has its resetRule weight multiplied by that source's portion of the money earned
+		// (game's getMoneySources, posted by buy-augs.js on port 38), and stops being worth buying below minPortion.
+		// Keys are getMoneySources names. A gang, stocks and the rest raise no augment stat (gang members don't
+		// use your augments), so the more they earn, the less every money augment counts. Stats not listed
+		// (hacking level, exp, speed, rep, combat) keep their full weight: they help whatever pays.
+		incomeMix: {
+			enabled: true,
+			stats: {
+				"hacking": ["hacking_money", "hacking_grow"],
+				"hacknet": ["hacknet_node_money", "hacknet_node_purchase_cost", "hacknet_node_ram_cost", "hacknet_node_core_cost", "hacknet_node_level_cost"],
+				"darknet": ["dnet_money"],
+				"crime": ["crime_money", "crime_success"], // only if "crime" is in wantStats
+				"work": ["work_money"],                    // only if "work" is in wantStats
+			},
+			minPortion: 0.05,          // a money stat whose sources earn less than 5% doesn't make an augment worth buying
+			minEarned: 1e8,            // below this much earned this run, the whole BitNode's mix is used
+			unknownPortions: { "hacking": 1 }, // before anything is posted: a hacking run
+			maxAgeMinutes: 30,         // an older post counts as missing (auto-reset.js reposts every 10 minutes)
+		},
 		// Spend what's left on NeuroFlux Governor after the rest (buy-augs --no-neuroflux turns it off once).
 		neuroflux: true,
 		// When to reset (buy-augs --dry / --plan, auto-reset.js, install-augs.js). The rule: reset at
 		// the moment that gives the most augment value per hour of the run (docs/aug-reset.md).
 		resetRule: {
 			keyAugs: ["The Red Pill"], // reset as soon as one of these is ready
-			// Value of an augment = sum of weight x ln(multiplier) over its wanted stats.
+			// Value of an augment = sum of weight x ln(multiplier) over its wanted stats. For the money stats in
+			// incomeMix.stats this is the weight when that source earns all the money; it is multiplied by the
+			// source's real portion (so hacknet counts in full only when hacknet pays for everything).
 			weights: {
 				hacking: 1, hacking_money: 1, hacking_speed: 1, faction_rep: 1,
 				hacking_exp: 0.5, hacking_chance: 0.5, hacking_grow: 0.5,
 				company_rep: 0.25,
-				hacknet_node_money: 0.2, dnet_money: 0.2,
-				hacknet_node_purchase_cost: 0.1, hacknet_node_ram_cost: 0.1, hacknet_node_core_cost: 0.1, hacknet_node_level_cost: 0.1,
+				hacknet_node_money: 1, dnet_money: 1,
+				hacknet_node_purchase_cost: 0.5, hacknet_node_ram_cost: 0.5, hacknet_node_core_cost: 0.5, hacknet_node_level_cost: 0.5,
+				crime_money: 1, crime_success: 0.5, work_money: 1,
 			},
 			defaultWeight: 0.2,   // stats not listed above (e.g. combat, if added to wantStats)
 			// Favor counts as a rep multiplier at that faction, times this (it only speeds up the

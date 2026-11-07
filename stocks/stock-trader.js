@@ -92,6 +92,7 @@ export async function main(ns) {
 	if (flags.liquidate) {
 		const proceeds = symbols.reduce((sum, sym) => sum + sellAll(ns, sym, "liquidate"), 0);
 		ns.clearPort(STOCK_INFLUENCE_PORT);
+		ns.clearPort(STOCK_SUMMARY_PORT); // nothing held now: readers (buy-augs, aug-buyer) mustn't count the old value
 		ns.tprint(`[stocks] liquidated everything for ${formatMoney(ns, proceeds)}.`);
 		return;
 	}
