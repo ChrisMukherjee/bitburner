@@ -8,6 +8,7 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`aug-filter.js`](aug-filter.js) | `wantedBoosts`: the one "worth buying" rule for augments; `augValue` for the reset rule, with money stats weighed by the income mix. Design: [`docs/config.md`](../docs/config.md) | 0GB |
 | [`bitnode-route.js`](bitnode-route.js) | Next BitNode from `bitnodeRoute` | 1GB |
 | [`singularity.js`](singularity.js) | Whether this run can use the Singularity API | 1GB |
+| [`gyms.js`](gyms.js) | Gym tables (stats, gyms per city, cost) shared by player-work.js and start-gang.js | 0GB |
 | [`gang.js`](gang.js) | What this run can do with gangs; the one place with per-BitNode gang rules | 1GB |
 | [`pass-log.js`](pass-log.js) | `postPass`: a one-shot keeps the lines of its last pass on port 37 for the debug report. Design: [`docs/debug-report.md`](../docs/debug-report.md) | 0GB |
 | [`bladeburner.js`](bladeburner.js) | Whether this run can use the Bladeburner API (BitNode 6/7 or Source-File 6/7) | 1GB |

@@ -274,6 +274,7 @@ export const DEFAULTS = {
 		// quarter), re-picked every 2 minutes. That is Homicide at any chance. null = every crime in the game,
 		// or a list of names, e.g. ["Mug", "Homicide"].
 		inviteCrimes: null,
+		startInvite: true,          // below a 64GB home (start stage) work on the invite too, so the gang starts early; false = wait for player-work.js
 		inviteGym: true,            // once karma is met, missing combat stats go to the gym (much faster); false = crimes
 		trainLevel: 200,            // members train until their main stat (combat average, or hacking) reaches this
 		trainTasks: { combat: "Train Combat", hacking: "Train Hacking" },

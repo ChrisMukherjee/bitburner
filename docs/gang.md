@@ -14,6 +14,7 @@ the first run and tune; every decision is logged.
   more money and win territory clashes more easily. The cost is getting the invite: in BitNode 2 karma -9
   and combat 30. A hacking gang (NiteSec, The Black Hand) needs no crimes but earns
   less. The choice is `gang.factions`.
+- **The invite also runs in the start stage** (`gang.startInvite`): player-work.js needs a 64GB home, so waiting for it delayed the gang. [`../singularity/player-work-start.js`](../singularity/player-work-start.js) hands over to [`../singularity/workers/start-gang.js`](../singularity/workers/start-gang.js) (10.25GB, for a moment) before port openers and cash crimes: Homicide for the karma, the gym for the combat stats, then cash crime for the $1m. The gang manager starts once the faction is joined (it may run on a server when home is small). Rejected: buying 64GB first (costs cash the invite also needs, and the gang earns more), and a 16GB invite helper in the start pass.
 - **The invite is a player-work step**, not its own script, because only player-work moves the player
   (see [`player-work.md`](player-work.md)): the crime with the most expected karma per minute (Homicide)
   for the karma, then the gym for the combat stats.

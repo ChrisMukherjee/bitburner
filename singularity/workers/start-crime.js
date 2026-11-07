@@ -21,7 +21,8 @@ const CRIMES = [
 
 /**
  * Commits the crime that earns the most per second at your current chance, for player-work-start.js
- * (which hands over with ns.spawn so it needn't hold these 5GB calls itself). Arg: focus.
+ * (which hands over with ns.spawn so it needn't hold these 5GB calls itself). Args: focus, and optionally a
+ * crime to commit instead (start-gang.js asks for Homicide, for the gang invite's karma).
  * 12.1GB, for a moment.
  *   run /singularity/workers/start-crime.js true
  */
@@ -30,15 +31,18 @@ export async function main(ns) {
 	ns.disableLog("ALL");
 	const focus = ns.args[0] !== false;
 	const current = ns.singularity.getCurrentWork();
+	const forced = CRIMES.some(([name]) => name === ns.args[1]) ? String(ns.args[1]) : null;
 	const [crime, , , rate] = CRIMES
 		.map(([name, time, money]) => [name, time, money, ns.singularity.getCrimeChance(name) * money / time])
+		.filter(([name]) => !forced || name === forced)
 		.sort((first, second) => second[3] - first[3])[0];
-	const perSecond = `$${ns.format.number(1000 * rate)}/s before BitNode multipliers`;
+	const perSecond = forced ? "for the gang invite's karma" : `$${ns.format.number(1000 * rate)}/s before BitNode multipliers`;
 	if (current?.type === "CRIME" && current.crimeType === crime) {
 		ns.print(`[start-work] ${crime} (${perSecond})`);
 		return;
 	}
 	ns.singularity.commitCrime(crime, focus);
 	if (current?.type === "CRIME") ns.print(`[start-work] switched to ${crime} (${perSecond})`);
+	else if (forced) notify(ns, "[start-work]", `${crime} ${perSecond}`, "info");
 	else notify(ns, "[start-work]", `${crime} for cash (${perSecond}) until home reaches the early stage`, "info");
 }

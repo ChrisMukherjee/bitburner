@@ -29,6 +29,7 @@ depends on progress is a setting, and scripts don't hardcode new ones.
   `data/config.json`, because `ns.read` reads the server the script runs on.
 - **One "worth buying" rule.** `wantedBoosts` decides for buying augs, faction rep goals and city plans
   alike. It used to be copied in two places and drifted.
+- **The BitNode route is the player's own.** `bitnodeRoute` is `[]` in `config.js`, since which Source-Files to chase is each player's plan; it goes in `data/config.json`. Entries already owned are skipped, so a full plan can be listed. Step-by-step use is in the root README ("Planning your BitNode route and settings").
 - **Read at start only.** Restart a script after changing settings.
 - **Detected, not configured:** whether the Singularity API is usable (and its RAM multiplier) comes from
   the game. Rep and price multipliers are already in the game's own numbers.

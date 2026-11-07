@@ -20,14 +20,14 @@ the karma, the gym for the combat stats), faction work, then megacorp jobs when 
 
 player-work.js costs 32.5GB, so below a 64GB home (a fresh BitNode) it fits neither on home nor on any
 server (the early network's biggest are 32GB). A run once sat idle for 4.5 hours that way. So below the early
-stage [`../singularity/player-work-start.js`](../singularity/player-work-start.js) (7.35GB, fits a 16GB server)
-moves the player instead: the free course to `studying.hackLevel`, then a missing port opener it can create (`createPrograms.maxMinutes`), then the crime that earns the most per
+stage [`../singularity/player-work-start.js`](../singularity/player-work-start.js) (8.35GB, fits a 16GB server)
+moves the player instead: the free course to `studying.hackLevel`, then (where a gang only needs its faction's invite, `gang.startInvite`) the gang invite, then a missing port opener it can create (`createPrograms.maxMinutes`), then the crime that earns the most per
 second at the current chance. Crime is there for cash: at the start the batcher earns little and cash buys
 home RAM and the port openers, which matter more than faction rep then. Creating beats buying here: BruteSSH at hacking 113 takes up to about 8 minutes (600s / (1 + (113/50 - 1)/5); the first estimate, 600s x 50/113, said 5 and a real run took 6.5 against a 4 minute toast, so the estimate is now an upper bound) against $500k the
 batcher hasn't made yet; FTPCrack about 20 minutes. It blocks crime meanwhile, and creating gets slower as the
 required level rises, hence the 30 minute cap; the cash buyer still buys whatever becomes affordable first. It leaves other work alone. Crime
 base times and money are hardcoded from the game source (getCrimeStats would add 5GB; the BitNode multiplier
-scales them all alike). The 5GB create and crime calls sit in workers it hands over to with `ns.spawn` (which
+scales them all alike). The gang invite step is `workers/start-gang.js` (10.25GB): Homicide for the karma (via start-crime.js, which takes an optional forced crime), the gym for the combat stats, else the cash crime; it comes before openers and cash crime because a gang out-earns both, and the Slum Snakes invite costs only a few Homicides, combat 30 and $1m. The 5GB create and crime calls sit in workers it hands over to with `ns.spawn` (which
 frees its own RAM first), so the pass never needs more than the biggest worker (12.1GB). The stages split the two (start vs early), so they never alternate.
 Rejected: shrinking player-work.js below 32GB (it still wouldn't fit beside the batcher on a 32GB home) and
 splitting every step into workers (many scripts for one stage).

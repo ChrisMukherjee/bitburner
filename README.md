@@ -87,7 +87,7 @@ numbers come from `data/aug-plan.json`, which [`auto-reset.js`](singularity/auto
 stage it starts in. It skips anything already running and stays running (about 7GB) to start what
 becomes ready, restart what stops, and run the one-shots.
 Below 64GB home (a fresh BitNode) it is in the `start` stage: only the home/program buyers,
-the batcher, invites and backdoors, and [`player-work-start.js`](singularity/player-work-start.js) (study, create port openers, then crime for cash; a
+the batcher, invites and backdoors, and [`player-work-start.js`](singularity/player-work-start.js) (study, the gang invite where a gang only needs that, create port openers, then crime for cash; a
 short pass every minute) run, so the batcher gets the free servers' RAM. From 64GB home [`player-work.js`](singularity/player-work.js)
 (study, faction and company work, Tian Di Hui and city factions) takes over the player, and the Go bot, hacknet,
 server buying and auto-destroy follow after the first home upgrades. The batcher
@@ -128,6 +128,34 @@ Settings that should differ by BitNode go in a `bitnodes` section keyed by BitNo
 [`config.js`](config.js) or in `data/config.json` (e.g. `"bitnodes": { "2": { "augments": { ... } } }`). The
 current BitNode's entry applies automatically; [`startup.js`](startup.js) records which BitNode you're in
 (`data/bitnode.txt`), so run it once in a new BitNode before relying on them.
+
+### Planning your BitNode route and settings
+
+Do this once, in the game, to tailor the scripts to your save:
+
+1. **See where you are.** `run /tools/show-config.js` prints the settings the scripts will use, and `run /tools/status.js` shows the Source-File level this BitNode gives and the next BitNode on the route.
+2. **Create your file.** `run /tools/show-config.js --example` prints a starter `data/config.json`; paste it into `nano data/config.json`. Keep only the lines you want to change. If the file doesn't exist, the defaults apply.
+3. **Set your route.** `bitnodeRoute` is a list of `{ "bitNode": N, "level": L }`, done in order. [`auto-destroy.js`](singularity/auto-destroy.js) enters the first entry whose Source-File level you don't have yet, counting the level the current destroy gives. Source-Files you already own are skipped automatically, so you can list your whole plan. The default route is empty: with no route (or once it's done) nothing is destroyed, you get one sticky notice, and `next-bitnode <n>` ends the BitNode when you choose.
+4. **Tune a single BitNode.** Put settings that only apply in one BitNode under `"bitnodes": { "<N>": { ... } }`. They are laid over your other settings while you are in BitNode N. Run [`startup.js`](startup.js) once in a new BitNode so it records which one you are in.
+5. **Pick a preset if one fits.** `"profile": "bladeburner"` (see `PRESETS` in [`config.js`](config.js)) swaps the augment weights for a Bladeburner run.
+6. **Restart.** Scripts read the config when they start: `run /startup.js --restart`. Bad JSON gives a sticky alert and falls back to the defaults.
+
+Example `data/config.json` for a player who plans BitNode 4 to Source-File 3, then 2, then 5, with combat augments while in BitNode 2:
+
+```json
+{
+  "bitnodeRoute": [
+    { "bitNode": 4, "level": 3 },
+    { "bitNode": 2, "level": 1 },
+    { "bitNode": 5, "level": 1 }
+  ],
+  "bitnodes": {
+    "2": { "augments": { "wantStats": ["hacking", "rep", "combat", "crime"] } }
+  }
+}
+```
+
+Which BitNodes the scripts can use is listed in the "Needs" column of the folder table below. A BitNode with no support yet can still be on the route; the scripts just run the hacking core there.
 
 ### Aliases
 

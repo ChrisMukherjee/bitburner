@@ -36,8 +36,9 @@ const SCRIPTS = [
 	// Invites and backdoors from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.
 	{ stage: "start", script: "singularity/join-factions.js", args: ["--once"], oneShot: true, every: 60_000 },
 	{ stage: "start", script: "singularity/auto-backdoor.js", args: ["--once"], oneShot: true, every: 120_000, ready: backdoorReady },
-	// player-work.js (32.5GB) fits nowhere below a 64GB home, so until then this 7.35GB pass (workers up to 12.1GB) moves the
-	// player instead: the free course to studying.hackLevel, then the best-paying crime for cash.
+	// player-work.js (32.5GB) fits nowhere below a 64GB home, so until then this 8.35GB pass (workers up to 12.1GB) moves the
+	// player instead: the free course to studying.hackLevel, the gang invite where a gang only needs that (gang.startInvite),
+	// then an openable port opener, then the best-paying crime for cash.
 	{ stage: "start", until: "early", script: "singularity/player-work-start.js", oneShot: true, every: 60_000, needRam: 12.2 },
 	// The one script that moves the player: study to studying.hackLevel, faction work to the real rep
 	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. A short pass every

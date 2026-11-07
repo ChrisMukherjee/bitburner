@@ -2,6 +2,7 @@
 import { postPass } from "/utils/pass-log.js";
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
+import { GYM_STATS, GYMS, GYM_CITY, GYM_CASH_SECONDS } from "/utils/gyms.js";
 import { startHelper } from "/utils/start-helper.js";
 import { postGate } from "/singularity/ready.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
@@ -333,17 +334,6 @@ function workStep(ns, state, player) {
 	return { message: `[company-work] ${target.company}: ${ns.format.number(rep)} / ${ns.format.number(companyWork.repNeeded)} rep`, done };
 }
 
-// [skill, the GymType the API wants, the class name the game reports for the current work]
-const GYM_STATS = [["strength", "str", "GYMSTRENGTH"], ["defense", "def", "GYMDEFENSE"], ["dexterity", "dex", "GYMDEXTERITY"], ["agility", "agi", "GYMAGILITY"]];
-// Gyms by city, best first, with their cost per second (v3.0.0 LocationsMetadata.ts: $120/s x costMult). Exp is
-// x10 / x1 in Sector-12, x5 / x2 in Aevum, x4 in Volhaven. The better one only with cash for GYM_CASH_SECONDS.
-const GYMS = {
-	"Sector-12": [["Powerhouse Gym", 2400], ["Iron Gym", 120]],
-	"Aevum": [["Snap Fitness Gym", 1200], ["Crush Fitness Gym", 360]],
-	"Volhaven": [["Millenium Fitness Gym", 840]],
-};
-const GYM_CITY = "Sector-12"; // where to fly when the current city has no gym
-const GYM_CASH_SECONDS = 600;
 
 /**
  * Trains the lowest combat stat in the gym until every one reaches the floor (Bladeburner's bladeburner/state.js
