@@ -4,6 +4,7 @@ import { readIncomeRate } from "/utils/income.js";
 import { routeStep } from "/utils/bitnode-route.js";
 import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { hasSingularity } from "/utils/singularity.js";
+import { goOrder } from "/go/go-plan.js";
 
 /**
  * One-screen summary of the run, so you don't have to tail six logs.
@@ -175,9 +176,15 @@ export async function main(ns) {
 	const goData = readJson(ns, GO_FILE) ?? {};
 	const focus = goBot ? argValue(goBot.args, "--opponent") ?? "Netburners" : null;
 	const rotation = parseList(ns.read("go/ipvgo-bot.js"), "ROTATION");
-	const order = focus ? (goBot.args.includes("--no-rotate") ? [focus] : [focus, ...rotation.filter((name) => name !== focus)]) : rotation;
+	const manualRotation = goBot ? argValue(goBot.args, "--rotation") : null;
+	const goPlan = goOrder(ns, config, focus ?? "Netburners", {
+		noPlan: !!goBot?.args.includes("--no-plan"),
+		rotation: manualRotation ? manualRotation.split(",").map((name) => name.trim()) : null,
+	});
+	const order = focus ? (goBot.args.includes("--no-rotate") ? [focus] : goPlan.order) : rotation;
 	const playing = focus ? order.find((name) => goProgress(goData[name]) === "climbing") ?? focus : null;
-	out.push(`Go: ${goBot ? `bot running, focus ${focus}, now playing ${playing}` : "bot not running"}`);
+	out.push(`Go: ${goBot ? `bot running, focus ${focus}, now playing ${playing}` : "bot not running"}` +
+		(goBot && goPlan.boosted.length ? ` | plan boosts ${goPlan.boosted.map((entry) => `${entry.opponent} (${entry.why})`).join(", ")}` : ""));
 	const goParts = order.filter((name) => goData[name]).map((name) => {
 		const entry = goData[name];
 		const recent = entry.wins.slice(-GO_SETTINGS.span);
