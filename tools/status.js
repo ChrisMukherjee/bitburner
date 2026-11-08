@@ -238,6 +238,9 @@ export async function main(ns) {
 		for (const line of post.lines.slice(1)) out.push(`  ${line}`);
 	}
 
+	// --- Darknet: the manager only runs once DarkscapeNavigator.exe is owned (darknet/ready.js) ---
+	out.push("Darknet: " + darknetLine(ns, processes, stage, stageNames));
+
 	// --- Scripts startup.js manages ---
 	const entries = parseStartupScripts(startupText);
 	const level = stageNames.indexOf(stage);
@@ -325,6 +328,23 @@ function repRates(ns, rep, plan, now, lastReset) {
 	}
 	ns.write(REP_FILE, JSON.stringify({ time: now, rep, perSecond }), "w");
 	return { perSecond: { ...planRates, ...perSecond } };
+}
+
+/**
+ * One line on the darknet manager: running, or why not. It starts at the "mid" stage and only once
+ * DarkscapeNavigator.exe is on home (darknet/ready.js), so a missing program is the usual reason.
+ * @param {NS} ns
+ * @param {{ filename: string }[]} processes every running script
+ * @param {string} stage home-RAM stage name
+ * @param {string[]} stageNames stage names in order
+ */
+export function darknetLine(ns, processes, stage, stageNames) {
+	if (processes.some((proc) => proc.filename === "darknet/dnet-manager.js")) return "dnet-manager running (details: tail darknet/dnet-manager.js)";
+	if (!ns.fileExists("DarkscapeNavigator.exe", "home")) {
+		return "not started: DarkscapeNavigator.exe isn't on home yet (buy-programs buys it with the Singularity API, otherwise buy it on the darkweb)";
+	}
+	if (stageNames.indexOf(stage) < stageNames.indexOf("mid")) return `not started: waits for the mid stage (home ${stage} now)`;
+	return "dnet-manager isn't running (startup.js starts it within a minute; if it stays down, run `startup`)";
 }
 
 // "climbing" / "levelled" / "losing", as go/go-bot.js decides it.

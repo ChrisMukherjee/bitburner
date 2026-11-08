@@ -18,7 +18,7 @@ milliseconds, and a fixed bug stays fixed when a test pins it.
   can't pass because the code got `undefined` back.
 - To test a function inside a script, the script exports it. Adding `export` changes neither behaviour nor RAM: the
   static RAM check already charges every function in the script that is run (checked with the offline RAM calculator for
-  the five scripts that gained exports). `buy-augs.js` has `setAugConfig`, which `main` uses too, so tests can set the
+  every script that gained exports). `buy-augs.js` has `setAugConfig`, which `main` uses too, so tests can set the
   reset rule's settings.
 - Tests are `.mjs` files in [`../tests/`](../tests/README.md). filesync only pushes `.js` and `.txt`, so they never
   reach the game; `jsconfig.json` only checks `.js`, so they don't affect type checking either.
@@ -36,10 +36,13 @@ milliseconds, and a fixed bug stays fixed when a test pins it.
 
 - The fake `ns` only knows what each test gives it, so a test checks the logic, not the game's API. Where the API's
   answer matters (formulas, augment stats), the test passes in numbers taken from the game.
-- Not covered yet: the Formulas.exe branch of the batcher, `main` loops and anything driven by timing or many calls in
-  sequence (startup's stages, auto-reset's sell-buy-install order), the Go bot, darknet solvers, the gang and Bladeburner
-  managers, stock trading. These are mostly long `main` functions; split a piece into a pure function first when a bug
-  shows up there.
+- Scripts that start and place other scripts (startup.js, auto-reset.js, install-augs.js) run against
+  [`../tests/support/fake-world.mjs`](../tests/support/fake-world.mjs): servers with RAM, a process table, files copied
+  to servers, with the clock mocked (`t.mock.timers`) for waits. It checks what starts where and in what order, not the
+  real RAM costs (every script is 2GB unless a test says otherwise).
+- Not covered yet: the batcher's main loop (target choice over time, launch timing against a real clock), the Go bot,
+  darknet solvers, the gang and Bladeburner managers, stock trading, player-work beyond the gym. These are mostly long
+  `main` functions; split a piece into a function a test can call when a bug shows up there.
 - RAM is not checked by the tests. The offline port of the game's RAM check needs the game's source and npm packages, so
   it stays a separate tool.
 
@@ -47,5 +50,6 @@ milliseconds, and a fixed bug stays fixed when a test pins it.
 modules (the tests would check a copy, not the synced script); end-to-end runs against the game (the Remote API can't
 drive scripts or read their state).
 
-**Current state:** about 75 tests across the reset rule, home-upgrade hold, Daedalus and Bladeburner settings, batcher
-thread math and landing order, RAM pool, gym and study choice, income curve, augment filter, BitNode route, and repo checks.
+**Current state:** about 110 tests across the reset rule and the reset itself (sell, buy, install), home-upgrade hold,
+Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without Formulas.exe, RAM pool,
+startup.js stages and one-shots, gym and study choice, income curve, augment filter, BitNode route, and repo checks.

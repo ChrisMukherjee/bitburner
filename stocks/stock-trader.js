@@ -23,7 +23,8 @@ const CONFIG = {
 	estimated: {
 		longWindow: 40,
 		shortWindow: 10,
-		minHistory: 15, // ticks of history before trading on a stock
+		minHistory: 15, // ticks of history before a stock may be SOLD on its estimate
+		buyHistory: 40, // ticks before it may be BOUGHT: the buy threshold's 90% bound assumes the full long window
 		buyForecast: 0.6,
 		sellForecast: 0.45, // on the long window
 		flipForecast: 0.35, // on the short window: sell even if the long window still looks fine
@@ -175,7 +176,7 @@ function averageMove(moves) {
  * and expected gain per tick as a fraction of price. Exact with 4S; estimated otherwise.
  */
 function outlook(ns, sym, exactOn, moves) {
-	const view = { sym, ready: true, forecast: 0.5, nearForecast: 0.5 };
+	const view = { sym, ready: true, buyReady: true, forecast: 0.5, nearForecast: 0.5 };
 	if (exactOn) {
 		view.forecast = ns.stock.getForecast(sym);
 		view.nearForecast = view.forecast;
@@ -183,6 +184,7 @@ function outlook(ns, sym, exactOn, moves) {
 	} else {
 		const settings = CONFIG.estimated;
 		view.ready = moves.length >= settings.minHistory;
+		view.buyReady = moves.length >= settings.buyHistory;
 		if (view.ready) {
 			view.forecast = upShare(moves, settings.longWindow);
 			view.nearForecast = upShare(moves, settings.shortWindow);
@@ -241,7 +243,7 @@ function buyBest(ns, outlooks, policy, minTrade, stats) {
 	const perStockCap = CONFIG.maxPerStock * (getCash(ns) + portfolioValue(ns, outlooks.map((view) => view.sym)));
 
 	const candidates = outlooks
-		.filter((view) => view.ready)
+		.filter((view) => view.ready && view.buyReady)
 		.filter((view) => {
 			const limits = thresholds(view);
 			// Without 4S, skip a stock whose last few ticks already point the other way (it may have flipped).

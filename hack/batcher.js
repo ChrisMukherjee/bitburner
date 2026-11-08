@@ -778,7 +778,7 @@ function prepWave(ns, target, ramPool, scriptRam, minSecurity, security, maxMone
  * exactly for min security, which is what it will see when it lands), then a weaken for the
  * grow's security. If it doesn't all fit, the weaken goes first and grow shrinks to fit.
  */
-function prepWaveFormulas(ns, target, ramPool, scriptRam, minSecurity, security, maxMoney, money, ctx) {
+export function prepWaveFormulas(ns, target, ramPool, scriptRam, minSecurity, security, maxMoney, money, ctx) {
 	const fx = ctx.fx;
 	const weakenPerThread = ctx.weakenPerThread;
 	const gap = CONFIG.gapMs;

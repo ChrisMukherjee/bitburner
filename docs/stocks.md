@@ -13,7 +13,9 @@ and [`../stocks/workers/promote-stock.js`](../stocks/workers/promote-stock.js).
   The thresholds are not arbitrary: the up-share over 40 ticks has a standard deviation of about 0.08 around the true
   forecast, so a buy at 0.60 is roughly a 90% one-sided bound against a stock that is really at 0.50. With ~30
   stocks some false buys still happen, which the 0.45 sell line, the 10-tick flip check and the 25% cap contain.
-  Nothing trades until a stock has 15 ticks of history (`minHistory`). 4S is bought by the trader itself when
+  A stock is only bought once it has the full 40 ticks (`buyHistory`), since the 90% bound above assumes the whole window (with 15 ticks the spread
+  is about 0.13, and a 0.60 reading is not much evidence); it may be sold on 15 ticks (`minHistory`). A restart empties the history, so
+  buying resumes a few minutes later. 4S is bought by the trader itself when
   startup.js passes `--buy-4s` (the late-stage entry does).
 - **No stock over 25% of net worth**, so one wrong estimate can't sink everything. Tiny trades are skipped
   because each one pays a flat commission.

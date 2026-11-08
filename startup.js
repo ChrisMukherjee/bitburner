@@ -86,7 +86,7 @@ export const SCRIPTS = [
 	// Where hacking pays nothing (BitNode 8) the stock market is the income, so it starts at the early stage (64GB home) instead of the late one.
 	{ stage: "late", script: "stocks/stock-trader.js", args: ["--buy-4s", "--promote", 32], homeOnly: true, earlyIf: hackIsWorthless },
 ];
-const STAGES = ["start", "early", "mid", "late"];
+export const STAGES = ["start", "early", "mid", "late"];
 // Printed at the end of the first pass when startup.js is run by hand (see the end of main).
 const STATUS_SCRIPT = "/tools/status.js";
 // Home RAM at which "auto" picks each stage: `startupStages` in the config.
@@ -98,7 +98,7 @@ const RESERVE_KEY = "startup.js";
 // What is waiting and why (no room, missing file); read it with `cat data/startup-why.txt`.
 const WHY_FILE = "data/startup-why.txt";
 
-const CONFIG = {
+export const CONFIG = {
 	passMs: 10_000,         // time between passes
 	restartMinMs: 30_000,   // wait before restarting a script that stopped...
 	restartMaxMs: 3_600_000, // ...doubling each time it stops again soon after starting, up to this
@@ -149,18 +149,7 @@ export async function main(ns) {
 	clearGates(ns);
 	releaseRoom(ns, RESERVE_KEY); // a replaced copy's reservation; this one posts its own when needed
 
-	const state = {
-		sf4,
-		restart: flags.restart,
-		askedRestart: flags.restart, // stays true after the first pass (restart is cleared)
-		firstPass: true,
-		stage: "",
-		daemons: new Map(),  // label -> { running, since, stoppedAt, wait }
-		lastShot: new Map(), // label -> time a one-shot was last started
-		reported: new Set(), // messages already printed (no room, missing file)
-		reservedFor: null,   // label of the script room is reserved for off home
-		whyText: null,       // last text written to WHY_FILE
-	};
+	const state = newStartupState(sf4, flags.restart);
 
 	while (true) {
 		runPass(ns, requested, state);
@@ -169,8 +158,24 @@ export async function main(ns) {
 	}
 }
 
+/** What runPass keeps between passes. sf4: singularityInfo(ns); restart: --restart was given. */
+export function newStartupState(sf4, restart) {
+	return {
+		sf4,
+		restart,
+		askedRestart: restart, // stays true after the first pass (restart is cleared)
+		firstPass: true,
+		stage: "",
+		daemons: new Map(),  // label -> { running, since, stoppedAt, wait }
+		lastShot: new Map(), // label -> time a one-shot was last started
+		reported: new Set(), // messages already printed (no room, missing file)
+		reservedFor: null,   // label of the script room is reserved for off home
+		whyText: null,       // last text written to WHY_FILE
+	};
+}
+
 /** One pass: pick the stage, then start what should run and isn't. */
-function runPass(ns, requested, state) {
+export function runPass(ns, requested, state) {
 	const config = loadConfig(ns);
 	const homeRam = ns.getServerMaxRam("home");
 	const stage = requested === "auto"

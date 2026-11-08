@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ROOT, gamePath } from "./support/game-path.mjs";
 import { SCRIPTS } from "/startup.js";
-import { parseStartupScripts, parseList } from "/tools/status.js";
+import { parseStartupScripts, parseList, darknetLine } from "/tools/status.js";
 
 // Folders that never reach the game or aren't ours.
 const SKIP = new Set(["node_modules", "archive", "tests", ".git", "data", ".vscode"]);
@@ -61,6 +61,15 @@ test("tools/status.js reads startup.js's script list the way startup.js has it",
 		stage: entry.stage, script: entry.script, until: entry.until, oneShot: !!entry.oneShot, hasReady: !!entry.ready,
 	}));
 	assert.deepEqual(parsed, actual);
+});
+
+test("tools/status.js says why the darknet manager isn't running", () => {
+	const stages = ["start", "early", "mid", "late"];
+	const ns = (owned) => ({ fileExists: () => owned });
+	assert.match(darknetLine(ns(false), [], "late", stages), /DarkscapeNavigator\.exe/);
+	assert.match(darknetLine(ns(true), [], "early", stages), /mid stage/);
+	assert.match(darknetLine(ns(true), [], "late", stages), /isn't running/);
+	assert.match(darknetLine(ns(false), [{ filename: "darknet/dnet-manager.js" }], "late", stages), /running/);
 });
 
 test("tools/status.js finds the Go bot's opponent rotation", () => {

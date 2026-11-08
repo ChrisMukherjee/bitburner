@@ -91,7 +91,7 @@ export async function main(ns) {
  * Frees home for the buyer, sells stocks, buys, then installs (the install ends this script too).
  * Returns false when it didn't install; then startup.js is running again.
  */
-async function resetNow(ns, plan) {
+export async function resetNow(ns, plan) {
 	for (const proc of ns.ps("home")) {
 		if (proc.pid !== ns.pid) ns.kill(proc.pid);
 	}
