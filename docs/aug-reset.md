@@ -236,6 +236,14 @@ While Daedalus is joined and can't take donations yet:
 3. Otherwise, if it reaches 150 within the horizon: wait for it, then reset.
 4. Otherwise the normal rule decides.
 
+## Tuning from real runs
+
+The settings were checked only against an offline model. [`singularity/install-augs.js`](../singularity/install-augs.js)
+appends one row per install to `data/reset-log.json` (run length, augments bought, the batch's value and value per hour,
+the better later moment the rule was weighing, income), and `run /singularity/reset-log.js` prints it. Compare rows
+before changing `waitMargin`, `maxWaitMinutes` or the weights: a value per hour that keeps falling means resets come
+too late, many short runs with a low rate mean too early. It only records; nothing reads it back.
+
 ## Known limits
 
 - Other factions with 150 favor can sell rep too, and `augments.donations.anyFaction` (on by default, `false` turns it off) uses them.

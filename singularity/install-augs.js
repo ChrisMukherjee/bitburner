@@ -1,5 +1,7 @@
 // Design: docs/aug-reset.md
 const PLAN_FILE = "data/aug-plan.json";
+const RESET_LOG = "data/reset-log.json"; // one line per install, for singularity/reset-log.js (tuning the reset rule)
+const RESET_LOG_KEEP = 40;
 const PLANNER = "singularity/buy-augs.js";
 const PLAN_FRESH_MS = 5 * 60_000; // a plan this new (e.g. buy-augs.js just ran) is used as it is
 // Run with --once --spend-all just before installing: home upgrades survive an install, cash doesn't.
@@ -46,6 +48,7 @@ export async function main(ns) {
 			}
 		}
 	}
+	recordReset(ns);
 	ns.tprint("Installing augments...");
 	// The game returns false when nothing is bought (typed void, but v3.0.0 does); a real install ends this script.
 	if (ns.singularity.installAugmentations(afterReset) === false) {
@@ -87,6 +90,33 @@ async function resetAdvised(ns) {
 	}
 	ns.tprint(`Reset advice: ${plan.decision.reason}`);
 	return true;
+}
+
+/**
+ * Appends what the reset rule saw at this install to data/reset-log.json: run length, what was bought,
+ * the batch's value and value per hour, the best later moment it was weighing and the income then.
+ * singularity/reset-log.js prints it, so the rule's settings can be compared with real runs.
+ */
+function recordReset(ns) {
+	try {
+		const plan = readPlan(ns);
+		const lastAugReset = ns.getResetInfo().lastAugReset;
+		let history = [];
+		try { history = JSON.parse(ns.read(RESET_LOG) || "[]"); } catch { history = []; }
+		const samples = plan?.incomeHistory?.samples ?? [];
+		const current = plan && plan.checkedAt >= lastAugReset; // a plan from before the last install describes the previous run
+		history.push({
+			at: Date.now(),
+			runMinutes: Math.round((Date.now() - lastAugReset) / 60000),
+			bought: plan?.queued?.length ?? 0,
+			value: current ? plan.decision.value : null,
+			rate: current ? plan.decision.rate : null,
+			best: current ? plan.decision.best : null,
+			reason: current ? plan.decision.reason : null,
+			income: samples.length > 0 ? samples[samples.length - 1][1] : null,
+		});
+		ns.write(RESET_LOG, JSON.stringify(history.slice(-RESET_LOG_KEEP)), "w");
+	} catch { /* a log problem must never stop an install */ }
 }
 
 /** The plan file with a decision in it, or null. */
