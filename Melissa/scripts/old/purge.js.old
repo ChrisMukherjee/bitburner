@@ -1,8 +1,0 @@
-/** @param {NS} ns */
-export async function main(ns) {
-    const files = ns.ls("home", "intel_");
-    for (const f of files) {
-        ns.rm(f);
-    }
-    ns.tprint(`[Purge] Successfully deleted ${files.length} intel files.`);
-}

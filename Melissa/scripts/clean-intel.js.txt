@@ -1,6 +1,0 @@
-/** One-shot: deletes leftover intel files from home (dnet-<host>.txt and intel_*). Run by the orchestrator. @param {NS} ns */
-export async function main(ns) {
-    for (const f of ns.ls("home")) {
-        if (f.startsWith("dnet-") || f.startsWith("intel_")) ns.rm(f, "home");
-    }
-}

@@ -1,8 +1,0 @@
-
-let answer = mySolverFunction(data);
-let reward = ns.codingcontract.attempt(answer, filename, server);
-if (reward) {
-    ns.print(`SUCCESS! Reward: ${reward}`);
-} else {
-    ns.print(`FAILED! Answer was incorrect.`);
-}

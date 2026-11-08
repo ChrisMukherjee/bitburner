@@ -1,4 +1,0 @@
-/** One-shot: saves the last augmentation install time to reset-info.txt for hacknet.js and purchase-server-8gb.js. @param {NS} ns */
-export async function main(ns) {
-    ns.write("reset-info.txt", String(ns.getResetInfo().lastAugReset), "w");
-}
