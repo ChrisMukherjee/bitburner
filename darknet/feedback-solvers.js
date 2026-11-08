@@ -1,4 +1,5 @@
-// Solvers for server models that answer each wrong attempt with feedback we can learn from. So far: DeepGreen (Mastermind:
+// Solvers for server models that answer each wrong attempt with feedback we can learn from (plus Pr0verFl0, solved by one
+// overflow guess). So far: DeepGreen (Mastermind:
 // each wrong attempt replies "exact,misplaced") and the Factori-Os model ("The password is divisible by 1 ;)"). The password is a product
 // of primes, and each wrong attempt replies whether the password is divisible by what we sent (data "true"
 // or "false"). We build the password up one prime factor at a time: if it's divisible by found * p, then p
@@ -9,6 +10,8 @@ import { login } from "darknet/auth.js";
 
 export const FACTORIOS_MODEL = "Factori-Os";
 export const DEEPGREEN_MODEL = "DeepGreen";
+export const OVERFLOW_MODEL = "Pr0verFl0";
+const OVERFLOW_LENGTHS = [4, 5, 6, 7]; // the game builds these buffers 4 to 7 bytes long
 const MASTERMIND_MAX_LENGTH = 6; // 10^6 candidates is the most worth holding in memory
 
 // The primes the game builds these passwords from (bitburner-src, DarkNet/controllers/ServerGenerator.ts).
@@ -103,6 +106,43 @@ export async function solveMastermind(ns, host, details, observed = []) {
 		});
 	}
 	return { password: undefined, attempts: attempts.slice(-5) };
+}
+
+/**
+ * Pr0verFl0 (hint "Warning: password buffer is N bytes") needs no search. The game lays out N blanks plus N mask characters,
+ * writes the guess over the start of that buffer, and accepts when the first N characters equal the next N. A guess of 2N
+ * characters whose two halves match therefore always opens it (bitburner-src DarkNet/effects/authentication.ts). What we
+ * store as "the password" is that guess, not the real one; it logs in the same way every time.
+ * Returns undefined when the length is unknown, so callers can fall back to trying every possible length.
+ * @param {number} length
+ */
+export function overflowGuess(length) {
+	return Number.isInteger(length) && length > 0 ? "a".repeat(length * 2) : undefined;
+}
+
+/** Buffer size from the details (`passwordLength`), else from the hint text; undefined if neither says. */
+export function overflowLength(details) {
+	if (details.passwordLength > 0) return details.passwordLength;
+	const match = String(details.passwordHint ?? "").match(/buffer is (\d+) bytes/i);
+	return match ? Number(match[1]) : undefined;
+}
+
+/**
+ * Opens a Pr0verFl0 server with one overflow guess (see overflowGuess). Same return shape as solveDivisibility. With an unknown
+ * length it tries each length the game uses, so a wrong guess can only cost a few failed logins.
+ * @param {NS} ns
+ */
+export async function solveOverflow(ns, host, details) {
+	const known = overflowLength(details);
+	const attempts = [];
+	for (const length of known ? [known] : OVERFLOW_LENGTHS) {
+		const guess = overflowGuess(length);
+		const result = await login(ns, host, guess);
+		if (result.verdict === "ok") return { password: guess, attempts: [] };
+		if (result.verdict === "later") return { later: result };
+		attempts.push({ password: guess, code: result.code, message: result.message, data: result.data });
+	}
+	return { password: undefined, attempts };
 }
 
 /** Mastermind scoring: [exact, misplaced] of guess against code (digit strings, repeats allowed). */

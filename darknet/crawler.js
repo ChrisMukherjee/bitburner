@@ -1,6 +1,6 @@
 // Design: docs/darknet.md
 import { candidatePasswords, fitsDetails } from "darknet/hint-interpreter.js";
-import { FACTORIOS_MODEL, DEEPGREEN_MODEL, solveDivisibility, solveMastermind } from "darknet/feedback-solvers.js";
+import { FACTORIOS_MODEL, DEEPGREEN_MODEL, OVERFLOW_MODEL, solveDivisibility, solveMastermind, solveOverflow } from "darknet/feedback-solvers.js";
 import { readLogs } from "darknet/heartbleed.js";
 import { login } from "darknet/auth.js";
 import {
@@ -118,6 +118,7 @@ async function crack(ns, host, details, passwords) {
 		attempts.push({ password: candidate, code: result.code, message: result.message, data: result.data });
 		logs.wrong.add(candidate);
 	}
+	if (details.modelId === OVERFLOW_MODEL) return await solveOverflow(ns, host, details);
 	if (details.modelId === FACTORIOS_MODEL) return await solveDivisibility(ns, host, details);
 	if (details.modelId === DEEPGREEN_MODEL) return await solveMastermind(ns, host, details, logs.observed);
 	const { candidates } = candidatePasswords(details);
