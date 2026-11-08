@@ -195,6 +195,18 @@ function runPass(ns, requested, state) {
 	let running = ["home", ...hosts].flatMap((host) => ns.ps(host).map((proc) => ({ ...proc, host })));
 	const ourScripts = new Set(SCRIPTS.map((entry) => entry.script));
 
+	// The multipliers can be saved after the batcher started (batcherReady stops waiting for them after 2 minutes). Once they say
+	// hacking pays almost nothing, stop it so share and the XP farm get its RAM. hackWorth.enabled: false or mechanicGates.force
+	// keeps it (hackIsWorthless is then false).
+	if (hackIsWorthless(ns, config)) {
+		const batchers = running.filter((proc) => proc.filename === "hack/batcher.js");
+		for (const proc of batchers) ns.kill(proc.pid);
+		if (batchers.length > 0) {
+			running = running.filter((proc) => proc.filename !== "hack/batcher.js");
+			notify(ns, "[startup]", "stopped hack/batcher.js: the BitNode multipliers say hacking pays almost nothing here (set hackWorth.enabled to false to hack anyway).", "warning");
+		}
+	}
+
 	// --restart: stop every copy of our scripts once, so this pass starts them with the current code.
 	if (state.restart) {
 		for (const proc of running) if (ourScripts.has(proc.filename)) ns.kill(proc.pid);

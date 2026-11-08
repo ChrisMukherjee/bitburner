@@ -40,8 +40,8 @@ multipliers also cancel when ranking targets, because every target is scaled the
    startup.js doesn't start the batcher ([`hack/ready.js`](../hack/ready.js)), so share and the XP farm get the RAM. Chosen
    over a mode inside the batcher: grow and weaken without hack earn nothing. Cost: stock influence (it runs through the
    batcher's workers) stops too. Overrides: `hackWorth.enabled: false` or `mechanicGates.force`. It waits up to 2 minutes
-   for the multipliers to be saved at the start of a run, then starts the batcher anyway. A running batcher is not
-   stopped; the check applies when startup.js starts it. In that case the stock trader moves from the late to the
+   for the multipliers to be saved at the start of a run, then starts the batcher anyway. If the multipliers turn up after the
+   batcher started (the wait timed out), startup.js stops it on its next pass and says so once. In that case the stock trader moves from the late to the
    early stage (`earlyIf` in startup.js), since the market is then the income; its ~26GB still needs a 64GB home.
    An influence-only grow/hack worker for the stock servers is not built; design it from a real BitNode 8 run.
 5. **Reset rule:** `PRICE_MULT` 1.9 and the NeuroFlux 1.14 are game constants, not BitNode multipliers

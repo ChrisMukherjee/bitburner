@@ -51,7 +51,8 @@ export function suggestedStep(ns, plan, mults) {
 	const scored = inTier.map((step) => ({ step, score: easeScore(mults?.other(step.bitNode)) }));
 	const known = mults?.known && scored.some((item) => item.score !== 0);
 	const best = known ? scored.reduce((a, b) => (b.score > a.score ? b : a)) : scored[0];
-	const why = known && inTier.length > 1 ? `tier ${tier}, easiest multipliers of ${inTier.map((step) => step.bitNode).join("/")}` : `tier ${tier} of the plan`;
+	const scores = scored.map((item) => `${item.step.bitNode}: ${item.score >= 0 ? "+" : ""}${item.score.toFixed(2)}`).join(", ");
+	const why = known && inTier.length > 1 ? `tier ${tier}, easiest multipliers of ${inTier.map((step) => step.bitNode).join("/")} (ease ${scores})` : `tier ${tier} of the plan`;
 	return { bitNode: best.step.bitNode, level: best.step.level, why };
 }
 

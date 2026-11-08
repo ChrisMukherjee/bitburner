@@ -19,14 +19,14 @@ const CONFIG = {
 
 /**
  * Hacking XP from idle RAM: fills what the batcher leaves free with weaken threads on a cheap target
- * (xpFarm.target, joesguns), which pay XP every time they finish. Waves like share/share-manager.js: a
+ * (xpFarm.target, or "auto": the rooted server with the most XP per thread-second), which pay XP every time they finish. Waves like share/share-manager.js: a
  * wave ends before the next starts, so the batcher always sees freed RAM first and this only gets
  * leftovers. Keeps free the larger of xpFarm.headroom of the network's RAM and the batcher's claim (port 31).
  * Stands down while share/share-manager.js is running (it uses the same spare RAM).
  *
  *   run /hack/xp-farm.js                     home + purchased + rooted servers
  *   run /hack/xp-farm.js --no-home           leave home alone
- *   run /hack/xp-farm.js --target n00dles    another target
+ *   run /hack/xp-farm.js --target n00dles    another target ("auto" picks the best one each wave)
  *   run /hack/xp-farm.js --max-threads 500   cap threads per wave
  */
 /** @param {NS} ns */
@@ -34,16 +34,17 @@ export async function main(ns) {
 	ns.disableLog("ALL");
 	const settings = loadConfig(ns).xpFarm;
 	const flags = ns.flags([["no-home", false], ["target", settings.target], ["headroom", settings.headroom], ["max-threads", 0]]);
-	const target = String(flags.target);
+	const requested = String(flags.target);
 
 	const workerRam = ns.getScriptRam(WORKER, "home");
 	if (workerRam <= 0) { notify(ns, "[xp]", `missing ${WORKER} on home. Aborting.`, "error", true); return; }
-	if (!ns.serverExists(target)) { notify(ns, "[xp]", `target ${target} does not exist.`, "error", true); return; }
+	if (requested !== "auto" && !ns.serverExists(requested)) { notify(ns, "[xp]", `target ${requested} does not exist.`, "error", true); return; }
 
 	const synced = new Set();
 	let lastLog = 0;
 	let lastState = "";
 	while (true) {
+		const target = requested === "auto" ? bestTarget(ns, settings.maxWaveSeconds ?? 300) : requested;
 		if (ns.isRunning(SHARE_SCRIPT, "home") && doingFactionWork(ns)) {
 			lastState = "[xp] idle: share-manager is using the spare RAM";
 			await ns.sleep(CONFIG.idleCheckMs);
@@ -92,6 +93,26 @@ export async function main(ns) {
 		lastState = state;
 		await ns.sleep(launched > 0 ? ns.getWeakenTime(target) + 200 + CONFIG.waveGapMs : CONFIG.idleCheckMs);
 	}
+}
+
+/**
+ * The server that pays the most hacking XP per weaken thread-second: XP per thread is 3 + 0.3 x the server's base
+ * security (the game's formula), a wave lasts one weaken time. Only rooted servers you can hack with money on them
+ * (not purchased servers or home), and a weaken time under maxWaveSeconds, so a wave doesn't hold RAM the batcher wants
+ * for minutes. Falls back to joesguns, the usual cheap choice.
+ */
+function bestTarget(ns, maxWaveSeconds) {
+	let best = "joesguns";
+	let bestRate = 0;
+	for (const server of getAllServers(ns)) {
+		if (server === "home" || ns.dnet.isDarknetServer(server) || !ns.hasRootAccess(server)) continue;
+		if (ns.getServerMaxMoney(server) <= 0 || ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) continue;
+		const seconds = ns.getWeakenTime(server) / 1000;
+		if (seconds > maxWaveSeconds) continue;
+		const rate = (3 + 0.3 * ns.getServerBaseSecurityLevel(server)) / seconds;
+		if (rate > bestRate) { bestRate = rate; best = server; }
+	}
+	return ns.serverExists(best) ? best : "joesguns";
 }
 
 /** True during faction work (when share-manager shares). False without the Singularity API. */

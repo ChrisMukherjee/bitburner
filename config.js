@@ -360,8 +360,10 @@ export const DEFAULTS = {
 	},
 
 	// XP farm (hack/xp-farm.js): weakens a cheap target with RAM the batcher leaves free, for hacking XP.
-	// target: any rooted server you can hack; headroom: share of the network's RAM always left free for the batcher.
-	xpFarm: { target: "joesguns", headroom: 0.15 },
+	// target: "auto" picks the rooted server with the most XP per thread-second whose weaken takes under maxWaveSeconds
+	// (re-picked every wave), or name any rooted server you can hack (joesguns was the old fixed choice); headroom: share of
+	// the network's RAM always left free for the batcher.
+	xpFarm: { target: "auto", headroom: 0.15, maxWaveSeconds: 300 },
 
 	// Where auto-destroy.js goes after w0r1d_d43m0n: the first entry whose Source-File level
 	// isn't reached yet (counting the level this destroy gives). When all are done it waits for you.
