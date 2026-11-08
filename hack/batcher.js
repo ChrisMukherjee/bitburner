@@ -6,6 +6,7 @@ import { nukeAllServers } from "/utils/nuke-all.js";
 import { buildRamPool, allocate, threadCapacity, freeRamTotal } from "/utils/ram-pool.js";
 import { isHackable, hasFormulas, preppedServer } from "/utils/targets.js";
 import { postIncomeRate } from "/utils/income.js";
+import { bitnodeMults } from "/utils/bitnode-mults.js";
 
 const WORKER_SCRIPTS = {
 	hack: "/hack/workers/hack.js",
@@ -51,7 +52,7 @@ const CONFIG = {
 	// Game constants (not BitNode-scaled), used instead of hackAnalyzeSecurity/growthAnalyzeSecurity (1GB each)
 	hackSecurityPerThread: 0.002,
 	growSecurityPerThread: 0.004,
-	defaultWeakenPerThread: 0.05, // until target-stats.js has measured the real value (BitNode-scaled)
+	defaultWeakenPerThread: 0.05, // until target-stats.js has measured the real value; scaled by ServerWeakenRate when the multipliers are known
 	coreBonusPerCore: 1 / 16, // each home core past the first adds this to grow and weaken power on home
 };
 
@@ -181,7 +182,7 @@ export async function main(ns) {
 		const ctx = {
 			fx,
 			stats: fx ? null : stats,
-			weakenPerThread: fx ? ns.formulas.hacking.weakenEffect(1) : stats?.weakenPerThread ?? CONFIG.defaultWeakenPerThread,
+			weakenPerThread: fx ? ns.formulas.hacking.weakenEffect(1) : stats?.weakenPerThread ?? CONFIG.defaultWeakenPerThread * bitnodeMults(ns).get("ServerWeakenRate"),
 			// Grow and weaken run on home are this much stronger per thread (1 + 1/16 per extra core)
 			homeBonus: 1 + Math.max(0, (stats?.homeCores ?? 1) - 1) * CONFIG.coreBonusPerCore,
 			flight,

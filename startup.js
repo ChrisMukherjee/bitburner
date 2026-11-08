@@ -10,6 +10,7 @@ import { gangReady } from "/gang/ready.js";
 import { dnetReady } from "/darknet/ready.js";
 import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
 import { pservReady } from "/pserv/ready.js";
+import { bitnodeMultsReady } from "/utils/sf5.js";
 import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady, playerWorkReady, donateReady } from "/singularity/ready.js";
 
 // Every script startup.js runs, in priority order: earlier entries get RAM first.
@@ -32,6 +33,8 @@ const SCRIPTS = [
 	// most of the free servers' RAM; everything else waits for the early stage (more home RAM).
 	{ stage: "start", script: "singularity/upgrade-home-ram.js", args: ["--once"], oneShot: true, every: 10_000, ready: homeRamReady },
 	{ stage: "start", script: "singularity/buy-programs.js", args: ["--once"], oneShot: true, every: 10_000, ready: programsReady },
+	// With BitNode 5 or Source-File 5: saves the BitNode multipliers once per run for utils/bitnode-mults.js (4GB, for a moment).
+	{ stage: "start", script: "tools/save-bitnode-mults.js", oneShot: true, every: 30_000, ready: bitnodeMultsReady },
 	{ stage: "start", script: "hack/batcher.js" },
 	// Invites and backdoors from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.
 	{ stage: "start", script: "singularity/join-factions.js", args: ["--once"], oneShot: true, every: 60_000 },

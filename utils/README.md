@@ -7,6 +7,8 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`config.js`](config.js) | `loadConfig`: defaults, per-BitNode section and `data/config.json` merged. Design: [`docs/config.md`](../docs/config.md) | 0GB |
 | [`aug-filter.js`](aug-filter.js) | `wantedBoosts`: the one "worth buying" rule for augments; `augValue` for the reset rule, with money stats weighed by the income mix. Design: [`docs/config.md`](../docs/config.md) | 0GB |
 | [`bitnode-route.js`](bitnode-route.js) | Next BitNode from `bitnodeRoute` | 1GB |
+| [`bitnode-mults.js`](bitnode-mults.js) | `bitnodeMults(ns).get(name)`: the BitNode multipliers saved this run, 1 each when unknown (no Source-File 5). Design: [`docs/bitnode-mults.md`](../docs/bitnode-mults.md) | 0GB |
+| [`sf5.js`](sf5.js) | Whether this run can read the BitNode multipliers (BitNode 5 or Source-File 5), and the ready check for startup.js | 1GB |
 | [`singularity.js`](singularity.js) | Whether this run can use the Singularity API | 1GB |
 | [`gyms.js`](gyms.js) | Gym tables (stats, gyms per city, cost) shared by player-work.js and start-gang.js | 0GB |
 | [`gang.js`](gang.js) | What this run can do with gangs; the one place with per-BitNode gang rules | 1GB |
