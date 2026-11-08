@@ -3,7 +3,11 @@
 //        run /tools/clean-home.js /tools/exploits/ --yes  (deletes)
 //        run /tools/clean-home.js --all --yes             (everything except protected files)
 // A name with an extension (e.g. /old.js) matches that one file; anything else is a folder prefix.
-// Protected unless --include-data: everything under data/ (saved config and state). The script itself is always kept.
+// Kept unless you pass a flag:
+//   data/ (saved config and state)            --include-data
+//   .txt .lit .msg .exe files                 --include-misc
+//   /startup.js, only when using --all        --include-startup
+// The script itself is always kept.
 
 /** @param {NS} ns */
 export async function main(ns) {
@@ -11,13 +15,16 @@ export async function main(ns) {
     ["all", false],
     ["yes", false],
     ["include-data", false],
+    ["include-misc", false],
+    ["include-startup", false],
   ]);
   const targets = flags._.map(String);
   if (!flags.all && targets.length === 0) {
     ns.tprint("Usage: run /tools/clean-home.js <folder/ or file> [more ...] [--yes]");
     ns.tprint("       run /tools/clean-home.js --all [--yes] [--include-data]");
     ns.tprint("Dry run by default: lists what would be deleted. Add --yes to delete.");
-    ns.tprint("data/ is kept unless you pass --include-data.");
+    ns.tprint("Kept unless you pass the flag: data/ (--include-data), .txt .lit .msg .exe files (--include-misc),");
+    ns.tprint("and startup.js when using --all (--include-startup).");
     return;
   }
 
@@ -26,7 +33,14 @@ export async function main(ns) {
   const all = ns.ls("home").map(stripSlash);
 
   const picked = [];
+  const reportKept = () => {
+    if (keptData) ns.tprint(`Kept ${keptData} file(s) under data/ (--include-data removes them).`);
+    if (keptMisc) ns.tprint(`Kept ${keptMisc} .txt/.lit/.msg/.exe file(s) (--include-misc removes them).`);
+    if (keptStartup) ns.tprint("Kept /startup.js (--include-startup removes it).");
+  };
   let keptData = 0;
+  let keptMisc = 0;
+  let keptStartup = 0;
   for (const file of all) {
     if (file === self) continue;
     if (!flags.all && !matchers.some((m) => m(file))) continue;
@@ -34,11 +48,20 @@ export async function main(ns) {
       keptData++;
       continue;
     }
+    if (MISC.test(file) && !flags["include-misc"]) {
+      keptMisc++;
+      continue;
+    }
+    if (flags.all && file === "startup.js" && !flags["include-startup"]) {
+      keptStartup++;
+      continue;
+    }
     picked.push(file);
   }
 
   if (picked.length === 0) {
-    ns.tprint("Nothing to delete." + (keptData ? ` (${keptData} file(s) under data/ kept; add --include-data to remove them)` : ""));
+    ns.tprint("Nothing to delete.");
+    reportKept();
     return;
   }
 
@@ -46,7 +69,7 @@ export async function main(ns) {
   const verb = flags.yes ? "Deleting" : "Would delete";
   ns.tprint(`${verb} ${picked.length} file(s):`);
   for (const file of picked) ns.tprint("  /" + file);
-  if (keptData) ns.tprint(`Kept ${keptData} file(s) under data/ (add --include-data to remove them).`);
+  reportKept();
 
   if (!flags.yes) {
     ns.tprint("Dry run only. Run again with --yes to delete.");
@@ -64,6 +87,8 @@ export async function main(ns) {
     ns.tprint("Could not remove (a running script?): " + failed.map((f) => "/" + f).join(", "));
   }
 }
+
+const MISC = /\.(txt|lit|msg|exe)$/i;
 
 function stripSlash(path) {
   return path.replace(/^\/+/, "");
