@@ -295,6 +295,9 @@ function decideReset(context) {
 	if (sinceInstallMs < RESET_RULE.minRunMinutes * 60_000) {
 		return result(false, `Run is only ${minutes(sinceInstallMs)} old (minimum ${RESET_RULE.minRunMinutes} min). ${count} ready, worth ${speed(now)}.`);
 	}
+	if (RESET_RULE.holdForQueued != null && count < RESET_RULE.holdForQueued) {
+		return result(false, `${count} ready, holding the reset until ${RESET_RULE.holdForQueued} are ready (resetRule.holdForQueued, for the "It's time to install" achievement).`);
+	}
 	if (!ratesMeasured && upcoming.length > 0) {
 		return result(false, `${count} ready, worth ${speed(now)}. Measuring rep rates before deciding (next check).`);
 	}

@@ -109,6 +109,10 @@ export const DEFAULTS = {
 			specialValue: { "Neuroreceptor Management Implant": 0.25, "CashRoot Starter Kit": 0.05 },
 			overheadMinutes: 5,   // fixed cost of one reset, added to the run age
 			minRunMinutes: 30,    // never reset a run younger than this
+			// null: off. A number holds the reset until that many augments (NeuroFlux levels count) are ready to
+			// install, e.g. 40 once for the "It's time to install" achievement (40 queued at once). The key aug,
+			// the Daedalus push and the end-game rule still reset first. Turn it back to null afterwards.
+			holdForQueued: null,
 			waitMargin: 0.05,     // wait only if a later moment beats now by more than 5% per hour
 			horizonHours: 6,      // how far ahead the forecast looks
 			// Only moments this close count as a better "later", so a forecast that keeps promising a

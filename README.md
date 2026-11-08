@@ -163,6 +163,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | [`bladeburner/`](bladeburner/README.md) | Bladeburner: state manager, action pass and route estimate |
 | [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links |
 | [`go/`](go/README.md) | IPvGO bot |
+| [`achievements/`](achievements/README.md) | Which achievements the scripts earn by themselves, which need a step, and how |
 | [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks, exploit achievements |
 | [`utils/`](utils/README.md) | Shared helpers |
 | [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do, and [which BitNodes to do first](docs/bitnode-order.md) |
@@ -181,6 +182,7 @@ Which scripts need which BitNode, Source-File or item is not decided per folder:
 | `SF2` | Gang API: BitNode 2, or Source-File 2 (outside BitNode 2 the gang also needs karma -54,000) | [`utils/gang.js`](utils/gang.js) |
 | `SF6/7` | Bladeburner API: BitNode 6 or 7, or Source-File 6 or 7 | [`utils/bladeburner.js`](utils/bladeburner.js) |
 | `SF5` | BitNode multipliers: BitNode 5, or Source-File 5 (also gives Formulas.exe and the Intelligence stat) | [`utils/sf5.js`](utils/sf5.js) |
+| `SF14.2` | IPvGO cheat API (`ns.go.cheat`): Source-File 14 level 2 | `ns.go.getCheatSuccessChance()` in [`go/anticheat.js`](go/anticheat.js) |
 | `Formulas` | `Formulas.exe` on home | `ns.fileExists("Formulas.exe", "home")` |
 | `Darknet` | `DarkscapeNavigator.exe` on home (the darknet API) | [`darknet/ready.js`](darknet/ready.js) |
 | `TIX`, `4S` | Stock market API access and 4S market data; stock-trader buys them itself, so it only waits for cash | `ns.stock.hasTixApiAccess()` |

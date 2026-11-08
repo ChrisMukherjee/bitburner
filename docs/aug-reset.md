@@ -18,6 +18,7 @@ On top of that:
 - The Red Pill ready: reset at once (`keyAugs`).
 - No reset in the first `minRunMinutes` (30), and none before rep rates are measured.
 - Daedalus rule (`daedalusFavor`), see below.
+- Optional hold (`holdForQueued`, off by default): no ordinary reset until that many augments are ready, e.g. 40 once for the "It's time to install" achievement. The key aug, Daedalus push and end-game rule still win.
 - Guarantee (off by default, `maxRunHours: null`): a run at least `maxRunHours` old resets once the
   batch is worth at least x`guaranteeSpeed`, whatever the forecast says.
 
