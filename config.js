@@ -319,6 +319,22 @@ export const DEFAULTS = {
 	// port 36 (plan.route) wins over this. Black Ops done = the BitNode can end without w0r1d_d43m0n.
 	bladeburner: { route: "combat" },
 
+	// Go bot (go/ipvgo-bot.js, go/go-plan.js). rotation: the order it moves on to once the focus opponent's bonus
+	// levels off. planAware: opponents in `boosts` jump the queue while the plan uses their bonus (gang running ->
+	// crime/combat bonus, Bladeburner running -> combat stats, an open Daedalus rep goal -> rep gain); false, or
+	// `--no-plan` / `--rotation` on the bot, keeps the plain order. Opponent names: Netburners (hacknet),
+	// Slum Snakes (crime success), The Black Hand (hacking money), Tetrads (combat stats), Daedalus (rep gain),
+	// Illuminati (hack/grow/weaken speed).
+	go: {
+		planAware: true,
+		rotation: ["The Black Hand", "Daedalus", "Illuminati", "Netburners", "Tetrads", "Slum Snakes"],
+		boosts: {
+			gang: ["Slum Snakes", "Tetrads"],
+			bladeburner: ["Tetrads"],
+			repGoals: ["Daedalus"],
+		},
+	},
+
 	// XP farm (hack/xp-farm.js): weakens a cheap target with RAM the batcher leaves free, for hacking XP.
 	// target: any rooted server you can hack; headroom: share of the network's RAM always left free for the batcher.
 	xpFarm: { target: "joesguns", headroom: 0.15 },
