@@ -13,6 +13,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`config.md`](config.md): one settings file with presets and per-player overrides, instead of per-BitNode copies.
 - [`aug-reset.md`](aug-reset.md): when to buy and install augments (value per hour of run).
 - [`player-work.md`](player-work.md): one script owns the player; real rep goals; which city factions to join.
+- [`NETSCRIPT.md`](NETSCRIPT.md): not a design note; the coding rules and port list to follow when writing scripts.
 - [`ram.md`](ram.md): static RAM rules, one-shot helpers and where they run.
 - [`darknet.md`](darknet.md): hint-driven cracking, earning, stasis links, no backdoors.
 - [`stocks.md`](stocks.md): longs only, 4S or estimates, steering prices through the batcher.

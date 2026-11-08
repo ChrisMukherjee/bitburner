@@ -12,7 +12,7 @@ Scripts are charged RAM up front by a static check, so RAM shapes the design mor
   ([`../contracts/workers/`](../contracts/workers/): the contract solver; [`../stocks/workers/`](../stocks/workers/): buying market access; [`../hack/workers/`](../hack/workers/): target stats;
   [`../singularity/workers/`](../singularity/workers/): faction goals, the city plan; [`../gang/workers/`](../gang/workers/)). The long-running manager stays small and
   pays the helper's RAM only for the moment it runs. Helpers report back on a port (list in
-  [`../AGENTS.md`](../AGENTS.md)) and are started by path, never imported, or their cost would be charged
+  [`NETSCRIPT.md`](NETSCRIPT.md)) and are started by path, never imported, or their cost would be charged
   to the caller.
 - **Pure logic is free.** [`../go/choose-move.js`](../go/choose-move.js) and [`../config.js`](../config.js)
   make no NS calls, so importing them costs nothing.

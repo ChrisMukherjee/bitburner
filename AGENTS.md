@@ -36,14 +36,7 @@ Each BitNode adds a mechanic. These rules keep the scripts from growing a branch
 
 ## Coding gotchas
 
-- **RAM check matches names.** The static RAM checker charges any identifier named like an NS function (a local helper `attempt` cost 10GB, `window` 25GB). Never name helpers `attempt`, `hack`, `grow`, `weaken`, `spawn`, `exec`, `run`, `kill`, `scan`, `share`, `window`, etc.
-- **Income:** never use `ns.getTotalScriptIncome` for money income (batcher hack workers exit on payout, so it reads ~$0). Use `readIncomeRate(ns)` from [`utils/income.js`](utils/income.js).
-- **Alerts:** use `notify(ns, tag, message, variant, terminal)` from [`utils/notify.js`](utils/notify.js) (0GB). FYI/good news = toast only. Things the user must act on = `terminal = true` (sticky toast + terminal line + log). Routine chatter = `ns.print` only. Announce once, or only on change.
-- **Ports** (keep unique; add new ones here and in README.md):
-  20 darknet, 21 stock influence, 22 hacked total, 23 faction goals, 24 income rate, 25 city plan, 26 stock summary, 27 target stats, 28 gang summary, 29 gang equipment, 30 gang invite, 31 batcher RAM claim, 32 contract failures, 33 one-shot gates, 34 RAM reservations, 35 player-work state, 36 Bladeburner state, 37 last pass of each one-shot (utils/pass-log.js, for tools/debug-report.js), 38 income mix by source (utils/income-mix.js, for the augment weights).
-- **Player focus:** only [`singularity/player-work.js`](singularity/player-work.js) starts or stops player work (study, gang-invite crimes, faction, company) or travels. Add new player activities to it rather than writing another script that fights it for the player. The one exception is [`singularity/player-work-start.js`](singularity/player-work-start.js), its small stand-in for the start stage (below 64GB home), when player-work.js fits nowhere; the two never run in the same stage.
-- Move heavy, rarely used NS calls into one-shot worker scripts (in the concept's own `workers/` subfolder) to keep manager RAM low.
-- After editing a batcher worker ([`hack/workers/hack.js`](hack/workers/hack.js), [`grow.js`](hack/workers/grow.js), [`weaken.js`](hack/workers/weaken.js)), the batcher must be restarted.
+Before writing or changing a script, read [`docs/NETSCRIPT.md`](docs/NETSCRIPT.md): RAM-checker name matching, income, alerts, the port list, who owns player focus, and when to use one-shot workers.
 
 ## Sync to the game
 
@@ -81,5 +74,5 @@ Update docs in the same change as the code, not later.
 - **Folder READMEs**: every script must be listed in its folder's `README.md`, one line with what it does, its flags, its RAM cost and a link to its [`docs/`](docs/) note if it has one. Update the line in the same change when any of these change. A new folder gets a README and a row in the root README.
 - **[README.md](README.md)**: update it when folders, aliases, ports or achievements (BitNode table, Go record) change, or when a script's behaviour changes in a way it describes.
 - **[archive/README.md](archive/README.md)**: add a line (what the file did, what the next version changed) whenever a file is archived or removed.
-- **AGENTS.md**: update it when a project rule, convention or port changes.
+- **AGENTS.md** and **[docs/NETSCRIPT.md](docs/NETSCRIPT.md)**: update them when a project rule, convention or port changes (ports and coding gotchas live in NETSCRIPT.md).
 - **Links:** in docs (READMEs, AGENTS.md), write references to repo files and folders as relative Markdown links, relative to the doc they are in, so they work on GitHub: [`tools/exploits/README.md`](tools/exploits/README.md) from the root README, `../hack/batcher.js` from `archive/README.md`. Only link paths that exist in the repo. Leave in-game commands (`run /tools/status.js`), code blocks and in-game files (`data/config.json`) as plain code.

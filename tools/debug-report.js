@@ -1,7 +1,7 @@
 // Design: docs/debug-report.md
 import { readPasses, PASS_PORT } from "/utils/pass-log.js";
 
-// Every port the scripts use (see AGENTS.md), by name, for the report
+// Every port the scripts use (see docs/NETSCRIPT.md), by name, for the report
 const PORTS = {
 	20: "darknet", 21: "stock influence", 22: "hacked total", 23: "faction goals", 24: "income rate", 25: "city plan",
 	26: "stock summary", 27: "target stats", 28: "gang summary", 29: "gang equipment", 30: "gang invite", 31: "batcher RAM claim",
