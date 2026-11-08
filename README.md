@@ -129,7 +129,7 @@ Settings that should differ by BitNode go in a `bitnodes` section keyed by BitNo
 current BitNode's entry applies automatically; [`startup.js`](startup.js) records which BitNode you're in
 (`data/bitnode.txt`), so run it once in a new BitNode before relying on them.
 
-With Source-File 5, [`startup.js`](startup.js) also leaves out hacknet or the gang in a BitNode whose multiplier for them is below 0.1 (`mechanicGates` in the config; `force` or `enabled: false` overrides it).
+With Source-File 5, [`startup.js`](startup.js) also does not start the batcher where hacking pays almost nothing (`hackWorth` in the config) and leaves out hacknet or the gang in a BitNode whose multiplier for them is below 0.1 (`mechanicGates` in the config; `force` or `enabled: false` overrides it).
 
 ### Planning your BitNode route and settings
 
