@@ -13,6 +13,8 @@ const WORKER = "singularity/workers/destroy-daemon.js"; // holds the 32GB destro
  *   run singularity/next-bitnode.js 4    finish this BitNode, start BitNode 4 again
  *   run singularity/next-bitnode.js 5    finish it and go to BitNode 5
  *
+ * If anything is missing it prints "NOT ready"/"NOT proceeding" and the missing piece, and does nothing else:
+ * the BitNode is not ended and the next one is not set. Only the "PROCEEDING" lines mean it went ahead.
  * Needs The Red Pill installed and your hacking level at w0r1d_d43m0n's requirement.
  * This file only checks and is small (about 3GB). The destroy call itself (32GB in BitNode 4 or with
  * SF4.3, 16x at SF4.1) is in workers/destroy-daemon.js, which this hands over to as its last step, so
@@ -22,33 +24,33 @@ const WORKER = "singularity/workers/destroy-daemon.js"; // holds the 32GB destro
 export async function main(ns) {
 	const nextBN = Number(ns.args[0]);
 	if (!Number.isInteger(nextBN) || nextBN < 1) {
-		ns.tprint("Usage: run singularity/next-bitnode.js <BitNode number>, e.g. 4");
+		ns.tprint("NOT proceeding: no BitNode number given. Usage: run /singularity/next-bitnode.js <BitNode number>, e.g. 4");
 		return;
 	}
 	if (!ns.fileExists(AFTER, "home")) {
-		ns.tprint(`${AFTER} isn't on home; not leaving the BitNode without it.`);
+		ns.tprint(`NOT proceeding, still in this BitNode: ${AFTER} isn't on home, and the next BitNode would start with nothing to run.`);
 		return;
 	}
 	if (blackOpsDone(ns)) {
-		ns.tprint(`Every Black Op is done: ending the BitNode without hacking ${DAEMON}.`);
+		ns.tprint(`Every Black Op is done: PROCEEDING, ending this BitNode without hacking ${DAEMON}.`);
 		destroy(ns, nextBN);
 		return;
 	}
 	if (!ns.serverExists(DAEMON)) {
-		ns.tprint(`${DAEMON} doesn't exist yet: install The Red Pill first.`);
+		ns.tprint(`NOT ready, still in this BitNode, BitNode ${nextBN} NOT set: ${DAEMON} doesn't exist yet. Missing: The Red Pill installed.`);
 		return;
 	}
 	const needed = ns.getServerRequiredHackingLevel(DAEMON);
 	if (ns.getHackingLevel() < needed) {
-		ns.tprint(`Hacking ${ns.getHackingLevel()} of ${needed} needed for ${DAEMON}.`);
+		ns.tprint(`NOT ready, still in this BitNode, BitNode ${nextBN} NOT set: hacking level ${ns.getHackingLevel()} of ${needed} needed for ${DAEMON}. Missing: ${needed - ns.getHackingLevel()} more hacking levels.`);
 		return;
 	}
 	nukeAllServers(ns); // root it if the batcher hasn't yet
 	if (!ns.hasRootAccess(DAEMON)) {
-		ns.tprint(`No root on ${DAEMON} yet (it needs 5 open ports).`);
+		ns.tprint(`NOT ready, still in this BitNode, BitNode ${nextBN} NOT set: no root on ${DAEMON}. Missing: 5 open ports (the port-opening programs).`);
 		return;
 	}
-	ns.tprint(`Destroying ${DAEMON}, next stop BitNode ${nextBN}...`);
+	ns.tprint(`All checks passed: PROCEEDING. Destroying ${DAEMON}, next stop BitNode ${nextBN}...`);
 	destroy(ns, nextBN);
 }
 
@@ -56,7 +58,7 @@ export async function main(ns) {
 function destroy(ns, nextBN) {
 	const need = ns.getScriptRam(WORKER);
 	if (ns.getServerMaxRam("home") < need) {
-		ns.tprint(`Home has ${ns.format.ram(ns.getServerMaxRam("home"))}; destroying ${DAEMON} needs ${ns.format.ram(need)} free. Upgrade home RAM first.`);
+		ns.tprint(`NOT proceeding, still in this BitNode, BitNode ${nextBN} NOT set: home has ${ns.format.ram(ns.getServerMaxRam("home"))} but destroying ${DAEMON} needs ${ns.format.ram(need)}. Missing: home RAM upgrade.`);
 		return;
 	}
 	ns.spawn(WORKER, { threads: 1, spawnDelay: 0 }, nextBN, AFTER);
