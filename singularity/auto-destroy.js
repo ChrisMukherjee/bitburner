@@ -1,14 +1,15 @@
 import { loadConfig } from "/utils/config.js";
+import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 import { notify } from "/utils/notify.js";
 import { blackOpsDone } from "/bladeburner/state.js";
-import { nextRouteStep } from "/utils/bitnode-route.js";
+import { routeStep } from "/utils/bitnode-route.js";
 
 const DAEMON = "w0r1d_d43m0n";
 const DESTROYER = "singularity/next-bitnode.js";
 const LOOP_MS = 60_000;
 
-// Which BitNode to go to next: `bitnodeRoute` in the config (config.js, data/config.json),
+// Which BitNode to go to next: `bitnodeRoute` in the config, else (bitnodeRouteAuto) the suggestion from bitnodePlan (config.js, data/config.json),
 // a list of { bitNode, level }, read by utils/bitnode-route.js. The first entry whose Source-File level isn't reached yet wins,
 // counting the level this destroy is about to give. When every entry is done, it waits for
 // you to pick (run next-bitnode.js <n>, or use --bn). It never backdoors w0r1d_d43m0n itself, so the
@@ -32,7 +33,7 @@ const LOOP_MS = 60_000;
 export async function main(ns) {
 	ns.disableLog("ALL");
 	const flags = ns.flags([["bn", 0], ["dry", false]]);
-	const route = loadConfig(ns).bitnodeRoute;
+	const config = loadConfig(ns);
 
 	let lastWaiting = "";
 	let toldReady = false;
@@ -45,9 +46,12 @@ export async function main(ns) {
 			continue;
 		}
 
-		const nextBN = flags.bn > 0 ? flags.bn : (nextRouteStep(ns, route)?.bitNode ?? null);
+		const step = routeStep(ns, config, bitnodeMults(ns));
+		// Your bitnodeRoute, or the plan's suggestion only when bitnodeRouteAuto is on; otherwise a suggestion is just shown.
+		const nextBN = flags.bn > 0 ? flags.bn : (step && step.source !== "suggestion-only" ? step.bitNode : null);
 		if (nextBN === null) {
-			if (!toldReady) notify(ns, "[daemon]", `${DAEMON} is ready, but bitnodeRoute is done, so nothing is destroyed and the BitNode stays as it is (go for achievements first if you like). ` +
+			const hint = step ? ` The plan suggests BitNode ${step.bitNode} (${step.why}); set bitnodeRouteAuto to true to follow it by itself.` : "";
+			if (!toldReady) notify(ns, "[daemon]", `${DAEMON} is ready, but there is no BitNode route to follow, so nothing is destroyed and the BitNode stays as it is (go for achievements first if you like).${hint} ` +
 				`When you want to move on, run: run /singularity/next-bitnode.js <n>  (n = the BitNode to enter, e.g. 5; with alias next-bitnode='run /singularity/next-bitnode.js' just: next-bitnode 5). ` +
 				`Or add entries to bitnodeRoute in data/config.json and this goes by itself.`, "warning", true);
 			toldReady = true;

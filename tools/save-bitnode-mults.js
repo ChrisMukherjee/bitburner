@@ -5,7 +5,7 @@ import { MULTS_FILE } from "/utils/bitnode-mults.js";
 import { MULTS_GATE } from "/utils/sf5.js";
 
 /**
- * One-shot: saves ns.getBitNodeMultipliers() to data/bitnode-mults.json on home for utils/bitnode-mults.js, which the
+ * One-shot: saves ns.getBitNodeMultipliers() (this BitNode, and each other BitNode for the route suggestion) to data/bitnode-mults.json on home for utils/bitnode-mults.js, which the
  * other scripts read at 0GB. startup.js runs it once per run when the game allows it (BitNode 5 or Source-File 5).
  * Without that access the call throws; it says so, posts "done" and leaves no file, so every multiplier reads as 1.
  */
@@ -22,7 +22,12 @@ export async function main(ns) {
 	if (mults && !Number.isFinite(node)) return; // startup.js writes the BitNode first; the next pass will do
 	postGate(ns, MULTS_GATE, { done: true });
 	if (!mults) return;
-	ns.write(MULTS_FILE, JSON.stringify({ node, time: Date.now(), mults }), "w");
+	// The other BitNodes too, for the route suggestion (utils/bitnode-route.js). Same 4GB call, so no extra RAM.
+	const others = {};
+	for (let bitNode = 1; bitNode <= 14; bitNode++) {
+		try { others[bitNode] = ns.getBitNodeMultipliers(bitNode); } catch { /* skip that one */ }
+	}
+	ns.write(MULTS_FILE, JSON.stringify({ node, time: Date.now(), mults, others }), "w");
 	// Placed off home by startup.js? The readers run on home.
 	if (ns.getHostname() !== "home") ns.scp(MULTS_FILE, "home", ns.getHostname());
 }

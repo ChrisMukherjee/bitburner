@@ -11,6 +11,7 @@ import { dnetReady } from "/darknet/ready.js";
 import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
 import { pservReady } from "/pserv/ready.js";
 import { bitnodeMultsReady } from "/utils/sf5.js";
+import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady, playerWorkReady, donateReady } from "/singularity/ready.js";
 
 // Every script startup.js runs, in priority order: earlier entries get RAM first.
@@ -170,11 +171,13 @@ function runPass(ns, requested, state) {
 		? STAGES.filter((name) => homeRam >= (config.startupStages[name] ?? Infinity)).pop()
 		: requested;
 	const level = STAGES.indexOf(stage);
+	const mults = bitnodeMults(ns);
 	const needsSingularity = (entry) => entry.needsSF4 || entry.script.startsWith("singularity/");
 	const inStage = SCRIPTS.filter((entry) =>
 		STAGES.indexOf(entry.stage) <= level &&
 		(!entry.until || STAGES.indexOf(entry.until) > level) &&
-		!config.startupSkip.includes(entry.script)
+		!config.startupSkip.includes(entry.script) &&
+		!gatedByMultipliers(ns, state, config, mults, entry.script)
 	);
 	const wanted = inStage.filter((entry) => state.sf4.available || !needsSingularity(entry));
 	const noSingularity = inStage.length - wanted.length;
@@ -394,4 +397,22 @@ function withImports(ns, script) {
 
 function sameArgs(first, second) {
 	return first.length === second.length && first.every((value, index) => String(value) === String(second[index]));
+}
+
+/**
+ * True when a multiplier this script lives on (`mechanicGates` in the config) is below the minimum, so it isn't started
+ * in this BitNode. Needs the saved BitNode multipliers; without them nothing is gated. `force` or `enabled: false`
+ * in the config start it anyway. Says so once per script.
+ */
+function gatedByMultipliers(ns, state, config, mults, script) {
+	const gates = config.mechanicGates;
+	if (!gates?.enabled || !mults.known || gates.force?.includes(script)) return false;
+	const low = (gates.gates?.[script] ?? []).filter((name) => mults.get(name) < gates.minMultiplier);
+	if (!low.length) return false;
+	const message = `${script} left out: ${low.map((name) => `${name} is ${mults.get(name)}`).join(", ")} in this BitNode (mechanicGates in the config; add it to mechanicGates.force to run it anyway).`;
+	if (!state.reported.has(message)) {
+		state.reported.add(message);
+		ns.tprint(`startup: ${message}`);
+	}
+	return true;
 }

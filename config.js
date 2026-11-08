@@ -259,6 +259,20 @@ export const DEFAULTS = {
 	startupStages: { start: 0, early: 64, mid: 128, late: 256 },
 	startupSkip: [],
 
+	// Mechanics a BitNode makes worthless (startup.js; needs the BitNode multipliers, so BitNode 5 or Source-File 5; without
+	// them nothing is held back). A script is not started while a multiplier listed for it is below minMultiplier.
+	// `force` lists scripts to start anyway (paths as in startupSkip), and enabled: false turns the whole check off,
+	// for example to chase an achievement that needs the mechanic. `gates` maps a script to the multipliers it lives on.
+	mechanicGates: {
+		enabled: true,
+		minMultiplier: 0.1,
+		force: [],
+		gates: {
+			"hacknet/hacknet-manager.js": ["HacknetNodeMoney"],
+			"gang/gang-manager.js": ["GangSoftcap"],
+		},
+	},
+
 	// Gang (gang/gang-manager.js; BitNode 2, or anywhere with Source-File 2). Untested in game so far.
 	gang: {
 		// Factions to create the gang with, in order: the first one you're a member of is used, and
@@ -314,6 +328,21 @@ export const DEFAULTS = {
 	// Empty by default, since the route is each player's own plan: set it in data/config.json, e.g.
 	//   "bitnodeRoute": [{ "bitNode": 4, "level": 3 }, { "bitNode": 2, "level": 1 }, { "bitNode": 5, "level": 1 }]
 	bitnodeRoute: [],
+	// With bitnodeRoute empty: false only suggests the next BitNode (tools/status.js, the "ready" notice) and waits for
+	// you; true lets auto-destroy.js follow the suggestion by itself. Your own bitnodeRoute always wins.
+	// The suggestion walks bitnodePlan, a generic order of Source-Files worth having: the first tier with a level you
+	// don't own yet. Within a tier the BitNode the game's multipliers make easiest goes first (known with Source-File 5,
+	// otherwise the listed order). Replace the list to change the plan.
+	bitnodeRouteAuto: false,
+	bitnodePlan: [
+		{ bitNode: 1, level: 1, tier: 1 },
+		{ bitNode: 4, level: 3, tier: 2 },
+		{ bitNode: 5, level: 1, tier: 3 },
+		{ bitNode: 2, level: 1, tier: 3 },
+		{ bitNode: 6, level: 1, tier: 4 },
+		{ bitNode: 7, level: 1, tier: 4 },
+		{ bitNode: 1, level: 3, tier: 5 },
+	],
 
 	// Per-BitNode overrides, keyed by BitNode number: laid over the settings above only while
 	// in that BitNode (startup.js records which one). Same merge rules as data/config.json, which
