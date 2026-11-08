@@ -87,6 +87,8 @@ With Source-File 5, [`startup.js`](startup.js) also does not start the batcher w
 
 ### Planning your BitNode route and settings
 
+New to the repo? Read [`docs/bitnode-order.md`](docs/bitnode-order.md) first: which BitNodes and Source-Files to do in which order (Source-File 4 first, then 5 and 2, then Bladeburner) and what each unlocks here.
+
 Do this once, in the game, to tailor the scripts to your save:
 
 1. **See where you are.** `run /tools/show-config.js` prints the settings the scripts will use, and `run /tools/status.js` shows the Source-File level this BitNode gives and the next BitNode on the route.
@@ -163,7 +165,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | [`go/`](go/README.md) | IPvGO bot |
 | [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks, exploit achievements |
 | [`utils/`](utils/README.md) | Shared helpers |
-| [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do |
+| [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do, and [which BitNodes to do first](docs/bitnode-order.md) |
 | [`archive/`](archive/README.md) | Older versions of scripts, kept for history (not synced to the game) |
 
 [`startup.js`](startup.js) (the stage-based launcher) and [`config.js`](config.js) (default settings and presets) stay at the root.
