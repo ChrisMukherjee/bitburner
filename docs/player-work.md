@@ -13,7 +13,7 @@ player's focus and flew them around behind each other's backs. Now only this scr
 or travels; a new player activity is a new step in it, not another script. It also saves RAM (one set of
 Singularity calls instead of five).
 
-Order, one at a time: study (free course to hacking 75), the gang invite (BitNode 2, no gang yet: a crime for
+Order, one at a time: study (free course to hacking 50), the gang invite (BitNode 2, no gang yet: a crime for
 the karma, the gym for the combat stats), faction work, then megacorp jobs when no faction needs rep.
 
 ## Start stage: a small stand-in
@@ -31,6 +31,13 @@ scales them all alike). The gang invite step is `workers/start-gang.js` (10.25GB
 frees its own RAM first), so the pass never needs more than the biggest worker (12.1GB). The stages split the two (start vs early), so they never alternate.
 Rejected: shrinking player-work.js below 32GB (it still wouldn't fit beside the batcher on a 32GB home) and
 splitting every step into workers (many scripts for one stage).
+
+## Study course
+
+The free Computer Science course gives a fraction of the exp of a paid one, so levels crawl past ~45. Once cash covers
+`studying.paidSeconds` of the fee (`studying.paidPerSecond`, Rothman's price), [`../utils/study.js`](../utils/study.js) switches
+to `studying.paidCourse` (Algorithms), restarting a running free class once. `paidCourse: ""` keeps the free one.
+Rejected: flying to ZB Institute (Volhaven) for more exp: the trip and fee outweigh the gain at these levels.
 
 ## Short passes
 

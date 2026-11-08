@@ -9,6 +9,7 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`bitnode-route.js`](bitnode-route.js) | Next BitNode: `routeStep` (your `bitnodeRoute`, else the `bitnodePlan` suggestion, easiest multipliers first with Source-File 5). Design: [`docs/bitnode-mults.md`](../docs/bitnode-mults.md) | SF5 (opt) | 1GB |
 | [`bitnode-mults.js`](bitnode-mults.js) | `bitnodeMults(ns).get(name)`: the BitNode multipliers saved this run, 1 each when unknown (no Source-File 5). Design: [`docs/bitnode-mults.md`](../docs/bitnode-mults.md) | SF5 (opt) | 0GB |
 | [`sf5.js`](sf5.js) | Whether this run can read the BitNode multipliers (BitNode 5 or Source-File 5), and the ready check for startup.js | none | 1GB |
+| [`study.js`](study.js) | `pickCourse`: the free university course, or `studying.paidCourse` (Algorithms) once cash covers `paidSeconds` of its fee; `isCourse`. Design: [`docs/player-work.md`](../docs/player-work.md) | none | 0GB |
 | [`singularity.js`](singularity.js) | Whether this run can use the Singularity API | none | 1GB |
 | [`gyms.js`](gyms.js) | Gym tables (stats, gyms per city, cost) shared by player-work.js and start-gang.js | none | 0GB |
 | [`gang.js`](gang.js) | What this run can do with gangs; the one place with per-BitNode gang rules | none | 1GB |

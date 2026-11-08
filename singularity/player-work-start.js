@@ -1,6 +1,7 @@
 // Design: docs/player-work.md
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
+import { pickCourse, isCourse } from "/utils/study.js";
 import { gangAccess } from "/utils/gang.js";
 
 // Port openers you can create (v3.0.0 src/Programs/data/ProgramsMetadata.ts): [file, hacking level, seconds at that
@@ -50,12 +51,13 @@ export async function main(ns) {
 		return;
 	}
 	if (hacking < studying.hackLevel) {
-		if (current?.type === "CLASS") {
+		const course = pickCourse(studying, player.money);
+		if (current?.type === "CLASS" && !(course !== studying.course && isCourse(current, studying.course))) {
 			ns.print(`[start-work] studying, hacking ${hacking} < ${studying.hackLevel}`);
 			return;
 		}
-		if (player.city === studying.city && ns.singularity.universityCourse(studying.university, studying.course, focus)) {
-			notify(ns, "[start-work]", `studying ${studying.course} until hacking ${studying.hackLevel}`, "info");
+		if (player.city === studying.city && ns.singularity.universityCourse(studying.university, course, focus)) {
+			notify(ns, "[start-work]", `studying ${course} until hacking ${studying.hackLevel}`, "info");
 			return;
 		}
 		ns.print(`[start-work] can't study here (in ${player.city}, not ${studying.city}); crime instead`);

@@ -2,6 +2,7 @@
 import { postPass } from "/utils/pass-log.js";
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
+import { pickCourse, isCourse } from "/utils/study.js";
 import { GYM_STATS, GYMS, GYM_CITY, GYM_CASH_SECONDS } from "/utils/gyms.js";
 import { startHelper } from "/utils/start-helper.js";
 import { postGate } from "/singularity/ready.js";
@@ -57,7 +58,7 @@ const CONFIG = {
  * Work, one at a time, in this order:
  *   0. Bladeburner (bladeburner/bb-manage.js posts its state on port 36): while it plays ("run") nothing else
  *      is started; while the combat stats are too low ("train") the lowest goes to the gym first.
- *   1. Study: below studying.hackLevel (75), takes the free course (`studying` in the config) once
+ *   1. Study: below studying.hackLevel (50), takes the free course (`studying` in the config) once
  *      and leaves the class alone. The class keeps running past the target until something
  *      better below takes over.
  *   2. Gang invite (BitNode 2, no gang yet): for gang.factions[0] (Slum Snakes), first the crime with the
@@ -402,20 +403,22 @@ function stopGangWork(ns, state, current, invite) {
 /** Starts the class once (flying to its city if needed); after that leaves the player's work alone. */
 function studyStep(ns, state, player, current, studying) {
 	const target = `hacking ${player.skills.hacking} < ${state.studyLevel}`;
-	if (current?.type === "CLASS") {
+	const course = pickCourse(studying, player.money);
+	const upgrade = course !== studying.course && isCourse(current, studying.course); // cash now covers the paid course
+	if (current?.type === "CLASS" && !upgrade) {
 		state.studyStarted = true;
 		return `[study] ${target}, studying`;
 	}
-	if (state.studyStarted) return `[study] ${target}, but the class was stopped; leaving your work alone`;
+	if (state.studyStarted && !upgrade) return `[study] ${target}, but the class was stopped; leaving your work alone`;
 	if (player.city !== studying.city) {
 		if (player.money < CONFIG.travelCost) return `[study] ${target}; waiting for $${ns.format.number(CONFIG.travelCost)} to fly to ${studying.city}`;
 		if (!ns.singularity.travelToCity(studying.city)) return `[study] flight to ${studying.city} failed, will retry`;
 	}
-	if (!ns.singularity.universityCourse(studying.university, studying.course, state.focus)) {
-		return `[study] couldn't start ${studying.course} at ${studying.university}, will retry`;
+	if (!ns.singularity.universityCourse(studying.university, course, state.focus)) {
+		return `[study] couldn't start ${course} at ${studying.university}, will retry`;
 	}
 	state.studyStarted = true;
-	return `[study] studying ${studying.course} until hacking ${state.studyLevel}`;
+	return `[study] studying ${course} until hacking ${state.studyLevel}`;
 }
 
 // --- Travel and joining: Tian Di Hui, then the city factions ---

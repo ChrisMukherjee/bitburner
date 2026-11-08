@@ -163,10 +163,17 @@ export const DEFAULTS = {
 
 	// Studying (player-work.js). Below hackLevel, the player studies and nothing else takes over.
 	studying: {
-		hackLevel: 75,
+		// The free course crawls past ~level 45 and blocks crime (cash for home RAM, combat stats); the batcher and
+		// XP farm keep adding levels afterwards.
+		hackLevel: 50,
 		city: "Sector-12",
 		university: "Rothman University",
 		course: "Computer Science", // the free course
+		// Once cash covers paidSeconds of its fee (paidPerSecond, Rothman's price), switch to this much faster
+		// course (several times the exp of the free one). "" = always the free course.
+		paidCourse: "Algorithms",
+		paidPerSecond: 960,
+		paidSeconds: 600,
 	},
 
 	// Start stage only (player-work-start.js): create a port opener yourself when your hacking level allows it
