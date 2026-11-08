@@ -348,7 +348,11 @@ function gymStep(ns, state, player, current, floor, tag) {
 	// Keep a gym class that is running for a stat still below the floor, so the lowest stat changing doesn't swap it every pass.
 	const running = String(current?.classType ?? "").toUpperCase();
 	const runningStat = GYM_STATS.find(([, type, className]) => running === className || running === type.toUpperCase())?.[0];
-	if (current?.type === "CLASS" && runningStat && player.skills[runningStat] < floor) {
+	// ...unless cash now pays for a better gym than the one running (exp is x10 at Powerhouse vs x1 at Iron Gym).
+	const cityGyms = GYMS[player.city] ?? GYMS[GYM_CITY];
+	const betterGym = cityGyms.find(([, cost]) => player.money >= cost * GYM_CASH_SECONDS)?.[0];
+	const upgradeGym = !!betterGym && !!current?.location && current.location !== betterGym && GYMS[player.city] !== undefined;
+	if (current?.type === "CLASS" && runningStat && player.skills[runningStat] < floor && !upgradeGym) {
 		return `${tag} training ${runningStat} (${Math.floor(player.skills[runningStat])} / ${floor})`;
 	}
 	if (!GYMS[player.city]) {

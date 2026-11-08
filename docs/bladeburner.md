@@ -68,6 +68,8 @@ different multipliers exist it shows three scenarios instead. The Bladeburner si
 
 The augment weights for the combat route follow the state by themselves (`routeAdjust` in
 [`../utils/config.js`](../utils/config.js), see [`config.md`](config.md)); the `bladeburner` preset only forces them.
+On the same condition `routeAdjust` turns off `resetRule.daedalusPush` and `daedalusFavor`: chasing the Daedalus invite (filler
+augments, resets for favor) is a hacking-route plan and would spend resets the Bladeburner route doesn't need.
 
 ## What came from the standalone scripts
 

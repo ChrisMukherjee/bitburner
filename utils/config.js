@@ -54,7 +54,7 @@ const BLADEBURNER_STATE_MAX_AGE_MS = 15 * 60_000; // as in bladeburner/state.js:
  * Logic, not config: while Bladeburner is the route (the state on port 36 is boot, train or run, or hold while the route estimate
  * still says combat), what makes an augment worth buying changes. Rank comes from Contracts and Operations whose success chance
  * depends on the combat stats, so combat and Bladeburner augments count (strongly) and hacking augments do not (they would
- * only reset the combat stats for nothing). `profile: "bladeburner"` in data/config.json is no longer needed for this. 0GB.
+ * only reset the combat stats for nothing), and the Daedalus invite chase (resetRule.daedalusPush, daedalusFavor) is switched off. `profile: "bladeburner"` in data/config.json is no longer needed for this. 0GB.
  * Ported from the other player's utils/config.js.
  */
 /** @param {NS} ns */
@@ -68,6 +68,12 @@ function routeAdjust(ns, config) {
 	const want = new Set((aug.wantStats ?? []).filter((group) => group !== "hacking"));
 	for (const group of ["combat", "bladeburner"]) want.add(group);
 	aug.wantStats = [...want];
+	// The invite chase (cheap filler augments, resets for Daedalus favor) is a hacking-route plan: Bladeburner ends the
+	// BitNode with its last Black Op, so it must not drive resets while Bladeburner is the route.
+	if (aug.resetRule) {
+		aug.resetRule.daedalusPush = false;
+		aug.resetRule.daedalusFavor = false;
+	}
 	const weights = aug.resetRule?.weights;
 	if (weights) {
 		for (const stat of ["strength", "defense", "dexterity", "agility"]) weights[stat] ??= 1;
