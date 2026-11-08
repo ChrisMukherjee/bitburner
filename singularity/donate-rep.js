@@ -5,6 +5,9 @@ import { postGate } from "/singularity/ready.js";
 const GATE_KEY = "donate";
 const MONEY_PER_REP = 1e6; // the game's donation rate before the rep multiplier
 const MARGIN = 1.01;       // a little extra, in case a BitNode multiplier shrinks donations
+const PLAN_FILE = "data/aug-plan.json";
+const PLAN_MAX_AGE_MS = 30 * 60_000; // an older plan says nothing about what this reset will buy
+const PRICE_MULT = 1.9;    // each augment bought makes the rest this much dearer
 const TOP_UPS = 3;         // donate again (at the rate just seen) if the first one fell short
 
 /**
@@ -13,6 +16,10 @@ const TOP_UPS = 3;         // donate again (at the rate just seen) if the first 
  * (getFavorToDonate, 150). Without this, the favor the Daedalus rule resets for is never used
  * and the next run grinds the rep by work. After the donation the augment is unlocked, so the
  * next auto-reset check (buy-augs.js) finds it ready and resets for it at once.
+ *
+ * With `augments.donations.anyFaction` it also buys the missing rep for other wanted augments (the plan's
+ * `unlockable` list in data/aug-plan.json) at joined factions with the favor, but only from cash beyond the
+ * planned purchases (see otherDonation below).
  *
  * Posts on port 33 for startup.js (singularity/ready.js donateReady): done for the run when every
  * key augment is owned or no seller has the favor (favor only changes on an install, and startup
@@ -69,8 +76,54 @@ export async function main(ns) {
 			if (missing > 0) waiting = true;
 		}
 	}
+	const other = otherDonation(ns, loadConfig(ns).augments.donations, player, threshold, owned, perDollarNow(player));
+	if (other) {
+		if (other.required > ns.getServerMoneyAvailable("home")) needCash = Math.min(needCash, other.required);
+		else if (flags.dry) ns.tprint(`donate-rep: would donate ${money(other.amount)} to ${other.faction} for ${ns.format.number(other.missing)} rep (${other.aug})`);
+		else if (ns.singularity.donateToFaction(other.faction, other.amount)) {
+			notify(ns, "[donate]", `donated ${money(other.amount)} to ${other.faction} for ${other.aug} (cash beyond this reset's purchases); it is bought on the next reset`, "success", true);
+		}
+		waiting = true;
+	}
 	if (flags.dry) return;
 	if (Number.isFinite(needCash)) postGate(ns, GATE_KEY, { needCash });
 	else if (waiting) postGate(ns, GATE_KEY, { needCash: 0 });
 	else postGate(ns, GATE_KEY, { done: true });
+}
+
+function perDollarNow(player) {
+	return player.mults.faction_rep / MONEY_PER_REP;
+}
+
+/**
+ * The best wanted augment (besides the key ones) whose faction rep money can unlock, or null. Needs
+ * `augments.donations.anyFaction`, a plan from the last 30 minutes, a joined faction with the favor, and cash for the
+ * donation plus everything the reset already plans to buy plus this augment at the price after those
+ * (times `safety`), so a donation never takes money from augments that were affordable. Picks the most
+ * augment value per dollar of donation + price. Returns { aug, faction, missing, amount, required }.
+ */
+function otherDonation(ns, settings, player, threshold, owned, perDollar) {
+	if (!settings?.anyFaction) return null;
+	let plan = null;
+	try {
+		plan = JSON.parse(ns.read(PLAN_FILE) || "null");
+	} catch {
+		return null;
+	}
+	if (!plan || Date.now() - (plan.checkedAt ?? 0) > PLAN_MAX_AGE_MS || !Array.isArray(plan.unlockable)) return null;
+	const planned = (plan.affordable?.length ?? 0) + (plan.queued?.length ?? 0);
+	const planCost = plan.cost ?? 0;
+	let best = null;
+	for (const entry of plan.unlockable) {
+		if (owned.has(entry.aug) || !player.factions.includes(entry.faction)) continue;
+		if (ns.singularity.getFactionFavor(entry.faction) < threshold) continue;
+		const missing = entry.repNeeded - ns.singularity.getFactionRep(entry.faction);
+		if (missing <= 0) continue;
+		const amount = Math.ceil((missing / perDollar) * MARGIN);
+		const price = ns.singularity.getAugmentationPrice(entry.aug) * PRICE_MULT ** planned;
+		const required = (planCost + amount + price) * (settings.safety ?? 1.25);
+		const score = (entry.value ?? 0) / (amount + price);
+		if (!best || score > best.score) best = { aug: entry.aug, faction: entry.faction, missing, amount, required, score };
+	}
+	return best;
 }

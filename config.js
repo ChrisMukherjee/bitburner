@@ -84,6 +84,11 @@ export const DEFAULTS = {
 			unknownPortions: { "hacking": 1 }, // before anything is posted: a hacking run
 			maxAgeMinutes: 30,         // an older post counts as missing (auto-reset.js reposts every 10 minutes)
 		},
+		// Donations (singularity/donate-rep.js). Key augments (resetRule.keyAugs) always get theirs once a seller has the
+		// favor. anyFaction: also buy the missing rep for other wanted augments at joined factions with that favor, but only
+		// from cash beyond what this reset's planned purchases cost, times `safety` (augment prices rise 1.9x per purchase).
+		// Off by default: it spends real money, so try it with `donate-rep.js --dry` first (docs/aug-reset.md).
+		donations: { anyFaction: false, safety: 1.25 },
 		// Spend what's left on NeuroFlux Governor after the rest (buy-augs --no-neuroflux turns it off once).
 		neuroflux: true,
 		// When to reset (buy-augs --dry / --plan, auto-reset.js, install-augs.js). The rule: reset at

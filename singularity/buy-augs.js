@@ -204,7 +204,9 @@ export async function main(ns) {
 
 	ns.write(PLAN_FILE, JSON.stringify({
 		time: rates.snapshotTime, rep: rates.snapshot, perSecond: rates.perSecond, checkedAt: Date.now(),
-		queued, affordable: fitNow.augs, cost: fitNow.cost, stocks, decision, resetSince, daedalusSeenAt, bitnode: bitnodeGoal(ns, factions),
+		queued, affordable: fitNow.augs, cost: fitNow.cost, stocks, decision,
+		// Useful augments whose faction rep is still short (for singularity/donate-rep.js, augments.donations).
+		unlockable: upcoming.map((entry) => ({ aug: entry.aug, faction: entry.faction, repNeeded: entry.repNeeded, missing: entry.missing, price: entry.price, value: entry.value })), resetSince, daedalusSeenAt, bitnode: bitnodeGoal(ns, factions),
 		incomeHistory, incomeModel, hackExp,
 		// For singularity/workers/aug-buyer.js: everything with the rep, most expensive first, and
 		// where to buy NeuroFlux (null when the config or --no-neuroflux says not to).
