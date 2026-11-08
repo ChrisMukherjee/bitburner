@@ -16,7 +16,8 @@ const HOME_BUYERS = ["singularity/upgrade-home-ram.js", "singularity/upgrade-hom
  * --force skips the check (auto-reset.js passes it, since it has just decided and bought).
  *
  * Before installing it spends the cash that's left on home RAM, then home cores (both buyers
- * with --once --spend-all, about 7GB each), since home upgrades survive the install. Run
+ * with --once --spend-all, about 7GB and 9GB), since home upgrades survive the install. Both stop at
+ * the cap in homeUpgrades (a challenge), if one is set. Run
  * buy-augs.js first so augments get the money before home does (it leaves NeuroFlux
  * to home when a home upgrade is affordable).
  *

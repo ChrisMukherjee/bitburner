@@ -95,8 +95,9 @@ Do this once, in the game, to tailor the scripts to your save:
 2. **Set the route without an editor.** `afk-route 4:3 2:1 5:1` (bitNode:level, done in order; a bare `afk-route 5` means one more level of BitNode 5 than you will own once this BitNode ends) stores the BitNode route in `data/config.json`; `afk-route` alone shows it, `afk-route clear` empties it. `set-config set <path> <value>` and `set-config unset <path>` change any other setting. Or create your file by hand: `run /tools/show-config.js --example` prints a starter `data/config.json`; paste it into `nano data/config.json`. Keep only the lines you want to change. If the file doesn't exist, the defaults apply.
 3. **Set your route.** `bitnodeRoute` is a list of `{ "bitNode": N, "level": L }`, done in order. [`auto-destroy.js`](singularity/auto-destroy.js) enters the first entry whose Source-File level you don't have yet, counting the level the current destroy gives. Source-Files you already own are skipped automatically, so you can list your whole plan. With the route empty, the next BitNode is only *suggested* (in `status`, and in the notice) from `bitnodePlan` and the Source-Files you own, easiest multipliers first when you have Source-File 5; set `bitnodeRouteAuto` to `true` to let it follow that by itself. Your own route always wins. The default route is empty: with no route (or once it's done) nothing is destroyed, you get one sticky notice, and `next-bitnode <n>` ends the BitNode when you choose.
 4. **Tune a single BitNode.** Put settings that only apply in one BitNode under `"bitnodes": { "<N>": { ... } }`. They are laid over your other settings while you are in BitNode N. Run [`startup.js`](startup.js) once in a new BitNode so it records which one you are in.
-5. **Pick a preset if one fits.** `"profile": "bladeburner"` (see `PRESETS` in [`config.js`](config.js)) swaps the augment weights for a Bladeburner run.
-6. **Restart.** Scripts read the config when they start: `run /startup.js --restart`. Bad JSON gives a sticky alert and falls back to the defaults.
+5. **Going for a challenge achievement?** `challenge bn1` (alias below) caps home at 128GB and 1 core while in BitNode 1, for "BN1: Challenge"; set it before that BitNode starts and `challenge clear` afterwards. Steps: [`achievements/bn1-challenge.md`](achievements/bn1-challenge.md).
+6. **Pick a preset if one fits.** `"profile": "bladeburner"` (see `PRESETS` in [`config.js`](config.js)) swaps the augment weights for a Bladeburner run.
+7. **Restart.** Scripts read the config when they start: `run /startup.js --restart`. Bad JSON gives a sticky alert and falls back to the defaults.
 
 Example `data/config.json` for a player who plans BitNode 4 to Source-File 3, then 2, then 5, with combat augments while in BitNode 2:
 
@@ -128,6 +129,7 @@ alias debug-report='run /tools/debug-report.js; cat data/debug-report.txt';
 alias config='run /tools/show-config.js';
 alias set-config='run /tools/set-config.js';
 alias afk-route='run /tools/set-config.js route';
+alias challenge='run /tools/set-config.js challenge';
 alias track-income='run /tools/track-income.js; tail /tools/track-income.js';
 alias hack-only='run /tools/track-income.js; run /hack/batcher.js';
 alias gobot='run /go/ipvgo-bot.js --opponent "The Black Hand"';
@@ -163,7 +165,6 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | [`bladeburner/`](bladeburner/README.md) | Bladeburner: state manager, action pass and route estimate |
 | [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links |
 | [`go/`](go/README.md) | IPvGO bot |
-| [`achievements/`](achievements/README.md) | Which achievements the scripts earn by themselves, which need a step, and how |
 | [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks, exploit achievements |
 | [`utils/`](utils/README.md) | Shared helpers |
 | [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do, and [which BitNodes to do first](docs/bitnode-order.md) |

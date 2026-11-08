@@ -14,7 +14,8 @@ depends on progress is a setting, and scripts don't hardcode new ones.
 
 ## How it fits together
 
-- **Layers:** `DEFAULTS`, then the preset named by `profile` (`PRESETS`), then the player's in-game
+- **Layers:** `DEFAULTS`, then the preset named by `profile` (`PRESETS`), then each challenge named in
+  `challenges` (`CHALLENGES`, see [`challenges.md`](challenges.md)), then the player's in-game
   `data/config.json`. Objects merge key by key; lists and single values replace, so a list in the override
   is the whole list.
 - **Per-BitNode overrides:** each layer can have a `bitnodes` section keyed by BitNode number; the

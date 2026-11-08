@@ -95,7 +95,7 @@ The per-BitNode challenge rules, and which default scripts break them:
 
 | Challenge | Rule | Conflict in the default setup |
 | --- | --- | --- |
-| BN1 | destroy with at most 128GB home and 1 core | home RAM/core upgrades (also run by `install-augs.js`); needs a cap |
+| BN1 | destroy with at most 128GB home and 1 core | home RAM/core upgrades (also run by `install-augs.js`); steps in [`bn1-challenge.md`](bn1-challenge.md) |
 | BN2 | no gang | `gang/` starts by itself |
 | BN3 | no corporation | none (no corp scripts) |
 | BN6, BN7 | no Bladeburner division | `bladeburner/` is the default route in BN6 |

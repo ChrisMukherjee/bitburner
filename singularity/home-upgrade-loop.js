@@ -15,8 +15,11 @@ import { postGate } from "/singularity/ready.js";
  *   loopMs     - time between passes
  *   costOf     - () => cost of the next upgrade
  *   doUpgrade  - () => true if the upgrade went through
- *   describe   - optional () => current level, e.g. "64GB", for the log (cores can't be
- *                read without the 2GB getServer, so the cores buyer leaves it out)
+ *   describe   - optional () => current level, e.g. "64GB", for the log
+ *   cap        - optional { overNext: () => true if the next upgrade would go past the cap, text: e.g. "128GB" },
+ *                from `homeUpgrades.ram.maxGB` / `homeUpgrades.cores.max` in the config. Reaching it ends the
+ *                buying for this BitNode as if home were maxed, even with --spend-all (for challenge
+ *                achievements such as "BN1: Challenge"; see docs/challenges.md)
  *   onUpgrade  - optional () => called after each upgrade that went through
  *   afterPass  - optional () => called at the end of every pass (and before exiting)
  *   gate       - key for singularity/ready.js: after each pass it posts the cash the next upgrade
@@ -26,6 +29,7 @@ import { postGate } from "/singularity/ready.js";
  * that way, only when the gate says the next upgrade is affordable.
  * --spend-all ignores the spending rule (no reserve, all of the cash): install-augs.js runs
  * both buyers this way just before an install, since home upgrades survive it and cash doesn't.
+ * Neither flag goes past the cap.
  */
 export async function runUpgradeLoop(ns, options) {
 	ns.disableLog("ALL");
@@ -50,6 +54,12 @@ export async function runUpgradeLoop(ns, options) {
 		// Buy as many levels in a row as the budget allows; the budget is re-read each time.
 		let bought = 0;
 		while (true) {
+			if (options.cap?.overNext()) {
+				notify(ns, tag, `home stays at ${options.cap.text}, the cap in the config (homeUpgrades); nothing more to buy.`, "info");
+				if (options.gate) postGate(ns, options.gate, { done: true });
+				if (options.afterPass) options.afterPass();
+				return;
+			}
 			const cost = options.costOf();
 			const level = options.describe ? options.describe() : "";
 			const budget = getBudget(ns, policy);

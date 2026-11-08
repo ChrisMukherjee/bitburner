@@ -253,9 +253,11 @@ export const DEFAULTS = {
 	// aren't starved. RAM is the best early buy (every other manager runs on it) and keeps 2 minutes;
 	// cores only speed up grow/weaken on home and pay back slower, so they keep 5. Until there is an
 	// income reading (the start of a run) at most fallbackFraction of the cash is spent per upgrade.
+	// ram.maxGB and cores.max cap home for the whole BitNode (null = no cap); even the buy before an install
+	// stops there. A challenge (CHALLENGES below) sets them.
 	homeUpgrades: {
-		ram: { reserveSeconds: 120, fallbackFraction: 0.5 },
-		cores: { reserveSeconds: 300, fallbackFraction: 0.25 },
+		ram: { reserveSeconds: 120, fallbackFraction: 0.5, maxGB: null },
+		cores: { reserveSeconds: 300, fallbackFraction: 0.25, max: null },
 	},
 
 	// startup.js: home RAM (GB) at which "auto" picks each stage, and scripts it never starts
@@ -375,6 +377,32 @@ export const DEFAULTS = {
 	// never `if (bitNode === N)` in a script. For example:
 	//   "2": { augments: { wantStats: ["hacking", "rep", "combat", "crime"] } },
 	bitnodes: {},
+
+	// Challenge achievements to go for: names from CHALLENGES below, e.g. ["bn1"]. Set it with
+	// `run /tools/set-config.js challenge bn1` (and `challenge clear` to stop).
+	challenges: [],
+};
+
+// Challenge achievements ("BN1: Challenge" ...): each one is a set of overrides, laid over the preset (before
+// data/config.json) while its name is in `challenges`. Its settings sit under `bitnodes`, so they only apply in
+// the BitNode the challenge is about and can be switched on any time before it. See docs/challenges.md.
+//   achievement - the game's name for it
+//   rule        - what the game checks when the BitNode is destroyed
+//   settings    - the overrides
+export const CHALLENGES = {
+	"bn1": {
+		achievement: "BN1: Challenge",
+		rule: "destroy BitNode 1 with at most 128GB of RAM and 1 core on home",
+		settings: {
+			bitnodes: {
+				"1": {
+					homeUpgrades: { ram: { maxGB: 128 }, cores: { max: 1 } },
+					// Home never passes 128GB, so let the "late" scripts start there (they wait for room if home is full).
+					startupStages: { late: 128 },
+				},
+			},
+		},
+	},
 };
 
 // Named sets of overrides, applied over DEFAULTS (and its `bitnodes` entry) before data/config.json. Pick one with

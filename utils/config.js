@@ -1,5 +1,5 @@
 // Design: docs/config.md
-import { DEFAULTS, PRESETS } from "/config.js";
+import { DEFAULTS, PRESETS, CHALLENGES } from "/config.js";
 import { notify } from "/utils/notify.js";
 
 // Each player's own overrides, written in the game (see config.js). Never synced from disk.
@@ -8,8 +8,8 @@ export const USER_CONFIG_FILE = "data/config.json";
 export const BITNODE_FILE = "data/bitnode.txt";
 
 /**
- * The settings for this player: DEFAULTS from config.js, then the chosen preset, then
- * data/config.json. Objects merge key by key; lists and single values replace. 0GB.
+ * The settings for this player: DEFAULTS from config.js, then the chosen preset, then the
+ * settings of each challenge named in `challenges` (CHALLENGES in config.js), then data/config.json. Objects merge key by key; lists and single values replace. 0GB.
  * Each layer may have a `bitnodes` section ({ "2": {...} }); the entry for the current BitNode
  * (from data/bitnode.txt) is laid over that layer right after it.
  *
@@ -34,8 +34,9 @@ export function loadConfig(ns) {
 		notify(ns, "[config]", `unknown profile "${profile}" in ${USER_CONFIG_FILE} (known: ${Object.keys(PRESETS).join(", ")}).`, "error", true);
 		preset = {};
 	}
+	const challenges = challengeLayers(ns, custom.challenges ?? DEFAULTS.challenges);
 	const node = currentBitNode(ns);
-	const layers = [DEFAULTS, preset, custom].flatMap((layer) => [layer, layer?.bitnodes?.[node]]);
+	const layers = [DEFAULTS, preset, ...challenges, custom].flatMap((layer) => [layer, layer?.bitnodes?.[node]]);
 	const config = layers.reduce((merged, layer) => mergeOver(merged, layer), {});
 	config.bitnode = node; // null until startup.js has run once
 	incomeAdjust(ns, config);
@@ -106,6 +107,17 @@ function incomeAdjust(ns, config) {
 		for (const stat of stats) factors[stat] = (factors[stat] ?? 0) + (portions[source] ?? 0);
 	}
 	aug.incomeFactors = factors;
+}
+
+/** The override layers of the named challenges (a single name works too); unknown names get a sticky alert. */
+function challengeLayers(ns, names) {
+	const layers = [];
+	for (const name of [names ?? []].flat()) {
+		const challenge = CHALLENGES[name];
+		if (challenge) layers.push(challenge.settings);
+		else notify(ns, "[config]", `unknown challenge "${name}" in ${USER_CONFIG_FILE} (known: ${Object.keys(CHALLENGES).join(", ")}).`, "error", true);
+	}
+	return layers;
 }
 
 /** The BitNode startup.js last saw, or null. */

@@ -23,6 +23,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`reminders.md`](reminders.md): what a run without the Singularity API is told to do by hand, and why it is a one-shot.
 - [`debug-report.md`](debug-report.md): why one-shots keep their last result on a port and one tool writes it to a file to paste.
 - [`bitnode-mults.md`](bitnode-mults.md): BitNode multipliers saved once per run and read at 0GB, 1 when unknown.
+- [`challenges.md`](challenges.md): challenge achievements as named config overrides; the home RAM and core cap for BN1.
 - [`bladeburner.md`](bladeburner.md): state manager, action pass, route estimate, gym via player-work, state on a port.
 
 ## Writing one
