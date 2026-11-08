@@ -26,6 +26,17 @@ Passwords come from [`hint-interpreter.js`](../darknet/hint-interpreter.js) and
 - **Stasis links go to the servers with the most usable RAM** (max RAM minus blocked), not the most max RAM:
   picking by max RAM chose mostly-blocked servers and never linked anything. Links move to better servers as
   they're found.
+- **Push servers to move when mapping stalls (`--no-migrate` turns it off).** Parts of the darknet are cut off from the
+  rest, and only a server that moves can carry a crawler across. When no new server has been mapped for 10 minutes, the
+  manager lists up to two opened servers (crawler running, not stasis-linked, not stationary) in
+  `darknet/migrate-targets.txt` and copies it to every opened server. A crawler next to a target stops phishing, runs
+  [`migrate.js`](../darknet/migrate.js) on it with all its free RAM, and phishing resumes when the push ends. Pushes from
+  several neighbours stack. The direction a server moves is random, so this is a gamble; any new server clears the list
+  and restarts the timer, and a server that stayed put after 4 pushes in a row is left alone until the map grows.
+  Timing lives in `MIGRATE` in [`darknet/config.js`](../darknet/config.js). On by default because it only starts once
+  ordinary crawling has run dry; rejected: always pushing (it would cost phishing RAM and shuffle servers that are fine
+  where they are). Not done: working out which servers sit next to a gap (the API doesn't say), so targets are picked by
+  how long since they were last pushed.
 - **Never backdoor darknet servers.** Backdoors don't slow server movement. They only let `exec` skip the
   direct-connection check, while each one past two makes any login randomly time out more often and adds
   random restarts that kill our scripts.

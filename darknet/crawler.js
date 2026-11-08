@@ -4,7 +4,7 @@ import { FACTORIOS_MODEL, DEEPGREEN_MODEL, solveDivisibility, solveMastermind } 
 import { readLogs } from "darknet/heartbleed.js";
 import { login } from "darknet/auth.js";
 import {
-	REPORT_PORT, CRAWLER_SCRIPT, PHISH_SCRIPT, STASIS_SCRIPT,
+	REPORT_PORT, CRAWLER_SCRIPT, PHISH_SCRIPT, STASIS_SCRIPT, MIGRATE_SCRIPT, MIGRATE, MIGRATE_TARGET_FILE,
 	CRAWLER_FILES, PASSWORD_FILE, STASIS_TARGET_FILE,
 } from "darknet/config.js";
 
@@ -19,13 +19,14 @@ export async function main(ns) {
 	ns.disableLog("ALL");
 	const earn = ns.args[0] === 1;
 	const stasis = ns.args[1] === 1;
+	const migrate = ns.args[2] === 1;
 	const self = ns.getHostname();
 	const port = ns.getPortHandle(REPORT_PORT);
 
 	const passwords = loadPasswords(ns);
 	// opened: neighbours we hold a session on, whose blocked RAM we keep freeing. failed: neighbours whose
 	// hint we couldn't solve, not retried until the next restart.
-	const crawl = { self, port, earn, stasis, passwords, opened: [], failed: new Set() };
+	const crawl = { self, port, earn, stasis, migrate, passwords, opened: [], failed: new Set(), pushed: new Map() };
 	report(ns, port, { kind: "server", host: self, details: safeDetails(ns, self), maxRam: ns.getServerMaxRam(self) });
 
 	await spread(ns, crawl);
@@ -38,7 +39,7 @@ export async function main(ns) {
  * while earning, because the darknet keeps moving servers: new ones drift next to us, and a neighbour whose
  * crawler died (it went offline, or moved and came back) gets a fresh one.
  */
-async function spread(ns, { self, port, earn, stasis, passwords, opened, failed }) {
+async function spread(ns, { self, port, earn, stasis, migrate, passwords, opened, failed }) {
 	for (const neighbour of ns.dnet.probe()) {
 		if (neighbour === "home" || failed.has(neighbour)) continue;
 		const details = safeDetails(ns, neighbour);
@@ -84,9 +85,9 @@ async function spread(ns, { self, port, earn, stasis, passwords, opened, failed 
 
 		// Copy fresh files every time, so a restarted crawler always runs the current code. preventDuplicates
 		// makes exec a no-op when a crawler already runs there, so the crawler no longer needs its own 1 GB running-check.
-		if (!ns.scp(CRAWLER_FILES.concat(PASSWORD_FILE, STASIS_TARGET_FILE), neighbour, self)) continue;
+		if (!ns.scp(CRAWLER_FILES.concat(PASSWORD_FILE, STASIS_TARGET_FILE, MIGRATE_TARGET_FILE), neighbour, self)) continue;
 		const launch = () => ns.exec(CRAWLER_SCRIPT, neighbour, { threads: 1, preventDuplicates: true },
-			earn ? 1 : 0, stasis ? 1 : 0);
+			earn ? 1 : 0, stasis ? 1 : 0, migrate ? 1 : 0);
 		if (launch()) continue;
 		// exec also fails when the crawler doesn't fit. Then a phishing worker left from an earlier crawler is
 		// holding the RAM; stop it (the new crawler restarts it) and try again.
@@ -146,7 +147,8 @@ function retryLater(ns, port, host, result) {
  * step with the manager's target list. Our parent already freed this server's blocked RAM before starting us.
  */
 async function earnOn(ns, crawl) {
-	const { self, port, stasis, opened } = crawl;
+	const { self, port, stasis, migrate } = crawl;
+	const { opened } = crawl;
 	launchPhish(ns, self);
 	let lastSpread = Date.now();
 	while (true) {
@@ -157,6 +159,7 @@ async function earnOn(ns, crawl) {
 		await freeNeighbours(ns, opened);
 		launchPhish(ns, self); // our own RAM may have been freed by our parent
 		if (stasis) await syncStasis(ns, self, port);
+		if (migrate) syncMigrate(ns, crawl);
 		for (const file of ns.ls(self, ".cache")) {
 			const cache = ns.dnet.openCache(file, true);
 			report(ns, port, { kind: "cache", host: self, file, success: cache.success });
@@ -211,6 +214,32 @@ export async function syncStasis(ns, self, port) {
 	}
 	report(ns, port, { kind: "stasis-skip", host: self, mode, free, need });
 	launchPhish(ns, self);
+}
+
+/**
+ * Push a neighbour the manager wants moved. Every crawler next to the target does this, and the pushes stack. The
+ * worker takes all the free RAM (phishing is stopped for the push and comes back when it ends), one target at a
+ * time. A target is not pushed again for a while, so a worker that gave up isn't restarted before the manager has
+ * heard from it.
+ * @param {NS} ns
+ */
+export function syncMigrate(ns, { self, pushed }) {
+	const targets = readList(ns, MIGRATE_TARGET_FILE);
+	if (!targets.length || ns.ps(self).some((proc) => proc.filename === MIGRATE_SCRIPT)) return;
+	const neighbours = ns.dnet.probe();
+	const now = Date.now();
+	const target = targets.find((host) => neighbours.includes(host) && now - (pushed.get(host) ?? 0) > MIGRATE.retryMs);
+	if (target === undefined) return;
+	pushed.set(target, now);
+	stopScript(ns, PHISH_SCRIPT, self);
+	const threads = Math.floor((ns.getServerMaxRam(self) - ns.getServerUsedRam(self)) / ns.getScriptRam(MIGRATE_SCRIPT, self));
+	if (threads > 0) ns.exec(MIGRATE_SCRIPT, self, threads, target);
+	else launchPhish(ns, self); // too little room for a push: keep phishing
+}
+
+function readList(ns, file) {
+	const text = ns.read(file);
+	try { return text.length > 1 ? JSON.parse(text) : []; } catch { return []; }
 }
 
 function readTargets(ns) {

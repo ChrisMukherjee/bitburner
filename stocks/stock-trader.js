@@ -304,7 +304,7 @@ function postInfluence(ns, symbols) {
  * Workers on stocks that dropped out of the top (or whose server vanished) are stopped. threads 0 stops them all.
  * promoteStock only works on a darknet server, so workers are placed by promotionHosts().
  */
-function retargetPromoters(ns, symbols, threads, promoters) {
+export function retargetPromoters(ns, symbols, threads, promoters) {
 	const settings = CONFIG.promote;
 	const wanted = threads <= 0 ? [] : symbols
 		.map((sym) => ({ sym, value: ns.stock.getPosition(sym)[0] * ns.stock.getBidPrice(sym) }))

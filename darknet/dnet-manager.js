@@ -2,8 +2,8 @@
 import { notify } from "/utils/notify.js";
 import { candidatePasswords } from "darknet/hint-interpreter.js";
 import {
-	REPORT_PORT, CRAWLER_SCRIPT, PHISH_SCRIPT, STASIS_SCRIPT, CRAWLER_FILES, PASSWORD_FILE,
-	STASIS_TARGET_FILE, MAP_FILE, HOME_PASSWORD_FILE, MODEL_SUMMARY_FILE,
+	REPORT_PORT, CRAWLER_SCRIPT, PHISH_SCRIPT, STASIS_SCRIPT, MIGRATE_SCRIPT, MIGRATE, MIGRATE_TARGET_FILE,
+	CRAWLER_FILES, PASSWORD_FILE, STASIS_TARGET_FILE, MAP_FILE, HOME_PASSWORD_FILE, MODEL_SUMMARY_FILE,
 } from "darknet/config.js";
 
 const RESEED_INTERVAL = 10000; // ms between checks that the crawler is still alive on darkweb
@@ -18,12 +18,14 @@ const RETRY_WINDOW = 10 * 60 * 1000; // ms of crawler skips (timeouts, moved, of
 //   --once         do one mapping pass and stop, with no earning (recon only)
 //   --recon        keep running and mapping, but don't earn
 //   --no-stasis    don't apply stasis links
+//   --no-migrate   don't push servers to move when mapping stalls (see manageMigration)
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	const flags = ns.flags([["once", false], ["recon", false], ["no-stasis", false]]);
+	const flags = ns.flags([["once", false], ["recon", false], ["no-stasis", false], ["no-migrate", false]]);
 	const earn = !flags.once && !flags.recon;
 	const stasis = earn && !flags["no-stasis"];
+	const migrate = earn && !flags["no-migrate"];
 
 	if (!ns.fileExists("DarkscapeNavigator.exe", "home")) {
 		// Not sticky: startup.js only starts this once the program is owned (darknet/ready.js), so this
@@ -43,9 +45,10 @@ export async function main(ns) {
 	const unsolved = {};
 	const port = ns.getPortHandle(REPORT_PORT);
 	if (!ns.fileExists(STASIS_TARGET_FILE, "home")) ns.write(STASIS_TARGET_FILE, "[]", "w");
+	ns.write(MIGRATE_TARGET_FILE, "[]", "w"); // pushing restarts from "map not stalled yet" on every start
 
 	restartCrawlers(ns, map, passwords);
-	await seed(ns, passwords, earn, stasis);
+	await seed(ns, passwords, earn, stasis, migrate);
 	let lastReseed = Date.now();
 	let lastTerminal = Date.now();
 	let stasisTargets = null; // forces a first write, replacing any stale list from an earlier run
@@ -55,10 +58,11 @@ export async function main(ns) {
 		forgetVanished(ns, map, unsolved);
 		writeOutputs(ns, { map, passwords, earnings, unsolved });
 		if (stasis) stasisTargets = manageStasis(ns, { map, passwords, earnings }, stasisTargets);
+		if (migrate) manageMigration(ns, { map, passwords, earnings }, Date.now());
 
 		if (flags.once && port.empty()) break;
 		if (!flags.once && Date.now() - lastReseed > RESEED_INTERVAL) {
-			if (!runningOn(ns, CRAWLER_SCRIPT, "darkweb")) await seed(ns, passwords, earn, stasis);
+			if (!runningOn(ns, CRAWLER_SCRIPT, "darkweb")) await seed(ns, passwords, earn, stasis, migrate);
 			lastReseed = Date.now();
 			const toTerminal = Date.now() - lastTerminal > TERMINAL_INTERVAL;
 			if (toTerminal) lastTerminal = Date.now();
@@ -83,7 +87,7 @@ function restartCrawlers(ns, map, passwords) {
 	const hosts = new Set([...Object.keys(map), ...Object.keys(passwords)]);
 	for (const host of hosts) {
 		if (host === "home") continue;
-		try { killOn(ns, [CRAWLER_SCRIPT, PHISH_SCRIPT], host); } catch { /* server has moved or gone offline */ }
+		try { killOn(ns, [CRAWLER_SCRIPT, PHISH_SCRIPT, MIGRATE_SCRIPT], host); } catch { /* server has moved or gone offline */ }
 	}
 }
 
@@ -97,7 +101,7 @@ function killOn(ns, scripts, host) {
 }
 
 /** Open darkweb (a direct neighbour of home) and launch a crawler on it. */
-async function seed(ns, passwords, earn, stasis) {
+async function seed(ns, passwords, earn, stasis, migrate) {
 	const details = ns.dnet.getServerDetails("darkweb");
 	if (details.isOnline === false) return;
 
@@ -118,9 +122,9 @@ async function seed(ns, passwords, earn, stasis) {
 	ns.write(PASSWORD_FILE, JSON.stringify(passwords), "w");
 	// Free darkweb's blocked RAM here, as crawlers do for the neighbours they open, so its worker has more.
 	if (earn && ns.dnet.getBlockedRam("darkweb") > 0) await ns.dnet.memoryReallocation("darkweb");
-	if (ns.scp(CRAWLER_FILES.concat(PASSWORD_FILE, STASIS_TARGET_FILE), "darkweb", "home") &&
+	if (ns.scp(CRAWLER_FILES.concat(PASSWORD_FILE, STASIS_TARGET_FILE, MIGRATE_TARGET_FILE), "darkweb", "home") &&
 		!runningOn(ns, CRAWLER_SCRIPT, "darkweb")) {
-		if (!ns.exec(CRAWLER_SCRIPT, "darkweb", 1, earn ? 1 : 0, stasis ? 1 : 0)) {
+		if (!ns.exec(CRAWLER_SCRIPT, "darkweb", 1, earn ? 1 : 0, stasis ? 1 : 0, migrate ? 1 : 0)) {
 			const free = ns.getServerMaxRam("darkweb") - ns.getServerUsedRam("darkweb");
 			ns.print(`WARN darknet: couldn't start the crawler on darkweb: it needs ` +
 				`${ns.getScriptRam(CRAWLER_SCRIPT, "home")} GB, darkweb has ${free.toFixed(1)} GB free.`);
@@ -159,14 +163,67 @@ export function manageStasis(ns, { map, passwords, earnings }, previous) {
 	if (previous && targets.join(",") === previous.join(",")) return targets;
 
 	ns.write(STASIS_TARGET_FILE, JSON.stringify(targets), "w");
+	pushToOpened(ns, STASIS_TARGET_FILE, map, passwords);
+	return targets;
+}
+
+/** Copy a target file to every opened server, so each crawler reads the current list. */
+function pushToOpened(ns, file, map, passwords) {
 	for (const host of Object.keys(map)) {
 		if (passwords[host] === undefined || host === "home") continue;
 		try {
 			ns.dnet.connectToSession(host, passwords[host]); // scp to a darknet server needs a session
-			ns.scp(STASIS_TARGET_FILE, host, "home");
+			ns.scp(file, host, "home");
 		} catch { /* went offline since we last checked */ }
 	}
+}
+
+/**
+ * Some parts of the darknet are cut off from the rest ("air gaps"); a server that moves carries its crawler across.
+ * When no new server has been mapped for MIGRATE.stallMs, pick up to MIGRATE.maxTargets opened servers to push:
+ * the ones we have a crawler on, not stasis-linked (those are pinned on purpose), not stationary, not pushed lately
+ * and not given up on. The list goes to every opened server; the crawlers next to a target run the migrate worker
+ * on it, and the pushes stack. Any new server clears the list and restarts the stall timer. A push that moved
+ * its target resets that server's failure count; MIGRATE.giveUpAfter pushes in a row that moved nothing park it
+ * until the map grows. State lives in earnings.migrate. Returns the current target list.
+ */
+export function manageMigration(ns, { map, passwords, earnings }, now) {
+	const state = earnings.migrate ??= { size: Object.keys(map).length, lastGrowth: now, targets: [], tried: {}, moved: 0, empty: 0 };
+	const size = Object.keys(map).length;
+	if (size > state.size) {
+		state.lastGrowth = now;
+		state.tried = {};
+	}
+	state.size = size;
+
+	let targets = [];
+	if (now - state.lastGrowth >= MIGRATE.stallMs) {
+		const linked = ns.dnet.getStasisLinkedServers();
+		targets = Object.keys(map)
+			.filter((host) => passwords[host] !== undefined && host !== "home" && !map[host].isStationary && !linked.includes(host))
+			.filter((host) => runningOn(ns, CRAWLER_SCRIPT, host))
+			.filter((host) => {
+				const tried = state.tried[host];
+				return !tried || (tried.fails < MIGRATE.giveUpAfter && now - tried.last >= MIGRATE.cooldownMs);
+			})
+			.sort((a, b) => (state.tried[a]?.last ?? 0) - (state.tried[b]?.last ?? 0))
+			.slice(0, MIGRATE.maxTargets);
+	}
+	if (targets.join(",") !== state.targets.join(",")) {
+		state.targets = targets;
+		ns.write(MIGRATE_TARGET_FILE, JSON.stringify(targets), "w");
+		pushToOpened(ns, MIGRATE_TARGET_FILE, map, passwords);
+	}
 	return targets;
+}
+
+/** Fold a worker's report into the push history. A moved server is credited; one that did not move counts a fail. */
+export function noteMigration(earnings, message) {
+	const state = earnings.migrate;
+	if (!state) return;
+	const tried = state.tried[message.host] ??= { fails: 0, last: 0 };
+	tried.last = message.at;
+	if (message.moved) { tried.fails = 0; state.moved++; } else { tried.fails++; state.empty++; }
 }
 
 /** Darknet servers can vanish; drop any that no longer exist so counts and stasis targets stay real. */
@@ -195,6 +252,7 @@ function drain(ns, port, state) {
 		else if (message.kind === "stasis" || message.kind === "unlink") {
 			state.earnings.stasisNote = `${message.kind} ${message.host} ${message.success ? "ok" : "failed"}`;
 		}
+		else if (message.kind === "migrate") noteMigration(state.earnings, message);
 		else if (message.kind === "stasis-start") state.earnings.stasisNote = `${message.mode}ing ${message.host} (~20s)`;
 		else if (message.kind === "stasis-skip") {
 			state.earnings.stasisNote = `${message.host} too small to ${message.mode} (${message.free.toFixed(1)}/${message.need.toFixed(1)} GB free)`;
@@ -252,9 +310,17 @@ function printSummary(ns, { map, passwords, earnings }, toTerminal = false) {
 		`${earnings.phish} phishes, ${earnings.caches} caches, ` +
 		`$${ns.format.number(earned)} earned ($${ns.format.number(perSecond)}/s), ` +
 		`${linked}/${ns.dnet.getStasisLinkLimit()} stasis-linked` +
-		(earnings.stasisNote ? ` (last: ${earnings.stasisNote})` : "") + retrySummary(earnings) + ".";
+		(earnings.stasisNote ? ` (last: ${earnings.stasisNote})` : "") + migrateSummary(earnings) + retrySummary(earnings) + ".";
 	ns.print(line);
 	if (toTerminal) ns.tprint(line);
+}
+
+/** ", pushing 2 servers (3 moved, 1 stayed)" while migrations are being induced, ", 3 moved" after; empty before any. */
+function migrateSummary(earnings) {
+	const state = earnings.migrate;
+	if (!state || (!state.targets.length && !state.moved && !state.empty)) return "";
+	const pushing = state.targets.length ? `pushing ${state.targets.length} (${state.targets.join(", ")}), ` : "";
+	return `, migrations: ${pushing}${state.moved} moved, ${state.empty} stayed`;
 }
 
 /**
