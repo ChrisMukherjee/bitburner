@@ -1,4 +1,4 @@
-// Design: docs/player-work.md
+// Design: docs/player-work-goals.md
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";
 import { readIncomeRate } from "/utils/income.js";

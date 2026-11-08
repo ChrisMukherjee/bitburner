@@ -1,4 +1,4 @@
-// Design: docs/player-work.md
+// Design: docs/player-work-goals.md
 // Same "worth it" rule as buy-augs.js and singularity/workers/faction-goals.js, from the config.
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";

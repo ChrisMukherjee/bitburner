@@ -33,6 +33,8 @@
   Rejected: asking the game APIs directly (gang/Bladeburner calls would add RAM to a 9.6GB bot) and
   weighting by measured bonus value (the bonuses aren't comparable across mechanics).
 
-## Known gap
+## Skipped opponents
 
-An opponent skipped as "losing" stays skipped (no new games to change its history); `--reset` clears it.
+An opponent skipped as "losing" (under 20% wins) would never get a new result, so it gets one more game an hour after
+its last (`lastPlayed` in `data/go-bonus.json`). One win lifts it back above the line only if the window's win rate does;
+otherwise it goes back to skipped for another hour. `--reset` clears all history.

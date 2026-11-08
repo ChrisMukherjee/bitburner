@@ -16,6 +16,7 @@ const ROTATION = ["The Black Hand", "Daedalus", "Illuminati", "Netburners", "Tet
 // Per-opponent bonus history, kept across restarts and aug installs (startup.js restarts the bot per stage).
 const DATA_FILE = "/data/go-bonus.json";
 const HISTORY = 60; // games kept per opponent
+const RETRY_MS = 60 * 60_000; // an opponent skipped as "losing" gets one more game after this long (history never changes otherwise)
 
 /*
  * Usage: run go/go-bot.js [--opponent "The Black Hand"] [--size 7] [--illuminati-size 5] [--think 400]
@@ -27,7 +28,8 @@ const HISTORY = 60; // games kept per opponent
  * levelled off when the average gain over the last --span games is below --level-off times the best
  * window average it ever had (the bonus grows roughly like log(power) * power^0.3, so gains per game
  * keep shrinking). An opponent we win less than --min-win-rate of the last window against is skipped
- * too (it barely pays). When every opponent has levelled off, it goes back to the focus.
+ * too (it barely pays), but it is tried again with one game an hour after its last, since a skipped opponent
+ * would otherwise never get a new result (the bot, a bigger board or new augments can change the odds). When every opponent has levelled off, it goes back to the focus.
  *
  * The order after the focus is plan-aware (config `go`, go/go-plan.js): while a gang, Bladeburner or an open
  * Daedalus rep goal is running, the opponents whose bonus it uses (Slum Snakes/Tetrads, Tetrads, Daedalus)
@@ -147,7 +149,12 @@ export async function main(ns) {
 
 // First opponent in priority order that is still worth playing; the focus once all have levelled off.
 function pickOpponent(order, data, settings) {
-	return order.find((name) => progressOf(data[name], settings) === "climbing") ?? order[0];
+	return order.find((name) => progressOf(data[name], settings) === "climbing" || retryDue(data[name], settings)) ?? order[0];
+}
+
+// A skipped ("losing") opponent is due one more game an hour after its last.
+function retryDue(entry, settings) {
+	return progressOf(entry, settings) === "losing" && Date.now() - (entry.lastPlayed ?? 0) > RETRY_MS;
 }
 
 // "climbing" while still worth playing, "levelled" once gains dropped off, "losing" if we rarely win.
@@ -189,6 +196,7 @@ function record(ns, data, name, gain, won, bonus, span) {
 	entry.wins.push(won);
 	entry.games++;
 	entry.bonus = bonus;
+	entry.lastPlayed = Date.now();
 	if (entry.gains.length > HISTORY) entry.gains.shift();
 	if (entry.wins.length > HISTORY) entry.wins.shift();
 	const recent = recentGain(entry, span);
