@@ -9,7 +9,7 @@
  * ns.go.cheat.destroyNode until the API refuses to play (ejected). Do it in a BitNode where you aren't
  * chasing the BN14 challenge (that one forbids cheating). Win streaks and bonuses are not touched: the game
  * that is thrown away doesn't count as a loss against a real opponent's history file, but the bot's streak
- * for Netburners may reset. Afterwards start go/ipvgo-bot.js again.
+ * for Netburners may reset. Afterwards start go/go-bot.js again.
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -21,7 +21,7 @@ export async function main(ns) {
 		return;
 	}
 	if (!flags.yes) {
-		ns.tprint("[anticheat] would start a new 5x5 game against Netburners and cheat until ejected. Kill go/ipvgo-bot.js, then run with --yes.");
+		ns.tprint("[anticheat] would start a new 5x5 game against Netburners and cheat until ejected. Kill go/go-bot.js, then run with --yes.");
 		return;
 	}
 	let tries = 0;

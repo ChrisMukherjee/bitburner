@@ -69,8 +69,8 @@ const SCRIPTS = [
 	// Buys The Red Pill's rep with money once Daedalus has the favor for donations (otherwise it is ground by work).
 	{ stage: "early", script: "singularity/donate-rep.js", oneShot: true, every: 120_000, homeOnly: true, ready: donateReady },
 	// tools/track-income.js left out (2.7GB): the batcher, darknet and stock logs already show income. Run it by hand.
-	{ stage: "early", script: "go/ipvgo-bot.js", args: ["--opponent", "Netburners"], restartOnNewArgs: true, until: "mid" },
-	{ stage: "mid", script: "go/ipvgo-bot.js", args: ["--opponent", "The Black Hand"], restartOnNewArgs: true, until: "late" },
+	{ stage: "early", script: "go/go-bot.js", args: ["--opponent", "Netburners"], restartOnNewArgs: true, until: "mid" },
+	{ stage: "mid", script: "go/go-bot.js", args: ["--opponent", "The Black Hand"], restartOnNewArgs: true, until: "late" },
 	{ stage: "mid", script: "contracts/solve-contracts.js", homeOnly: true },
 	{ stage: "mid", script: "darknet/dnet-manager.js", homeOnly: true, ready: dnetReady },
 	{ stage: "mid", script: "singularity/upgrade-home-cores.js", args: ["--once"], oneShot: true, every: 30_000, ready: homeCoresReady },
@@ -81,7 +81,7 @@ const SCRIPTS = [
 	// Buys and installs augs by itself when the reset rule in buy-augs.js says so; startup.js comes
 	// back afterwards. Add args: ["--dry"] to only log (restartOnNewArgs swaps a running copy).
 	{ stage: "mid", script: "singularity/auto-reset.js", args: [], restartOnNewArgs: true, homeOnly: true },
-	{ stage: "late", script: "go/ipvgo-bot.js", args: ["--opponent", "Daedalus"], restartOnNewArgs: true },
+	{ stage: "late", script: "go/go-bot.js", args: ["--opponent", "Daedalus"], restartOnNewArgs: true },
 	// Where hacking pays nothing (BitNode 8) the stock market is the income, so it starts at the early stage (64GB home) instead of the late one.
 	{ stage: "late", script: "stocks/stock-trader.js", args: ["--buy-4s", "--promote", 32], homeOnly: true, earlyIf: hackIsWorthless },
 ];

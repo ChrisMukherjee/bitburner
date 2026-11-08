@@ -1,6 +1,6 @@
 # Go bot
 
-[`../go/ipvgo-bot.js`](../go/ipvgo-bot.js) (game loop, rotation) and
+[`../go/go-bot.js`](../go/go-bot.js) (game loop, rotation) and
 [`../go/choose-move.js`](../go/choose-move.js) (move search).
 
 ## Decisions

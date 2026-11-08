@@ -28,8 +28,8 @@ import { goOrder } from "/go/go-plan.js";
  *   port 36  Bladeburner state + lines (bladeburner/bb-manage.js and bb-pass.js, one-shots)
  *   data/aug-plan.json   reset advice + rep rates, Red Pill rep/price and Daedalus invite needs
  *                        (buy-augs.js --plan, every 10 min via auto-reset.js)
- *   data/go-bonus.json   Go bonus history (go/ipvgo-bot.js)
- *   startup.js and go/ipvgo-bot.js are read as text for their script list, stage thresholds and
+ *   data/go-bonus.json   Go bonus history (go/go-bot.js)
+ *   startup.js and go/go-bot.js are read as text for their script list, stage thresholds and
  *   Go rotation, so this never falls out of step with them.
  * Rep ETAs use the auto-reset snapshots; between those it keeps its own in data/status-rep.json.
  */
@@ -43,7 +43,7 @@ const GO_FILE = "data/go-bonus.json";
 const REP_FILE = "data/status-rep.json";
 const DAEMON = "w0r1d_d43m0n";
 const RED_PILL = "The Red Pill";
-// Same defaults as go/ipvgo-bot.js (--span, --level-off, --min-win-rate).
+// Same defaults as go/go-bot.js (--span, --level-off, --min-win-rate).
 const GO_SETTINGS = { span: 10, levelOff: 0.25, minWinRate: 0.2 };
 const RATE_GAP = { minMs: 120_000, maxMs: 3 * 3600_000 };
 
@@ -172,10 +172,10 @@ export async function main(ns) {
 	}
 
 	// --- Go ---
-	const goBot = processes.find((proc) => proc.filename === "go/ipvgo-bot.js");
+	const goBot = processes.find((proc) => proc.filename === "go/go-bot.js");
 	const goData = readJson(ns, GO_FILE) ?? {};
 	const focus = goBot ? argValue(goBot.args, "--opponent") ?? "Netburners" : null;
-	const rotation = parseList(ns.read("go/ipvgo-bot.js"), "ROTATION");
+	const rotation = parseList(ns.read("go/go-bot.js"), "ROTATION");
 	const manualRotation = goBot ? argValue(goBot.args, "--rotation") : null;
 	const goPlan = goOrder(ns, config, focus ?? "Netburners", {
 		noPlan: !!goBot?.args.includes("--no-plan"),
@@ -323,7 +323,7 @@ function repRates(ns, rep, plan, now, lastReset) {
 	return { perSecond: { ...planRates, ...perSecond } };
 }
 
-// "climbing" / "levelled" / "losing", as go/ipvgo-bot.js decides it.
+// "climbing" / "levelled" / "losing", as go/go-bot.js decides it.
 function goProgress(entry) {
 	const { span, levelOff, minWinRate } = GO_SETTINGS;
 	if (!entry || entry.gains.length < span * 2) return "climbing";

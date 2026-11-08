@@ -335,7 +335,7 @@ export const DEFAULTS = {
 	// port 36 (plan.route) wins over this. Black Ops done = the BitNode can end without w0r1d_d43m0n.
 	bladeburner: { route: "combat" },
 
-	// Go bot (go/ipvgo-bot.js, go/go-plan.js). rotation: the order it moves on to once the focus opponent's bonus
+	// Go bot (go/go-bot.js, go/go-plan.js). rotation: the order it moves on to once the focus opponent's bonus
 	// levels off. planAware: opponents in `boosts` jump the queue while the plan uses their bonus (Bladeburner running ->
 	// combat stats, an open Daedalus rep goal -> rep gain; `gang` is empty because gang members never use your
 	// multipliers, see docs/go-bot.md); false, or
