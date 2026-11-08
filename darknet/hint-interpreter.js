@@ -6,6 +6,12 @@
 
 const DEFAULTS = ["admin", "password", "0000", "12345"];
 
+/** "PHP 5.4" shows the real password with its characters sorted ("The key is made from 558"). */
+export const SORTED_ECHO_MODEL = "PHP 5.4";
+
+/** Most anagrams tried per server: 6 characters is 720 at worst, longer ones are cut off here. */
+export const MAX_ANAGRAMS = 720;
+
 const DOG_NAMES = ["fido", "spot", "rover", "max", "laika"];
 
 const FORMAT_PATTERNS = {
@@ -63,6 +69,28 @@ function dataCandidates(details) {
 	if (alnum && alnum !== digits && alnum !== letters) out.push(alnum);
 
 	out.push(data.trim(), data);
+	return out;
+}
+
+/** Distinct arrangements of a string's characters (at most `limit`), in sorted order: "558" -> 558, 585, 855. */
+export function anagrams(text, limit = MAX_ANAGRAMS) {
+	const chars = [...String(text ?? "")].sort();
+	const out = [];
+	const used = new Array(chars.length).fill(false);
+	const build = (prefix) => {
+		if (out.length >= limit) return;
+		if (prefix.length === chars.length) {
+			out.push(prefix);
+			return;
+		}
+		for (let i = 0; i < chars.length; i++) {
+			if (used[i] || (i > 0 && chars[i] === chars[i - 1] && !used[i - 1])) continue;
+			used[i] = true;
+			build(prefix + chars[i]);
+			used[i] = false;
+		}
+	};
+	build("");
 	return out;
 }
 
@@ -134,6 +162,8 @@ export function candidatePasswords(details, dataTransform) {
 	const shape = classifyHint(details);
 	const raw = [];
 
+	// PHP 5.4: Data is the password sorted, so the password is one of its anagrams (a wrong guess is harmless).
+	if (details.modelId === SORTED_ECHO_MODEL && String(details.data ?? "") !== "") raw.push(...anagrams(details.data));
 	if (shape === "none") raw.push("");
 	if (shape === "default") raw.push(...DEFAULTS);
 	if (shape === "dog") raw.push(...DOG_NAMES);

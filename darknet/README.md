@@ -12,7 +12,7 @@ Requires column: see the [requirement tags](../README.md#requirements). The scri
 | [`migrate.js`](migrate.js) | Pushes one neighbour with `induceServerMigration` until it moves; started by a crawler when the manager lists that neighbour as a target | arg: target host | Darknet | 5.8GB |
 | [`stasis.js`](stasis.js) | Applies or removes a stasis link | arg: `unlink` | Darknet | 13.65GB while it runs |
 | [`ready.js`](ready.js) | Library: tells [`startup.js`](../startup.js) to start the manager only once DarkscapeNavigator.exe is owned | import only | none | 0GB |
-| [`hint-interpreter.js`](hint-interpreter.js) | Library: works out a password from a server's hint | import only | none | 0GB |
+| [`hint-interpreter.js`](hint-interpreter.js) | Library: works out a password from a server's hint (PHP 5.4: the anagrams of its sorted Data, up to 720) | import only | none | 0GB |
 | [`feedback-solvers.js`](feedback-solvers.js) | Library: solvers for models that answer wrong guesses: Factori-Os (prime factors, capped by the password length and started from the hint's divisor) and DeepGreen (Mastermind) | import only | none | 0.4GB |
 | [`heartbleed.js`](heartbleed.js) | Library: reads a neighbour's logs for passwords that worked, leaked passcodes, known-wrong passwords and Mastermind replies | import only | Darknet | 0.6GB |
 | [`auth.js`](auth.js) | Library: login helper | import only | Darknet | no extra RAM |
