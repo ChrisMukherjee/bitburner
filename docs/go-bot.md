@@ -23,6 +23,14 @@
 - **An offline simulator** with the game's real opponent AI was used to compare versions before running
   them in game; its predictions held up.
 
+- **Plan-aware order.** `go/go-plan.js` puts opponents whose bonus the running plan uses ahead of the stage's
+  focus, re-checked before every game: a running gang (port 28) -> Slum Snakes and Tetrads, Bladeburner
+  booting/training/running (port 36) -> Tetrads, an open Daedalus rep goal (port 23) -> Daedalus. The
+  conditions come from posted state, not BitNode numbers, so a run without a gang, Bladeburner or goals gets
+  the old order. Lists live in `go` in `config.js`; `--no-plan`, `--rotation` and `--no-rotate` override it.
+  Rejected: asking the game APIs directly (gang/Bladeburner calls would add RAM to a 9.6GB bot) and
+  weighting by measured bonus value (the bonuses aren't comparable across mechanics).
+
 ## Known gap
 
 An opponent skipped as "losing" stays skipped (no new games to change its history); `--reset` clears it.

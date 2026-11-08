@@ -157,7 +157,7 @@ Example `data/config.json` for a player who plans BitNode 4 to Source-File 3, th
 }
 ```
 
-Which BitNodes the scripts can use is listed in the "Needs" column of the folder table below. A BitNode with no support yet can still be on the route; the scripts just run the hacking core there.
+Which BitNodes and Source-Files a script needs is in the "Requires" column of its folder README (see [Requirements](#requirements)). A BitNode with no support yet can still be on the route; the scripts just run the hacking core there.
 
 ### Aliases
 
@@ -194,25 +194,45 @@ alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compressio
 
 Each folder's README lists its scripts with flags and RAM cost, and links its design note.
 
-| Folder | What it does | Needs |
-| --- | --- | --- |
-| [`hack/`](hack/README.md) | Multi-target JIT hack/grow/weaken batcher and its workers | nothing special |
-| [`pserv/`](pserv/README.md) | Buys and upgrades purchased servers | nothing special |
-| [`hacknet/`](hacknet/README.md) | Buys hacknet upgrades while they pay back fast enough | nothing special |
-| [`stocks/`](stocks/README.md) | Stock market trading | nothing special |
-| [`contracts/`](contracts/README.md) | Finds and solves coding contracts | nothing special |
-| [`share/`](share/README.md) | Shares spare RAM for faction rep during faction work | nothing special |
-| [`singularity/`](singularity/README.md) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, next BitNode | BitNode 4 or Source-File 4 |
-| [`gang/`](gang/README.md) | Gang manager | BitNode 2 or Source-File 2 |
-| [`bladeburner/`](bladeburner/README.md) | Bladeburner: state manager, action pass and route estimate | BitNode 6 or 7, or Source-File 6 or 7 |
-| [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links | `DarkscapeNavigator.exe` on home |
-| [`go/`](go/README.md) | IPvGO bot | nothing special |
-| [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks, exploit achievements | nothing special |
-| [`utils/`](utils/README.md) | Shared helpers | nothing special |
-| [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do | nothing special |
-| [`archive/`](archive/README.md) | Older versions of scripts, kept for history (not synced to the game) | nothing special |
+| Folder | What it does |
+| --- | --- |
+| [`hack/`](hack/README.md) | Multi-target JIT hack/grow/weaken batcher and its workers |
+| [`pserv/`](pserv/README.md) | Buys and upgrades purchased servers |
+| [`hacknet/`](hacknet/README.md) | Buys hacknet upgrades while they pay back fast enough |
+| [`stocks/`](stocks/README.md) | Stock market trading |
+| [`contracts/`](contracts/README.md) | Finds and solves coding contracts |
+| [`share/`](share/README.md) | Shares spare RAM for faction rep during faction work |
+| [`singularity/`](singularity/README.md) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, next BitNode |
+| [`gang/`](gang/README.md) | Gang manager |
+| [`bladeburner/`](bladeburner/README.md) | Bladeburner: state manager, action pass and route estimate |
+| [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links |
+| [`go/`](go/README.md) | IPvGO bot |
+| [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks, exploit achievements |
+| [`utils/`](utils/README.md) | Shared helpers |
+| [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do |
+| [`archive/`](archive/README.md) | Older versions of scripts, kept for history (not synced to the game) |
 
 [`startup.js`](startup.js) (the stage-based launcher) and [`config.js`](config.js) (default settings and presets) stay at the root.
+
+## Requirements
+
+Which scripts need which BitNode, Source-File or item is not decided per folder: a folder can mix scripts that work everywhere with ones that need an API. So every script table in a folder README has a **Requires** column, using these tags:
+
+| Tag | Means | Check in the code |
+| --- | --- | --- |
+| `none` | Works in any run, on any home | |
+| `SF4` | Singularity API: BitNode 4, or Source-File 4 (RAM costs 16x at SF4.1, 4x at SF4.2, normal at SF4.3) | [`utils/singularity.js`](utils/singularity.js) |
+| `SF2` | Gang API: BitNode 2, or Source-File 2 (outside BitNode 2 the gang also needs karma -54,000) | [`utils/gang.js`](utils/gang.js) |
+| `SF6/7` | Bladeburner API: BitNode 6 or 7, or Source-File 6 or 7 | [`utils/bladeburner.js`](utils/bladeburner.js) |
+| `SF5` | BitNode multipliers: BitNode 5, or Source-File 5 (also gives Formulas.exe and the Intelligence stat) | [`utils/sf5.js`](utils/sf5.js) |
+| `Formulas` | `Formulas.exe` on home | `ns.fileExists("Formulas.exe", "home")` |
+| `Darknet` | `DarkscapeNavigator.exe` on home (the darknet API) | [`darknet/ready.js`](darknet/ready.js) |
+| `TIX`, `4S` | Stock market API access and 4S market data; stock-trader buys them itself, so it only waits for cash | `ns.stock.hasTixApiAccess()` |
+
+- A tag without a note is a **hard** requirement: without it the script exits cleanly, is left out by [`startup.js`](startup.js), or can't do its job.
+- **`(opt)`** means the script uses the feature when it is there and falls back when it is not (for example `Formulas (opt)`: exact numbers with Formulas.exe, estimates without). Several tags are separated by commas; a script needs all its hard tags.
+- A script that starts or reads another script's output lists that script's requirements too (`next-bitnode.js` starts a Singularity worker, so it is `SF4`). The capability helpers themselves are `none`: they are the check.
+- A new script must state its requirement here and in its folder README; see [`AGENTS.md`](AGENTS.md).
 
 ## Ports
 

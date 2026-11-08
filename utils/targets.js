@@ -71,6 +71,6 @@ export function estimateAtMinSecurity(ns, target, player) {
  * targets by money per unit of RAM-time. Pass an estimate to avoid computing it twice.
  */
 export function scoreTarget(ns, target, estimate = estimateAtMinSecurity(ns, target)) {
-	if (!(estimate.weaken > 0)) return 0;
-	return (ns.getServerMaxMoney(target) * estimate.chance) / estimate.weaken;
+	if (!(estimate["weaken"] > 0)) return 0;
+	return (ns.getServerMaxMoney(target) * estimate.chance) / estimate["weaken"];
 }

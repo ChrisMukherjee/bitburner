@@ -1,4 +1,6 @@
 // Design: docs/aug-reset.md
+import { notify } from "/utils/notify.js";
+const TAG = "[auto-reset]";
 const CONFIG = {
 	checkMinutes: 10,
 	retryMinutes: 30, // after a reset that bought nothing (so didn't install), RESET advice is held this long
@@ -61,20 +63,20 @@ export async function main(ns) {
 			if (line !== lastReason) ns.print(line);
 			lastReason = line;
 
-			// Tell the player (terminal line + toast) about new affordable augments and a switch to RESET.
+			// Tell the player (toast only: nothing to act on) about new affordable augments and a switch to RESET.
 			const ready = [...plan.queued, ...plan.affordable];
 			const fresh = seen ? plan.affordable.filter((aug) => !seen.has(aug)) : [];
-			if (fresh.length > 0) notify(ns, `New aug${fresh.length > 1 ? "s" : ""} affordable: ${fresh.join(", ")} (${ready.length} ready)`, "info");
+			if (fresh.length > 0) notify(ns, TAG, `New aug${fresh.length > 1 ? "s" : ""} affordable: ${fresh.join(", ")} (${ready.length} ready)`, "info");
 			seen = new Set([...(seen ?? []), ...ready]);
 			// resetSince is set by the planner when the advice first turned RESET this run, so only this check announces it.
-			if (plan.decision.reset && plan.resetSince >= askedAt) notify(ns, `Reset advice is now RESET: ${plan.decision.reason}`, "success");
+			if (plan.decision.reset && plan.resetSince >= askedAt) notify(ns, TAG, `Reset advice is now RESET: ${plan.decision.reason}`, "success");
 			if (plan.decision.reset) {
 				if (flags.dry) {
 					ns.print("[auto-reset] would reset now (--dry, not doing it)");
 				} else if (Date.now() < holdUntil) {
 					ns.print(`[auto-reset] holding the reset until ${new Date(holdUntil).toLocaleTimeString()}: the last attempt bought nothing`);
 				} else {
-					ns.toast(`Resetting: ${plan.decision.reason}`, "warning", 10_000);
+					notify(ns, TAG, `Resetting: ${plan.decision.reason}`, "warning");
 					if (await resetNow(ns, plan)) return;
 					holdUntil = Date.now() + CONFIG.retryMinutes * 60_000;
 				}
@@ -82,12 +84,6 @@ export async function main(ns) {
 		}
 		await ns.sleep(CONFIG.checkMinutes * 60_000);
 	}
-}
-
-/** A terminal line and a toast (both 0GB). */
-function notify(ns, message, variant) {
-	ns.tprint(`auto-reset: ${message}`);
-	ns.toast(message, variant, null); // sticky until clicked: these need acting on
 }
 
 /**
@@ -103,7 +99,7 @@ async function resetNow(ns, plan) {
 		for (const proc of ns.ps(host)) if (proc.filename === CONFIG.stockTrader) ns.kill(proc.pid);
 	}
 	if (ns.fileExists(CONFIG.stockTrader, "home") && !await runAndWait(ns, CONFIG.stockTrader, "--liquidate", "--no-buy-tix")) {
-		ns.tprint(`auto-reset: couldn't run ${CONFIG.stockTrader} --liquidate; any stock positions will be lost.`);
+		notify(ns, TAG, `couldn't run ${CONFIG.stockTrader} --liquidate; any stock positions will be lost.`, "error", true);
 	}
 	const buyStart = Date.now();
 	if (!await runAndWait(ns, CONFIG.buyer)) return giveUp(ns, `couldn't run ${CONFIG.buyer} even on an empty home`);
@@ -133,8 +129,8 @@ function notWorthInstalling(ns, before, buyStart) {
 
 /** A reset that stopped short of installing: say why and start startup.js again (everything on home was stopped). */
 function giveUp(ns, why) {
-	notify(ns, `Not installing: ${why}. Restarting ${CONFIG.afterReset}; no new reset attempt for ${CONFIG.retryMinutes} min.`, "error");
-	if (ns.exec(CONFIG.afterReset, "home", 1) === 0) ns.tprint(`auto-reset: couldn't start ${CONFIG.afterReset}; run it by hand.`);
+	notify(ns, TAG, `Not installing: ${why}. Restarting ${CONFIG.afterReset}; no new reset attempt for ${CONFIG.retryMinutes} min.`, "error", true);
+	if (ns.exec(CONFIG.afterReset, "home", 1) === 0) notify(ns, TAG, `couldn't start ${CONFIG.afterReset}; run it by hand.`, "error", true);
 	return false;
 }
 

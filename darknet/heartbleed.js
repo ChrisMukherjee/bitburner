@@ -27,14 +27,14 @@ export async function readLogs(ns, host) {
 		if (entry.code === 200 && attempted !== undefined) result.winners.push(String(attempted));
 		if (entry.code === 401 && attempted !== undefined) {
 			result.wrong.add(String(attempted));
-			const match = /^\s*(\d+)\s*,\s*(\d+)\s*$/.exec(String(entry.data ?? ""));
+			const match = String(entry.data ?? "").match(/^\s*(\d+)\s*,\s*(\d+)\s*$/);
 			if (match) result.observed.push({ guess: String(attempted), exact: Number(match[1]), misplaced: Number(match[2]) });
 		}
-		const fromMessage = /passcode:\s*([A-Za-z0-9]+)/i.exec(String(entry.message ?? ""))?.[1];
+		const fromMessage = String(entry.message ?? "").match(/passcode:\s*([A-Za-z0-9]+)/i)?.[1];
 		if (fromMessage) result.leaked.push(fromMessage);
 		const data = String(entry.data ?? "");
 		const at = data.indexOf(host + ":");
-		const fromData = at >= 0 ? /^[A-Za-z0-9]+/.exec(data.slice(at + host.length + 1))?.[0] : null;
+		const fromData = at >= 0 ? data.slice(at + host.length + 1).match(/^[A-Za-z0-9]+/)?.[0] : null;
 		if (fromData) result.leaked.push(fromData);
 	}
 	return result;

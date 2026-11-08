@@ -53,7 +53,7 @@ export async function main(ns) {
 			requiredLevel: ns.getServerRequiredHackingLevel(server),
 			minSecurity: ns.getServerMinSecurityLevel(server),
 			growth: ns.getServerGrowth(server),
-			weakenSeconds: estimate.weaken / 1000,
+			weakenSeconds: estimate["weaken"] / 1000,
 			hackChance: estimate.chance,
 		});
 	}

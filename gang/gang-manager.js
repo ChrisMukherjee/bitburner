@@ -120,13 +120,13 @@ function recruit(ns) {
 
 /** The stat that matters for this gang: hacking for a hacking gang, the combat average otherwise. */
 function mainStat(member, isHacking) {
-	if (isHacking) return member.hack;
+	if (isHacking) return member["hack"];
 	return COMBAT_STATS.reduce((sum, stat) => sum + member[stat], 0) / COMBAT_STATS.length;
 }
 
 /** Same for an ascension result (multiplier gains). */
 function mainGain(result, isHacking) {
-	if (isHacking) return result.hack;
+	if (isHacking) return result["hack"];
 	return COMBAT_STATS.reduce((sum, stat) => sum + result[stat], 0) / COMBAT_STATS.length;
 }
 
@@ -155,7 +155,7 @@ function ascend(ns, settings, isHacking) {
  * assignment is needed. 0 or less means the task is too hard for them yet.
  */
 function skillWeight(task, member) {
-	const sum = task.hackWeight * member.hack + task.strWeight * member.str + task.defWeight * member.def +
+	const sum = task.hackWeight * member["hack"] + task.strWeight * member.str + task.defWeight * member.def +
 		task.dexWeight * member.dex + task.agiWeight * member.agi + task.chaWeight * member.cha;
 	return sum / 100 - 4 * task.difficulty;
 }

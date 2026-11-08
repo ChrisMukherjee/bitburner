@@ -1,6 +1,8 @@
 // Design: docs/go-bot.md
 /** @param {NS} ns */
 import { chooseMove } from "/go/choose-move.js"
+import { loadConfig } from "/utils/config.js"
+import { goOrder } from "/go/go-plan.js"
 
 // Bonus each faction's win streak gives (from the IPvGO subnet tab).
 // Netburners: hacknet production | Slum Snakes: crime success | The Black Hand: hacking money
@@ -8,6 +10,7 @@ import { chooseMove } from "/go/choose-move.js"
 const OPPONENTS = ["Netburners", "Slum Snakes", "The Black Hand", "Tetrads", "Daedalus", "Illuminati", "????????????"];
 
 // Who to move on to once the focus opponent levels off, most useful first for a hacking run.
+// The order the bot uses comes from `go` in config.js (go/go-plan.js); this is the fallback and what tools/status.js falls back to.
 const ROTATION = ["The Black Hand", "Daedalus", "Illuminati", "Netburners", "Tetrads", "Slum Snakes"];
 
 // Per-opponent bonus history, kept across restarts and aug installs (startup.js restarts the bot per stage).
@@ -16,7 +19,7 @@ const HISTORY = 60; // games kept per opponent
 
 /*
  * Usage: run go/ipvgo-bot.js [--opponent "The Black Hand"] [--size 7] [--illuminati-size 5] [--think 400]
- *        [--games 0] [--debug] [--no-rotate] [--span 10] [--level-off 0.25] [--min-win-rate 0.2] [--status] [--reset]
+ *        [--games 0] [--debug] [--no-rotate] [--no-plan] [--rotation "A,B,..."] [--span 10] [--level-off 0.25] [--min-win-rate 0.2] [--status] [--reset]
  *
  * Plays the --opponent (the focus) until its bonus levels off, then the next opponent in ROTATION
  * that hasn't. "Levels off" is measured from ns.go.analysis.getStats(): after every game the bot records
@@ -25,6 +28,11 @@ const HISTORY = 60; // games kept per opponent
  * window average it ever had (the bonus grows roughly like log(power) * power^0.3, so gains per game
  * keep shrinking). An opponent we win less than --min-win-rate of the last window against is skipped
  * too (it barely pays). When every opponent has levelled off, it goes back to the focus.
+ *
+ * The order after the focus is plan-aware (config `go`, go/go-plan.js): while a gang, Bladeburner or an open
+ * Daedalus rep goal is running, the opponents whose bonus it uses (Slum Snakes/Tetrads, Tetrads, Daedalus)
+ * are tried before the focus. Re-checked before every game. --no-plan keeps [focus, ...config rotation];
+ * --rotation "A,B,C" sets the order after the focus by hand (no plan); --no-rotate plays only the focus.
  *
  * Illuminati is played on --illuminati-size (default 5): the game gives a x8 difficulty multiplier for
  * Illuminati on 5x5 versus x2 on 7x7, and on 5x5 the bot wins far more often. Use 0 to play it on --size.
@@ -40,6 +48,8 @@ export async function main(ns) {
 		["games", 0], // 0 = play forever
 		["debug", false],
 		["no-rotate", false],
+		["no-plan", false], // ignore the gang/Bladeburner/goals plan; use the config rotation as it is
+		["rotation", ""], // comma-separated opponents after the focus, by hand (overrides the config and the plan)
 		["span", 10],
 		["level-off", 0.25],
 		["min-win-rate", 0.2],
@@ -60,7 +70,21 @@ export async function main(ns) {
 	}
 
 	const settings = { span: flags.span, levelOff: flags["level-off"], minWinRate: flags["min-win-rate"] };
-	const order = flags["no-rotate"] ? [focus] : [focus, ...ROTATION.filter((name) => name !== focus)];
+	const config = loadConfig(ns);
+	const manual = flags.rotation ? flags.rotation.split(",").map((name) => name.trim()).filter(Boolean) : null;
+	if (manual?.some((name) => !OPPONENTS.includes(name))) {
+		ns.tprint(`ERROR: --rotation has an unknown opponent. Choose from: ${OPPONENTS.join(", ")}`);
+		return;
+	}
+	const planOptions = { noPlan: flags["no-plan"], rotation: manual };
+	// The order is re-read before every game, since the plan (a gang starts, Bladeburner runs) changes while it plays.
+	const orderNow = () => {
+		if (flags["no-rotate"]) return { order: [focus], boosted: [] };
+		const plan = goOrder(ns, config, focus, planOptions);
+		plan.order = plan.order.filter((name) => OPPONENTS.includes(name));
+		return plan;
+	};
+	let { order } = orderNow();
 	const data = flags.reset ? {} : loadData(ns);
 
 	if (flags.status) {
@@ -74,7 +98,15 @@ export async function main(ns) {
 
 	let played = 0;
 	let current = null;
+	let lastBoost = "";
 	while (flags.games === 0 || played < flags.games) {
+		const plan = orderNow();
+		order = plan.order;
+		const boostNote = plan.boosted.map((entry) => `${entry.opponent} (${entry.why})`).join(", ");
+		if (boostNote !== lastBoost) {
+			ns.print(boostNote ? `Plan wants: ${boostNote} first` : "Plan: no boosts, using the plain order");
+			lastBoost = boostNote;
+		}
 		// A game already in progress is always finished first (a reset mid-game costs the win streak).
 		const inProgress = ns.go.getCurrentPlayer() !== "None" ? ns.go.getOpponent() : null;
 		const resuming = inProgress !== null && order.includes(inProgress);
