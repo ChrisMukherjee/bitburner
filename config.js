@@ -87,8 +87,8 @@ export const DEFAULTS = {
 		// Donations (singularity/donate-rep.js). Key augments (resetRule.keyAugs) always get theirs once a seller has the
 		// favor. anyFaction: also buy the missing rep for other wanted augments at joined factions with that favor, but only
 		// from cash beyond what this reset's planned purchases cost, times `safety` (augment prices rise 1.9x per purchase).
-		// Off by default: it spends real money, so try it with `donate-rep.js --dry` first (docs/aug-reset.md).
-		donations: { anyFaction: false, safety: 1.25 },
+		// On by default; `donate-rep.js --dry` shows what it would do, anyFaction: false turns it off (docs/aug-reset.md).
+		donations: { anyFaction: true, safety: 1.25 },
 		// Spend what's left on NeuroFlux Governor after the rest (buy-augs --no-neuroflux turns it off once).
 		neuroflux: true,
 		// When to reset (buy-augs --dry / --plan, auto-reset.js, install-augs.js). The rule: reset at

@@ -238,12 +238,12 @@ While Daedalus is joined and can't take donations yet:
 
 ## Known limits
 
-- Other factions with 150 favor can sell rep too, but `augments.donations.anyFaction` is off by default: it spends
-  real money and has not been tried in game. When on, donate-rep.js donates for one wanted augment at a time (the
+- Other factions with 150 favor can sell rep too, and `augments.donations.anyFaction` (on by default, `false` turns it off) uses them.
+  It spends real money, so it is guarded: donate-rep.js donates for one wanted augment at a time (the
   best value per dollar of donation plus price) only when home cash covers this reset's planned purchases, the
   donation and the augment at its raised price, times `safety` (1.25). The planner publishes the candidates as
-  `unlockable` in `data/aug-plan.json`. The augment is bought at the next reset like any unlocked one. Try
-  `run /singularity/donate-rep.js --dry` first.
+  `unlockable` in `data/aug-plan.json`. The augment is bought at the next reset like any unlocked one.
+  `run /singularity/donate-rep.js --dry` shows what it would do.
 
 - The income curve needs a few samples (about 20 min) before it uses this run; until then it borrows
   the last run's growth, or stays flat on the first run. Income spent by other scripts (servers,
