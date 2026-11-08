@@ -19,6 +19,11 @@ and [`../stocks/workers/promote-stock.js`](../stocks/workers/promote-stock.js).
 - **`--promote N`** raises volatility (not forecast) of the biggest longs. That only helps with exact 4S
   forecasts. `promoteStock` only runs on darknet servers, so it needs servers the darknet scripts opened.
 
+- **First income where hacking is worthless.** Where the BitNode multipliers say hacking pays almost nothing (BitNode 8),
+  startup.js starts the trader at the early stage (64GB home) instead of the late one (256GB). It needs about 26GB on
+  home, so it still can't run on the 8GB a BitNode starts with; below 64GB nothing here earns until home grows.
+  See [`bitnode-mults.md`](bitnode-mults.md).
+
 ## Open
 
 Positions are lost when augs are installed; selling everything before a reset is planned with the reset rule.

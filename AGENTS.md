@@ -72,7 +72,7 @@ Docs (including [`docs/`](docs/)), rules, script output and code comments should
 Update docs in the same change as the code, not later.
 
 - **Folder READMEs**: every script must be listed in its folder's `README.md`, one line with what it does, its flags, what it requires (the `Requires` tag, see above), its RAM cost and a link to its [`docs/`](docs/) note if it has one. Update the line in the same change when any of these change. A new folder gets a README and a row in the root README.
-- **[README.md](README.md)**: update it when folders, aliases, ports or achievements (BitNode table, Go record) change, or when a script's behaviour changes in a way it describes.
+- **[README.md](README.md)**: update it when folders, aliases or ports change, or when a script's behaviour changes in a way it describes.
 - **[archive/README.md](archive/README.md)**: add a line (what the file did, what the next version changed) whenever a file is archived or removed.
 - **AGENTS.md** and **[docs/NETSCRIPT.md](docs/NETSCRIPT.md)**: update them when a project rule, convention or port changes (ports and coding gotchas live in NETSCRIPT.md).
 - **Links:** in docs (READMEs, AGENTS.md), write references to repo files and folders as relative Markdown links, relative to the doc they are in, so they work on GitHub: [`tools/exploits/README.md`](tools/exploits/README.md) from the root README, `../hack/batcher.js` from `archive/README.md`. Only link paths that exist in the repo. Leave in-game commands (`run /tools/status.js`), code blocks and in-game files (`data/config.json`) as plain code.

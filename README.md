@@ -6,52 +6,6 @@ The goal is a mostly hands-off run: type `run /startup.js` once per BitNode and 
 root servers, farm money, buy upgrades and programs, grind factions, buy augmentations and
 reset by themselves.
 
-## What's been achieved
-
-### BitNode progress
-
-| BitNode | Status |
-| --- | --- |
-| BN1 (Source Genesis) | Destroyed (2026-10-30) |
-| BN4 (The Singularity) | In progress, replaying for SF4.3 |
-| Next | Probably BN5 or BN2 |
-
-### Highlights
-
-- **One-command startup.** [`startup.js`](startup.js) launches everything for the current stage (start, early, mid, late,
-  picked from home RAM) and works from a fresh 8GB home by running scripts on rooted servers.
-  It stays running: it moves to the next stage after a home upgrade, restarts scripts that stop, and
-  runs the Singularity buyers, invites and backdoors as short one-shots only when there is something
-  to do. It starts by itself after augmentation installs and when entering a new BitNode.
-- **Multi-target JIT batcher** ([`batcher.js`](hack/batcher.js)). Just-in-time HWGW batches across up to 25 targets,
-  using Formulas.exe when owned and a cheap stats helper when not. Picks the hack fraction with
-  the best $/s per target and posts its income rate for other scripts to read.
-- **Full Singularity loop.** Studies, buys programs and home upgrades, backdoors servers,
-  joins factions (including the right city factions), works for factions and companies toward
-  real rep goals, plans augmentation purchases, decides when a reset is worth it, and destroys
-  the BitNode by itself once The Red Pill is installed.
-- **Coding contracts.** [`contracts/workers/contract-solver.js`](contracts/workers/contract-solver.js) solves all 30 contract types in the game,
-  including contracts left on darknet servers (tested on 2000 random contracts per type against the game's own solvers).
-- **IPvGO bot** using Monte Carlo tree search (UCT + RAVE) at 0GB extra RAM. In-game record (as of 2026-11-02):
-
-  | Opponent | Wins | Best streak | Captured nodes | Bonus |
-  | --- | --- | --- | --- | --- |
-  | Netburners | 42 / 42 | 42 | 1202 | +17.97% hacknet production |
-  | Slum Snakes | 41 / 41 | 41 | 1162 | +22.0% crime success |
-  | The Black Hand | 52 / 53 | 44 | 1540 | +18.27% hacking money |
-  | Tetrads | 55 / 58 | 52 | 1541 | +16.90% combat stats |
-  | Daedalus | 196 / 198 | 171 | 5397 | +45.30% reputation gain |
-  | Illuminati (5x5) | 25 / 39 | 12 | 493 | +17.76% faster hack/grow/weaken |
-
-- **All 11 exploit achievements** (Source-File -1 level 11), mostly by script: see [`tools/exploits/`](tools/exploits/).
-- **Darknet automation.** Maps and cracks darknet servers from hints and feedback (including
-  Factori-Os prime factoring), phishes for money and keeps stasis links on the best servers.
-- **Stock trader** using TIX with 4S data when available (estimates otherwise), buys market
-  access itself, caps any stock at 25% of net worth, and can steer prices through the batcher's
-  hack/grow workers.
-- **RAM audit.** Static RAM costs cut hard (stock trader 60 → 25.5GB, contract finder 23 → 3.5GB,
-  darknet manager 18 → 7GB) by moving heavy calls into one-shot workers.
-
 ## Setup
 
 Scripts are pushed into the game with
