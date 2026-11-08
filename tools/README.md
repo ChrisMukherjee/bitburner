@@ -15,3 +15,4 @@ Scripts to run by hand. RAM figures are approximate; `mem <script>` in game give
 | [`list-backdoors.js`](list-backdoors.js) | Lists servers worth backdooring and the path to each | `--all` | none | 4.45GB |
 | [`check-servers.js`](check-servers.js) | Lists purchased servers | none | none | 2.75GB |
 | [`kill-all-remote.js`](kill-all-remote.js) | Kills every script on every server except home | none | none | 2.3GB |
+| [`clean-home.js`](clean-home.js) | Removes files from home by folder prefix or all at once. Dry run unless `--yes`. Keeps `data/` (saved config and state) unless `--include-data`, and keeps itself. Try `clean-home /tools/exploits/` then add `--yes` | `<folder/ or file> ...`, `--all`, `--yes`, `--include-data` | none | 2.8GB |
