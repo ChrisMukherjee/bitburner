@@ -2,6 +2,7 @@ import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
 import { readIncomeRate } from "/utils/income.js";
+import { bitnodeMults } from "/utils/bitnode-mults.js";
 
 const CONFIG = {
 	// Spending stages (reserve, maxFraction, ... by income) are `hacknetBuying` in the config
@@ -94,7 +95,8 @@ function estimateNewNodeProduction(ns) {
 	if (ns.fileExists("Formulas.exe", "home")) {
 		return ns.formulas.hacknetNodes.moneyGainRate(1, 1, 1, ns.getPlayer().mults.hacknet_node_money);
 	}
-	let multiplier = 1; // no nodes yet: assume no multipliers (understates, so it errs cautious)
+	// No nodes yet: the BitNode's hacknet multiplier if it is known (1 otherwise: understates, so it errs cautious)
+	let multiplier = bitnodeMults(ns).get("HacknetNodeMoney");
 	if (ns.hacknet.numNodes() > 0) {
 		const stats = ns.hacknet.getNodeStats(0);
 		const rate = baseRate(ns, stats.level, stats.ram, stats.cores);
