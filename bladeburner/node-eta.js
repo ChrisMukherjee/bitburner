@@ -1,4 +1,5 @@
 // Design: docs/bladeburner.md
+// @ts-check
 import { readIncomeRate } from "/utils/income.js";
 import { hasSingularity } from "/utils/singularity.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";

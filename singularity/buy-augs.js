@@ -1,3 +1,4 @@
+// @ts-check
 import { readIncomeRate } from "/utils/income.js";
 import { loadConfig } from "/utils/config.js";
 import { postIncomeMix } from "/utils/income-mix.js";

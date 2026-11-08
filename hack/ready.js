@@ -1,4 +1,5 @@
 // Design: docs/bitnode-mults.md
+// @ts-check
 import { readGates, postGate } from "/singularity/ready.js";
 import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { bitnodeMultsAccess, MULTS_GATE } from "/utils/sf5.js";

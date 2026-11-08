@@ -1,4 +1,5 @@
 // Design: docs/startup.md
+// @ts-check
 import { readGates } from "/singularity/ready.js";
 
 // pserv-manager.js posts { done: true } under this key on port 33 (the one-shot gates) once every

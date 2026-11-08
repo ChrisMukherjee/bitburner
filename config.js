@@ -1,4 +1,5 @@
 // Design: docs/config.md
+// @ts-check
 /**
  * Choices that depend on where you are in the game: which augments are worth buying, which
  * factions to work for, when to reset, how freely to spend, where to go after this BitNode.

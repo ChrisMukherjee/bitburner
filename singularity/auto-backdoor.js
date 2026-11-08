@@ -1,3 +1,4 @@
+// @ts-check
 import { notify } from "/utils/notify.js";
 import { postGate } from "/singularity/ready.js";
 // Servers whose backdoor does something (same list as list-backdoors.js, checked against

@@ -1,4 +1,5 @@
 // Design: docs/debug-report.md
+// @ts-check
 // The last result of each one-shot pass, kept on a port so it outlives the script (a one-shot's own log is gone as soon as
 // it exits). tools/debug-report.js prints them. One JSON object: { "<script>": { time, lines } }. One-shots run one at a
 // time (startup.js), so read-modify-write is safe. 0GB (ports only).

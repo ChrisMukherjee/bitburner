@@ -1,3 +1,4 @@
+// @ts-check
 import { bladeburnerAccess } from "/utils/bladeburner.js";
 import { bladeburnerState } from "/bladeburner/state.js";
 

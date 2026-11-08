@@ -1,4 +1,5 @@
 // Design: docs/startup.md
+// @ts-check
 import { loadConfig, USER_CONFIG_FILE, BITNODE_FILE } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { nukeAllServers } from "/utils/nuke-all.js";

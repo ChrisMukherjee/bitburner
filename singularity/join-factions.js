@@ -1,3 +1,4 @@
+// @ts-check
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 // City factions lock you out of their rivals, so they are only joined when that costs nothing (see below).

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * One-shot, for the "IPvGO anticheat" achievement: keeps playing cheat moves until the game ejects you from
  * the subnet (a failed cheat has a ~10% chance of it, after the first attempt). Needs Source-File 14.2.
@@ -15,6 +16,7 @@
 export async function main(ns) {
 	ns.disableLog("ALL");
 	const flags = ns.flags([["yes", false]]);
+	// @ts-expect-error probe: only exists once SF14.2 is owned
 	const ready = (() => { try { return ns.go.getCheatSuccessChance(0) >= 0; } catch { return false; } })();
 	if (!ready) {
 		ns.tprint("[anticheat] ns.go.cheat needs Source-File 14.2; nothing to do.");

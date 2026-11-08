@@ -1,4 +1,5 @@
 // Design: docs/debug-report.md
+// @ts-check
 import { readPasses, PASS_PORT } from "/utils/pass-log.js";
 
 // Every port the scripts use (see docs/NETSCRIPT.md), by name, for the report

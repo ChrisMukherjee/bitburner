@@ -1,3 +1,4 @@
+// @ts-check
 // Which server belongs to which stock's company, for steering prices with hack/grow { stock: true }.
 // No ns calls, so importing this costs no RAM. WDS (Watchdog Security) has no server.
 

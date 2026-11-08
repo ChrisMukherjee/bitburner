@@ -1,3 +1,4 @@
+// @ts-check
 // Interprets a Bitburner darknet server's in-game "hint" to work out its password.
 // This is a game puzzle: the hint either states the password, says there is none, names a default, or
 // describes a small transform of the server's Data field (strip to digits, convert a number's base, etc.).

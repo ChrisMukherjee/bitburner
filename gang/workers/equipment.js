@@ -1,3 +1,4 @@
+// @ts-check
 // Port gang/gang-manager.js reads the list from.
 const EQUIPMENT_PORT = 29;
 

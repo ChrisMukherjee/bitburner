@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns **/
 import { getAllServers } from "/utils/get-all-servers.js";
 
@@ -9,4 +10,4 @@ export async function main(ns) {
 		ns.tprint(`Cleared all processes on: ${s}`);
 	}
 	ns.tprint("Botnet successfully wiped clean!");
-}
+}

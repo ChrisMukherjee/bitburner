@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns **/
 export async function main(ns) {
 	let servers = ns.cloud.getServerNames();
@@ -13,4 +14,4 @@ export async function main(ns) {
 		let maxRam = ns.getServerMaxRam(serv);
 		ns.tprint(`- ${serv}: ${maxRam} GB`);
 	}
-}
+}

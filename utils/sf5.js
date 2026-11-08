@@ -1,4 +1,5 @@
 // Design: docs/bitnode-mults.md
+// @ts-check
 import { readGates } from "/singularity/ready.js";
 
 export const MULTS_GATE = "bitnode-mults";

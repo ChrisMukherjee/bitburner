@@ -1,3 +1,4 @@
+// @ts-check
 // Removes files from home by folder prefix or all at once. Dry run unless --yes.
 // Usage: run /tools/clean-home.js /tools/exploits/        (dry run, lists what would go)
 //        run /tools/clean-home.js /tools/exploits/ --yes  (deletes)
@@ -18,7 +19,7 @@ export async function main(ns) {
     ["include-misc", false],
     ["include-startup", false],
   ]);
-  const targets = flags._.map(String);
+  const targets = /** @type {any[]} */ (flags._).map(String);
   if (!flags.all && targets.length === 0) {
     ns.tprint("Usage: run /tools/clean-home.js <folder/ or file> [more ...] [--yes]");
     ns.tprint("       run /tools/clean-home.js --all [--yes] [--include-data]");

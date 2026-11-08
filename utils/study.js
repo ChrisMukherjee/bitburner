@@ -1,3 +1,4 @@
+// @ts-check
 // Picks the university course for singularity/player-work.js and player-work-start.js. Plain data, 0GB.
 // Design: docs/player-work.md
 

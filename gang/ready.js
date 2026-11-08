@@ -1,3 +1,4 @@
+// @ts-check
 import { gangAccess } from "/utils/gang.js";
 
 /**

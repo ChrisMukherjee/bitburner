@@ -1,4 +1,5 @@
 // Design: docs/aug-reset.md
+// @ts-check
 const PLAN_FILE = "data/aug-plan.json";
 const RESET_LOG = "data/reset-log.json"; // one line per install, for singularity/reset-log.js (tuning the reset rule)
 const RESET_LOG_KEEP = 40;
@@ -51,6 +52,7 @@ export async function main(ns) {
 	recordReset(ns);
 	ns.tprint("Installing augments...");
 	// The game returns false when nothing is bought (typed void, but v3.0.0 does); a real install ends this script.
+	// @ts-expect-error installAugmentations is typed void but returns false when nothing is bought
 	if (ns.singularity.installAugmentations(afterReset) === false) {
 		ns.tprint("Not installed: no augments are bought, so there is nothing to install.");
 		if (afterReset !== undefined && ns.exec(afterReset, "home", 1) !== 0) ns.tprint(`Started ${afterReset} again instead.`);

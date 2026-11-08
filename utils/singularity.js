@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Whether ns.singularity can be used in this run: always in BitNode 4, elsewhere only with
  * Source-File 4. Without it every ns.singularity call throws, so scripts check this first.

@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns **/
 import { findPath } from "/utils/find-path.js"
 import { getAllServers } from "/utils/get-all-servers.js"
@@ -98,7 +99,7 @@ export async function main(ns) {
 
 	// Printed bottom-up: the most useful entries end up at the bottom of the terminal, nearest where you read.
 	// Within a section, higher priority sorts later; w0r1d_d43m0n (priority 0) goes first, away from the bottom.
-	const bottomUp = (a, b) => (b.info?.priority === 0) - (a.info?.priority === 0)
+	const bottomUp = (a, b) => Number(b.info?.priority === 0) - Number(a.info?.priority === 0)
 		|| (b.info?.priority ?? 9) - (a.info?.priority ?? 9) || b.reqLevel - a.reqLevel;
 	ready.sort(bottomUp);
 	locked.sort(bottomUp);

@@ -1,3 +1,4 @@
+// @ts-check
 import { loadConfig, USER_CONFIG_FILE } from "/utils/config.js";
 import { unknownStatGroups } from "/utils/aug-filter.js";
 import { STAT_GROUPS, PRESETS } from "/config.js";

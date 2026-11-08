@@ -1,4 +1,5 @@
 // Design: docs/go-bot.md
+// @ts-check
 // Which Go opponents the current plan wants played first. 0GB (ports only, no NS functions besides peek).
 import { readBladeburner } from "/bladeburner/state.js";
 

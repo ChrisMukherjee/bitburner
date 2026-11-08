@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns **/
 // Hacking-target evaluation shared by the batcher and the state dump, so both rank servers the same way.
 

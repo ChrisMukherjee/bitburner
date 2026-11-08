@@ -1,4 +1,5 @@
 // Design: docs/aug-reset.md
+// @ts-check
 /**
  * Where this run's money comes from, for the augment weights (see "Income mix" in docs/aug-reset.md).
  * postIncomeMix reads the game's money-by-source totals (1GB) and posts the positive ones on port 38;

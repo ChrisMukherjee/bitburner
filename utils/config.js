@@ -1,4 +1,5 @@
 // Design: docs/config.md
+// @ts-check
 import { DEFAULTS, PRESETS, CHALLENGES } from "/config.js";
 import { notify } from "/utils/notify.js";
 

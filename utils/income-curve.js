@@ -1,4 +1,5 @@
 // Design: docs/aug-reset.md
+// @ts-check
 /**
  * Income curve: how money income grows over a run, so the reset rule can forecast cash
  * instead of assuming today's $/s stays flat. 0GB (no NS calls).

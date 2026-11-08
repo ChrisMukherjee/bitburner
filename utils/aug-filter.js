@@ -1,4 +1,5 @@
 // Design: docs/config.md
+// @ts-check
 import { STAT_GROUPS, LOWER_IS_BETTER } from "/config.js";
 
 /**

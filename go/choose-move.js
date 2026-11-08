@@ -1,4 +1,5 @@
 // Design: docs/go-bot.md
+// @ts-check
 /** @param {NS} ns */
 // IPvGO move selection with Monte Carlo tree search. Pure functions, no ns calls, so this file costs no RAM.
 //

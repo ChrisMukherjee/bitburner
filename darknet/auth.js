@@ -1,3 +1,4 @@
+// @ts-check
 // Darknet login helper shared by the crawler and the feedback solvers. Only uses ns.dnet.authenticate,
 // which they already pay for, so importing it adds no RAM.
 //

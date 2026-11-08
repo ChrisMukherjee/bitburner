@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Does the one costly thing next-bitnode.js leaves for last: ns.singularity.destroyW0r1dD43m0n,
  * which ends the BitNode, enters BitNode `arg 0` and runs `arg 1` there. By itself it is

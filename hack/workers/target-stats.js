@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns */
 /**
  * One-shot helper for batcher.js. The analyze functions cost 1GB each (4GB here) and getServer 2GB,

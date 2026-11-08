@@ -1,4 +1,5 @@
 // Design: docs/bladeburner.md
+// @ts-check
 // What the Bladeburner scripts share, on port 36 (ports work on every server, so the one-shots can run
 // anywhere). One JSON object; each script patches its own part with postBladeburner:
 //   state, stateTime   bb-manage.js: "off", "boot", "train", "run" or "hold" (see docs/bladeburner.md)

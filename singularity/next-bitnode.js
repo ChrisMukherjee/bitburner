@@ -1,3 +1,4 @@
+// @ts-check
 import { blackOpsDone } from "/bladeburner/state.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 

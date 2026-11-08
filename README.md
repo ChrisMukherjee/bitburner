@@ -21,7 +21,7 @@ Then in the game: Options → Remote API → port `12525` → Connect.
 Sync is one way (local → game), never deletes files in game, and skips [`archive/`](archive/).
 On every connect it pushes all files (`pushAllOnConnection`), so edits made while sync was off still reach the game. This push prints nothing; the "… changed" lines only appear for edits made while sync is running.
 Files the game writes (anything in `data/`) never come back to disk.
-[`NetscriptDefinitions.d.ts`](NetscriptDefinitions.d.ts) is refreshed from the game on connect, for editor autocomplete.
+[`NetscriptDefinitions.d.ts`](NetscriptDefinitions.d.ts) is refreshed from the game on connect, for editor autocomplete and type checking (add `// @ts-check` to a script; see [`docs/typecheck.md`](docs/typecheck.md)). The `.d.ts` and `jsconfig.json` files are never synced to the game (filesync only pushes `.js` and `.txt`).
 
 ## Running it
 

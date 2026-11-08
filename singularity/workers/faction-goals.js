@@ -1,4 +1,5 @@
 // Design: docs/player-work-goals.md
+// @ts-check
 import { loadConfig } from "/utils/config.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";
 import { readIncomeRate } from "/utils/income.js";

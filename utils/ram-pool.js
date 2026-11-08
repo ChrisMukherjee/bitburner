@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns **/
 // Shared view of free RAM across every rooted server, and all-or-nothing thread placement on it.
 import { reservedByHost } from "/utils/ram-reserve.js";
@@ -24,7 +25,7 @@ export function buildRamPool(ns, servers, { homeReservedRam = 0, minFreeRam = 0 
 		const freeRam = maxRam - ns.getServerUsedRam(server) - reservedRam - (reserved[server] ?? 0);
 		if (freeRam >= minFreeRam && freeRam > 0) ramPool.push({ host: server, freeRam });
 	}
-	ramPool.sort((a, b) => (a.host === "home") - (b.host === "home") || b.freeRam - a.freeRam);
+	ramPool.sort((a, b) => Number(a.host === "home") - Number(b.host === "home") || b.freeRam - a.freeRam);
 	return { ramPool, totalRam };
 }
 

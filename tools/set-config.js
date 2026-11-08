@@ -1,4 +1,5 @@
 // Design: docs/config.md
+// @ts-check
 import { DEFAULTS, CHALLENGES } from "/config.js";
 import { USER_CONFIG_FILE } from "/utils/config.js";
 

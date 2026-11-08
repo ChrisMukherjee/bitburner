@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns **/
 export async function main(ns) {
 	ns.disableLog("ALL");
@@ -26,4 +27,4 @@ export async function main(ns) {
 		previousMoney = currentMoney;
 		previousHackingIncome = currentHackingIncome;
 	}
-}
+}

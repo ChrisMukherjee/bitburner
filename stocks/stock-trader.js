@@ -1,4 +1,5 @@
 // Design: docs/stocks.md
+// @ts-check
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";

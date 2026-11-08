@@ -1,3 +1,4 @@
+// @ts-check
 import { notify } from "/utils/notify.js";
 /** @param {NS} ns */
 // One-shot: buys the TIX API, then (with --4s) the 4S Market Data TIX API, each only if cash above

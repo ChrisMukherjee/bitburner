@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns **/
 // Get all reachable servers using Depth-First Search.
 // Bought (cloud) servers are linked to home, so the scan finds them too.

@@ -62,11 +62,13 @@ export async function main(ns) {
 			lastReseed = Date.now();
 			const toTerminal = Date.now() - lastTerminal > TERMINAL_INTERVAL;
 			if (toTerminal) lastTerminal = Date.now();
+			// @ts-expect-error unsolved is extra on purpose
 			printSummary(ns, { map, passwords, earnings, unsolved }, toTerminal);
 		}
 		await ns.sleep(1000);
 	}
 
+	// @ts-expect-error unsolved is extra on purpose
 	printSummary(ns, { map, passwords, earnings, unsolved }, true);
 	ns.tprint(`INFO darknet: recon pass done, ${Object.keys(map).length} servers mapped. See ${MAP_FILE}.`);
 }

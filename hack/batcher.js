@@ -1,4 +1,5 @@
 // Design: docs/batcher.md
+// @ts-check
 import { notify } from "/utils/notify.js";
 /** @param {NS} ns **/
 import { getAllServers } from "/utils/get-all-servers.js";

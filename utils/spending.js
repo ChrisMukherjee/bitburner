@@ -1,3 +1,4 @@
+// @ts-check
 import { readIncomeRate } from "/utils/income.js";
 
 /**

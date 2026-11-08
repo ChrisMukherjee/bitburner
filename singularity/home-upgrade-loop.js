@@ -1,3 +1,4 @@
+// @ts-check
 import { notify } from "/utils/notify.js";
 import { getBudget, getCash, formatMoney } from "/utils/spending.js";
 import { readIncomeRate } from "/utils/income.js";

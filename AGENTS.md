@@ -38,6 +38,10 @@ Each BitNode adds a mechanic. These rules keep the scripts from growing a branch
 
 Before writing or changing a script, read [`docs/NETSCRIPT.md`](docs/NETSCRIPT.md): RAM-checker name matching, income, alerts, the port list, who owns player focus, and when to use one-shot workers.
 
+## Type checking
+
+- New scripts start with `// @ts-check` (after the `// Design:` line) and JSDoc types, and must pass `tsc -p jsconfig.json`. Fixes must not change behaviour or RAM; see [`docs/typecheck.md`](docs/typecheck.md).
+
 ## Sync to the game
 
 - bitburner-filesync (`npm run sync`, port 12525) is **one way** (disk to game), never deletes in game, and skips [`archive/`](archive/). Moving or renaming a file must also be done in game.

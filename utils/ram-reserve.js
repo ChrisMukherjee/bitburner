@@ -1,4 +1,5 @@
 // Design: docs/ram.md
+// @ts-check
 // Room held free on other servers for scripts that are waiting to start. The batcher (and
 // share-manager) fill every free GB off home, so a 17-30GB one-shot helper could wait a long time
 // for a gap. A script that can't find room posts a reservation here; utils/ram-pool.js leaves that

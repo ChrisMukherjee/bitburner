@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns **/
 // Breadth-First Search to find the exact route from 'home'
 export function findPath(ns, target) {
@@ -20,4 +21,4 @@ export function findPath(ns, target) {
 		}
 	}
 	return [];
-}
+}

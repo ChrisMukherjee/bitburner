@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * What this run can do with Bladeburner. The one place that knows the rule: the Bladeburner API works
  * in BitNode 6 and 7, and anywhere once you own Source-File 6 or 7. Costs getResetInfo (1GB).

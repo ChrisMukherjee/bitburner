@@ -1,4 +1,5 @@
 // Design: docs/player-work.md
+// @ts-check
 import { postPass } from "/utils/pass-log.js";
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";

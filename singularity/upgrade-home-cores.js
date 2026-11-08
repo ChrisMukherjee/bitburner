@@ -1,3 +1,4 @@
+// @ts-check
 import { runUpgradeLoop } from "/singularity/home-upgrade-loop.js";
 import { loadConfig } from "/utils/config.js";
 

@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns **/
 import { getAllServers } from "/utils/get-all-servers.js";
 import { isHackable, estimateAtMinSecurity, scoreTarget } from "/utils/targets.js";

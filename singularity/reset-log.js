@@ -1,4 +1,5 @@
 // Design: docs/aug-reset.md
+// @ts-check
 /**
  * Run by hand: what the reset rule saw at each install (data/reset-log.json, written by install-augs.js).
  *   run /singularity/reset-log.js

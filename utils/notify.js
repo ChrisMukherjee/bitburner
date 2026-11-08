@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * An important event: a line in the script log and a toast (all 0GB).
  * With terminal = true it also prints a terminal line, which is still there when you come back,

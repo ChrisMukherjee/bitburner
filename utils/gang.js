@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * What this run can do with gangs. The one place that knows the gang rules per BitNode:
  *   - the Gang API works in BitNode 2, and anywhere once you own Source-File 2 (or are in a gang);

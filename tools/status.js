@@ -1,3 +1,4 @@
+// @ts-check
 import { loadConfig } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { readIncomeRate } from "/utils/income.js";
@@ -99,11 +100,11 @@ export async function main(ns) {
 		out.push("Faction goals: none posted yet (player-work.js posts them on port 23)");
 	} else {
 		const open = Object.entries(goalsPost.goals)
-			.filter(([faction, goal]) => joined.has(faction) && goal.rep > 0 && rep[faction] < goal.rep);
+			.filter(([faction, goal]) => joined.has(/** @type {any} */ (faction)) && goal.rep > 0 && rep[faction] < goal.rep);
 		const working = work?.type === "FACTION" ? work.factionName : "";
 		out.push(`Faction goals (posted ${ago(goalsPost.time)})${open.length ? ":" : ": every joined faction is at its goal"}`);
 		// The one being worked first, then the rest in player-work's order.
-		open.sort(([first], [second]) => (second === working) - (first === working));
+		open.sort(([first], [second]) => Number(second === working) - Number(first === working));
 		for (const [faction, goal] of open.slice(0, 5)) {
 			const missing = goal.rep - rep[faction];
 			const rate = rates.perSecond[faction] ?? 0;
@@ -245,20 +246,23 @@ export async function main(ns) {
 	const inStage = entries.filter((entry) => !entry.oneShot && !skipped.has(entry.script) &&
 		stageNames.indexOf(entry.stage) <= level && (!entry.until || stageNames.indexOf(entry.until) > level));
 	const running = [];
-	const stopped = [];
+	const stopped = []; // should be running: startup.js restarts them
+	const waiting = []; // have a ready check that says there is no work yet
 	// Every script startup.js knows that is running (any stage); missing only counts for this stage's.
 	const inStageScripts = new Set(inStage.map((entry) => entry.script));
 	for (const script of new Set(entries.map((entry) => entry.script))) {
+		const entry = entries.find((candidate) => candidate.script === script);
 		const copies = processes.filter((proc) => proc.filename === script);
 		const name = script.replace(/^.*\//, "").replace(/\.js$/, "");
 		if (copies.length === 0) {
-			if (inStageScripts.has(script)) stopped.push(name);
+			if (inStageScripts.has(script)) (entry.hasReady ? waiting : stopped).push(name);
 			continue;
 		}
 		running.push(name + (copies.some((proc) => proc.host === "home") ? "" : `@${copies[0].host}`));
 	}
 	out.push(`Running: ${running.join(", ") || "-"}`);
-	if (stopped.length) out.push(`Not running: ${stopped.join(", ")} (some exit when done; startup.js restarts the rest while it runs)`);
+	if (waiting.length) out.push(`Waiting for work: ${waiting.join(", ")} (startup.js starts them when there is something to do; nothing for you to do)`);
+	if (stopped.length) out.push(`Stopped: ${stopped.join(", ")} (startup.js restarts them within a minute; if they stay down, run \`startup\`)`);
 
 	ns.tprint("\n" + out.join("\n"));
 }
@@ -338,6 +342,7 @@ function parseStartupScripts(text) {
 	return [...text.matchAll(/\{\s*stage:\s*"(\w+)",\s*script:\s*"([^"]+)"([^\n]*)/g)].map((match) => ({
 		stage: match[1], script: match[2], until: match[3].match(/until:\s*"(\w+)"/)?.[1],
 		oneShot: /oneShot:\s*true/.test(match[3]),
+		hasReady: /\bready:/.test(match[3]),
 	}));
 }
 

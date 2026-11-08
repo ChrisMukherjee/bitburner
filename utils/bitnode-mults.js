@@ -1,4 +1,5 @@
 // Design: docs/bitnode-mults.md
+// @ts-check
 import { BITNODE_FILE } from "/utils/config.js";
 
 // Written by tools/save-bitnode-mults.js (startup.js runs it once per run when the game allows it).

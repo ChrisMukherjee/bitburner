@@ -1,3 +1,4 @@
+// @ts-check
 // Gym tables shared by singularity/player-work.js and singularity/workers/start-gang.js. Plain data, 0GB.
 
 // [skill, the GymType the API wants, the class name the game reports for the current work]

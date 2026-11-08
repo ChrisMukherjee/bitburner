@@ -1,4 +1,5 @@
 // Design: docs/bladeburner.md
+// @ts-check
 import { loadConfig } from "/utils/config.js";
 import { readIncomeRate } from "/utils/income.js";
 import { postPass } from "/utils/pass-log.js";

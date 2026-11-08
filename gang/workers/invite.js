@@ -1,3 +1,4 @@
+// @ts-check
 import { gangAccess } from "/utils/gang.js";
 // Port singularity/player-work.js reads the answer from.
 const INVITE_PORT = 30;

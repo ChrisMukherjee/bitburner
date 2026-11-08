@@ -1,4 +1,5 @@
 // Design: docs/ram.md
+// @ts-check
 import { getAllServers } from "/utils/get-all-servers.js";
 import { reserveRoom, releaseRoom } from "/utils/ram-reserve.js";
 

@@ -1,3 +1,4 @@
+// @ts-check
 // Shared constants for the contract scripts. No ns calls, so importing this costs no RAM.
 
 /** The solver writes "server:file" here for each wrong answer; solve-contracts.js moves them into FAILED_FILE. */

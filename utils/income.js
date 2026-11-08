@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Real money income, shared between scripts.
  *

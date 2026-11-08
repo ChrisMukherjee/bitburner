@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Which BitNode to go to next, from `bitnodeRoute` in the config (a list of { bitNode, level }).
  * The first entry whose Source-File level isn't reached yet wins, counting the level that

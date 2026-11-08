@@ -1,4 +1,5 @@
 // Design: docs/startup.md
+// @ts-check
 // The Singularity one-shots (home RAM, cores, programs) leave a note here after each pass saying
 // how much cash the next purchase needs, or that nothing is left to buy. startup.js imports the
 // ready checks below and only starts a one-shot again once that cash is there, so the script's

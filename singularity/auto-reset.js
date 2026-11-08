@@ -1,4 +1,5 @@
 // Design: docs/aug-reset.md
+// @ts-check
 import { notify } from "/utils/notify.js";
 const TAG = "[auto-reset]";
 const CONFIG = {

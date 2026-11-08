@@ -1,3 +1,4 @@
+// @ts-check
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { postGate } from "/singularity/ready.js";

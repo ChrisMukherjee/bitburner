@@ -1,4 +1,5 @@
 // Design: docs/reminders.md
+// @ts-check
 import { notify } from "/utils/notify.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 import { hasSingularity } from "/utils/singularity.js";
@@ -14,6 +15,7 @@ const WORTH_IT = {
 };
 // Darkweb prices (the game's defaults); the scripts can't buy these without the Singularity API.
 const TOR_PRICE = 200e3;
+/** @type {[string, number][]} */
 const PROGRAMS = [
 	["BruteSSH.exe", 500e3], ["FTPCrack.exe", 1.5e6], ["relaySMTP.exe", 5e6],
 	["HTTPWorm.exe", 30e6], ["SQLInject.exe", 250e6], ["Formulas.exe", 5e9],

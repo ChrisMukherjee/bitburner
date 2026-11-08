@@ -1,4 +1,5 @@
 // Design: docs/darknet.md
+// @ts-check
 // Reads a neighbour's logs (heartbleed) and turns them into password knowledge, before any guessing. The logs hold other
 // logins' attempts on that server: a code-200 entry is a password that worked, a code-401 entry one that did not (with the
 // reply data, for Mastermind servers), and some models write the passcode into a message. Ported from the other player's

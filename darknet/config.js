@@ -1,3 +1,4 @@
+// @ts-check
 // Shared constants for the darknet scripts. No ns calls, so importing this costs no RAM.
 
 /** Port crawlers send reports to; the manager on home reads it. */

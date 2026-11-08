@@ -1,4 +1,5 @@
 // Design: docs/go-bot.md
+// @ts-check
 /** @param {NS} ns */
 import { chooseMove } from "/go/choose-move.js"
 import { loadConfig } from "/utils/config.js"

@@ -1,3 +1,4 @@
+// @ts-check
 /** @param {NS} ns **/
 import { getAllServers } from "/utils/get-all-servers.js";
 
@@ -29,4 +30,4 @@ export function nukeAllServers(ns) {
 		ns.nuke(s);
 		ns.tprint(`Gained root access on: ${s}`);
 	}
-}
+}
