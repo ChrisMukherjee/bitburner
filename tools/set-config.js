@@ -45,7 +45,7 @@ export async function main(ns) {
 		} else {
 			const steps = [];
 			for (const item of rest) {
-				const [bitNode, level = "1"] = item.split(":").map(Number);
+				const [bitNode, level = 1] = item.split(":").map(Number);
 				if (!Number.isInteger(bitNode) || bitNode < 1 || bitNode > 14 || !Number.isInteger(level) || level < 1) {
 					ns.tprint(`ERROR "${item}" isn't bitNode:level (BitNode 1-14, level 1 or more), e.g. 4:3 or 5. Nothing changed.`);
 					return;
