@@ -118,7 +118,7 @@ async function crack(ns, host, details, passwords) {
 		attempts.push({ password: candidate, code: result.code, message: result.message, data: result.data });
 		logs.wrong.add(candidate);
 	}
-	if (details.modelId === FACTORIOS_MODEL) return await solveDivisibility(ns, host);
+	if (details.modelId === FACTORIOS_MODEL) return await solveDivisibility(ns, host, details);
 	if (details.modelId === DEEPGREEN_MODEL) return await solveMastermind(ns, host, details, logs.observed);
 	const { candidates } = candidatePasswords(details);
 	// Last resort, after the hint's own candidates: passwords that opened other servers (people reuse them), capped.

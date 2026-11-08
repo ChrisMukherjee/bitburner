@@ -13,7 +13,7 @@ Requires column: see the [requirement tags](../README.md#requirements). The scri
 | [`stasis.js`](stasis.js) | Applies or removes a stasis link | arg: `unlink` | Darknet | 13.65GB while it runs |
 | [`ready.js`](ready.js) | Library: tells [`startup.js`](../startup.js) to start the manager only once DarkscapeNavigator.exe is owned | import only | none | 0GB |
 | [`hint-interpreter.js`](hint-interpreter.js) | Library: works out a password from a server's hint | import only | none | 0GB |
-| [`feedback-solvers.js`](feedback-solvers.js) | Library: solvers for models that answer wrong guesses: Factori-Os (prime factors) and DeepGreen (Mastermind) | import only | none | 0.4GB |
+| [`feedback-solvers.js`](feedback-solvers.js) | Library: solvers for models that answer wrong guesses: Factori-Os (prime factors, capped by the password length and started from the hint's divisor) and DeepGreen (Mastermind) | import only | none | 0.4GB |
 | [`heartbleed.js`](heartbleed.js) | Library: reads a neighbour's logs for passwords that worked, leaked passcodes, known-wrong passwords and Mastermind replies | import only | Darknet | 0.6GB |
 | [`auth.js`](auth.js) | Library: login helper | import only | Darknet | no extra RAM |
 | [`config.js`](config.js) | Library: shared constants | import only | none | 0GB |

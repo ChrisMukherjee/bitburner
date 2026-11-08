@@ -29,7 +29,7 @@ const LARGE_PRIMES = [
  * be missing, which used to silently drop a prime factor, so we stop and let the next re-check start over.
  * @param {NS} ns
  */
-export async function solveDivisibility(ns, host) {
+export async function solveDivisibility(ns, host, details = {}) {
 	// Not called `attempt`: the game's RAM check matches names, and ns.codingcontract.attempt costs 10 GB.
 	const attempts = [];
 	let later;
@@ -41,12 +41,16 @@ export async function solveDivisibility(ns, host) {
 		return result.data === "true" ? "divides" : "no";
 	};
 
-	let found = 1;
+	// The password is a number of exactly `passwordLength` digits, so no candidate may exceed 10^length - 1 (a 2-digit
+	// password never needs the large primes), and the hint's "divisible by N" gives a factor to start from.
+	const limit = details.passwordLength > 0 ? 10 ** details.passwordLength - 1 : Infinity;
+	let found = hintDivisor(details.passwordHint);
+	if (found > limit) found = 1;
 	const first = await tryValue(found);
-	if (first === "match") return { password: "1", attempts: [] }; // no prime factors at all
+	if (first === "match") return { password: String(found), attempts: [] }; // no more prime factors
 	if (first === "later") return { later };
 	for (const prime of SMALL_PRIMES.concat(LARGE_PRIMES)) {
-		while (true) { // a prime can appear more than once
+				while (found * prime <= limit) { // a prime can appear more than once
 			const outcome = await tryValue(found * prime);
 			if (outcome === "match") return { password: String(found * prime), attempts: [] };
 			if (outcome === "later") return { later };
@@ -55,6 +59,13 @@ export async function solveDivisibility(ns, host) {
 		}
 	}
 	return { password: undefined, attempts: attempts.slice(-5) };
+}
+
+/** The N in a hint like "The password is divisible by N ;)": a known divisor of the password (1 when absent). */
+export function hintDivisor(hint) {
+	const match = String(hint ?? "").match(/divisible by\s+(\d+)/i);
+	const value = match ? Number(match[1]) : 1;
+	return Number.isSafeInteger(value) && value > 0 ? value : 1;
 }
 
 /**
