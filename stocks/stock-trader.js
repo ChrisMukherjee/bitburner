@@ -175,7 +175,7 @@ function averageMove(moves) {
  * What we think a stock will do: forecast (chance of going up next tick), how sure we are of it,
  * and expected gain per tick as a fraction of price. Exact with 4S; estimated otherwise.
  */
-function outlook(ns, sym, exactOn, moves) {
+export function outlook(ns, sym, exactOn, moves) {
 	const view = { sym, ready: true, buyReady: true, forecast: 0.5, nearForecast: 0.5 };
 	if (exactOn) {
 		view.forecast = ns.stock.getForecast(sym);
@@ -236,7 +236,7 @@ function report(ns, sym, side, shares, average, gainPerShare, valuePerShare, rea
 }
 
 /** Puts the budget into the stocks with the best expected gain per tick, best first. */
-function buyBest(ns, outlooks, policy, minTrade, stats) {
+export function buyBest(ns, outlooks, policy, minTrade, stats) {
 	let budget = getBudget(ns, policy);
 	if (budget < minTrade) return;
 	const commission = ns.stock.getConstants().StockMarketCommission;

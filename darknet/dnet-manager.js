@@ -133,7 +133,7 @@ async function seed(ns, passwords, earn, stasis) {
  * When that set changes, write it to the target file and push a fresh copy to every opened server, so each
  * crawler links or unlinks its own server to match. Returns the current target list.
  */
-function manageStasis(ns, { map, passwords, earnings }, previous) {
+export function manageStasis(ns, { map, passwords, earnings }, previous) {
 	const limit = ns.dnet.getStasisLinkLimit();
 	const linked = ns.dnet.getStasisLinkedServers();
 	// The crawler on a target hands its RAM to the one-shot, so a target needs room for whichever is bigger.

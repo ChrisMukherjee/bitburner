@@ -192,7 +192,7 @@ async function freeNeighbours(ns, opened) {
  * crawler ends and stasis.js starts in its place. When it finishes, our parent's next neighbour re-check (or
  * the manager, on darkweb) starts a fresh crawler here, which relaunches phishing.
  */
-async function syncStasis(ns, self, port) {
+export async function syncStasis(ns, self, port) {
 	const targets = readTargets(ns);
 	const linked = ns.dnet.getStasisLinkedServers().includes(self);
 	const wanted = targets.includes(self);
