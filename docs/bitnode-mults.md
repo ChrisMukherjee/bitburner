@@ -36,8 +36,12 @@ multipliers also cancel when ranking targets, because every target is scaled the
    without it the listed order is used. By default it only suggests (status and the "ready" notice), because ending
    a BitNode is not undoable; `bitnodeRouteAuto: true` lets auto-destroy.js follow it. A `bitnodeRoute` of the player's
    own always wins, and `next-bitnode <n>` / `afk-route` still work, e.g. to go for a specific achievement.
-4. **Hacking worth (open):** with `ScriptHackMoney` x `ScriptHackMoneyGain` very low, hack income is not worth the RAM.
-   Waiting on a decision before any batcher change.
+4. **Hacking worth, done:** where `ScriptHackMoney` x `ScriptHackMoneyGain` is below `hackWorth.minProduct` (0.1),
+   startup.js doesn't start the batcher ([`hack/ready.js`](../hack/ready.js)), so share and the XP farm get the RAM. Chosen
+   over a mode inside the batcher: grow and weaken without hack earn nothing. Cost: stock influence (it runs through the
+   batcher's workers) stops too. Overrides: `hackWorth.enabled: false` or `mechanicGates.force`. It waits up to 2 minutes
+   for the multipliers to be saved at the start of a run, then starts the batcher anyway. A running batcher is not
+   stopped; the check applies when startup.js starts it.
 5. **Reset rule:** `PRICE_MULT` 1.9 and the NeuroFlux 1.14 are game constants, not BitNode multipliers
    (Source-File 11 changes the 1.9). Augment cost and rep multipliers are already in the live prices.
 6. **`bitnodes` in `config.js`:** empty today. A per-BitNode value that only encodes a multiplier effect should be

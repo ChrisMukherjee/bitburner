@@ -273,6 +273,11 @@ export const DEFAULTS = {
 		},
 	},
 
+	// Hacking worth (startup.js, hack/ready.js; needs the BitNode multipliers, so BitNode 5 or Source-File 5): where
+	// ScriptHackMoney x ScriptHackMoneyGain is below minProduct, hacking earns too little for its RAM, so the batcher is not
+	// started and share and the XP farm get the RAM. enabled: false, or "hack/batcher.js" in mechanicGates.force, hacks anyway.
+	hackWorth: { enabled: true, minProduct: 0.1 },
+
 	// Gang (gang/gang-manager.js; BitNode 2, or anywhere with Source-File 2). Untested in game so far.
 	gang: {
 		// Factions to create the gang with, in order: the first one you're a member of is used, and

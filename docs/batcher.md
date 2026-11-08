@@ -62,6 +62,13 @@
 - **Home reserve** is the smaller of 64GB and a quarter of home, so a fresh 8GB home still helps while a
   big home keeps room for typed commands.
 
+- **Not started where hacking is worthless.** startup.js asks [`../hack/ready.js`](../hack/ready.js) first: with the BitNode
+  multipliers saved (BitNode 5 or Source-File 5) and `ScriptHackMoney` x `ScriptHackMoneyGain` below `hackWorth.minProduct`
+  (0.1), the batcher isn't started, and share and the XP farm get its RAM. It is a start-time check, not a mode inside the
+  batcher: a half-stopped batcher (grow and weaken without hack) earns nothing and wastes the RAM it was meant to free.
+  Stock influence also runs through the batcher's grow and hack workers, so it stops with it. Override with
+  `hackWorth.enabled: false` or `mechanicGates.force`.
+
 ## Things that look wrong but aren't
 
 - Lots of free RAM on a big network is normal: batching is limited by targets (`maxTargets` 25,

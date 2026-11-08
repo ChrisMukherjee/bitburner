@@ -27,10 +27,12 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`hack/jit-batch-manager-v6.js`](hack/jit-batch-manager-v6.js): see above. Next: [`hack/batcher-v7.js`](hack/batcher-v7.js) (renamed) execs each worker just before it starts, so batches only hold RAM while running (about 2.4x more batches), and rate-limits targets by a RAM budget.
 - [`hack/batcher-v7.js`](hack/batcher-v7.js): see above. Next: [`hack/batcher-v8.js`](hack/batcher-v8.js) sizes hack fraction per target with Formulas (up to 50%), measures targets with [`hack/workers/target-stats.js`](../hack/workers/target-stats.js) without Formulas, and drops the analyze calls (about 6GB less RAM).
 - [`hack/batcher-v8.js`](hack/batcher-v8.js): see above. Next: [`batcher.js`](../hack/batcher.js) allows hack fractions up to 80% with or without Formulas.exe, lands batches 40ms apart (one per 160ms instead of 400ms), runs grow and weaken on home with fewer threads for its cores, trims grow and launch margins, and claims its planned RAM from share-manager on port 31.
+- [`hack/batcher-slim.js`](hack/batcher-slim.js): an alternative batcher (about 10GB) that took all timings from the game's hack, grow and weaken time functions. Replaced by [`batcher.js`](../hack/batcher.js), which has smaller RAM, per-target hack fractions up to 80% and the RAM claim on port 31.
 - [`utils/attempt-nuke.js`](utils/attempt-nuke.js): opens ports and nukes one server. Replaced by [`utils/nuke-all.js`](../utils/nuke-all.js), which roots everything in one call.
 - [`startup.js`](startup.js): BN1 startup that launched hacknet-manager, pserv-manager and hack-manager. Next: [`startup-v2.js`](startup-v2.js).
 - [`startup-v2.js`](startup-v2.js): stage-tagged script list (early/mid/late by home RAM), home only. Next: [`startup-v3.js`](startup-v3.js) also runs scripts on rooted servers when home is too small, uses absolute paths, adds city factions, and prints the status screen when typed by hand.
 - [`startup-v3.js`](startup-v3.js): see above; launched everything once and exited. Next: [`startup.js`](../startup.js) stays running, restarts scripts that stop, moves to the next stage by itself, and runs the home/program buyers, invites and backdoors as short one-shots gated on cash (about 29GB less home RAM held).
+- [`orchestrator.js`](orchestrator.js): an alternative to `startup.js` from a parallel set of scripts: a resident loop that launched helpers and one-shots, passing state between them in text files. Replaced by [`startup.js`](../startup.js), which keeps state on ports, reserves RAM for waiting scripts and advances config stages.
 
 ## Workers
 
@@ -57,6 +59,7 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`tools/serverinfo.js`](tools/serverinfo.js): printed one server's details. Uses functions that no longer exist; no replacement.
 - [`contracts/solve-contracts-v1.js`](contracts/solve-contracts-v1.js): found and solved contracts itself (about 22GB all the time). Next (v2): only finds them every 15 minutes (3.5GB) and launches the solver briefly to solve them.
 - [`contracts/solve-contracts-v2.js`](contracts/solve-contracts-v2.js): scanned only the normal network and ran the solver on home only. Next: [`solve-contracts.js`](../contracts/solve-contracts.js) also scans darknet servers from the darknet map, runs the solver on another server when home is short, and prunes the failed list.
+- [`contracts/lib-contracts.js`](contracts/lib-contracts.js): solvers for all coding contract types in one library. Replaced by [`contract-solver.js`](../contracts/workers/contract-solver.js).
 
 ## Servers and hacknet
 
@@ -68,6 +71,8 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`hacknet/hacknet-manager-v2.js`](hacknet/hacknet-manager-v2.js): see above. Next (v3): income stages for reserve and payback; exact new-node value with Formulas.exe.
 - [`hacknet/hacknet-manager-v3.js`](hacknet/hacknet-manager-v3.js): see above. Next (v4): prices a new node as a package with the upgrades worth putting on it, so new nodes actually get bought.
 - [`hacknet/hacknet-manager-v4.js`](hacknet/hacknet-manager-v4.js): see above. Next: [`hacknet-manager.js`](../hacknet/hacknet-manager.js) uses shorter payback limits (suited to short runs between aug installs; the stages are now `hacknetBuying` in [`config.js`](../config.js)) and stops once hacknet is under 1% of income.
+- [`pserv/purchase-server-reserve.js`](pserv/purchase-server-reserve.js): bought and upgraded cloud servers while keeping a share of peak money in reserve. Replaced by [`pserv-manager.js`](../pserv/pserv-manager.js).
+- [`hacknet/hacknet.js`](hacknet/hacknet.js): bought the hacknet purchase that paid back fastest from measured earnings, with a reserve share. Replaced by [`hacknet-manager.js`](../hacknet/hacknet-manager.js) with payback limits by income stage.
 
 ## Stocks
 
@@ -104,10 +109,12 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`darknet/dnet-manager-v2.js`](darknet/dnet-manager-v2.js): see above. Next: [`dnet-manager.js`](../darknet/dnet-manager.js) reports through [`utils/notify.js`](../utils/notify.js) and uses `ps` + kill by pid to save RAM.
 - [`darknet/factorios.js`](darknet/factorios.js): Factori-Os password solver for the crawler. Replaced by [`darknet/feedback-solvers.js`](../darknet/feedback-solvers.js), which logs in through [`darknet/auth.js`](../darknet/auth.js) and stops on timeouts or vanished servers instead of silently dropping a prime factor.
 - [`darknet/crawler-v1.js`](darknet/crawler-v1.js): cracked servers from hints, Factori-Os and a few found passwords only. Next: [`crawler.js`](../darknet/crawler.js) first tries passwords a server's logs show worked or leaked (via [`heartbleed.js`](../darknet/heartbleed.js)), adds the DeepGreen (Mastermind) solver and reuses up to ten found passwords, skipping known-wrong ones.
+- [`darknet/scout.js`](darknet/scout.js), [`darknet/lib-auth.js`](darknet/lib-auth.js), [`darknet/lib-intel.js`](darknet/lib-intel.js): an alternative darknet crawler that spread scouts, solved logins per server type and kept the passwords in a vault file copied between servers. Replaced by [`dnet-manager.js`](../darknet/dnet-manager.js) and [`crawler.js`](../darknet/crawler.js).
 
 ## Gang
 
 - [`gang/gang-manager-v1.js`](gang/gang-manager-v1.js): picked each member's task by trying every task and reading the gain back from `getMemberInformation`. Next: [`gang-manager.js`](../gang/gang-manager.js) scores tasks with the game's own stat-weight formula from `getTaskStats`, with no trial assignments.
+- [`gang/gang.js`](gang/gang.js): a single-file gang manager with the settings at the top. Replaced by [`gang-manager.js`](../gang/gang-manager.js), which scores tasks with the game's own formula and splits equipment and invites into workers.
 
 ## Go
 
@@ -121,3 +128,4 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`go/choose-move-v1.js`](go/choose-move-v1.js): scored moves by position, skipped obvious suicides. Next (v2): group and liberty analysis, captures, saves and atari first.
 - [`go/choose-move-v2.js`](go/choose-move-v2.js): see above. Next (v3): plays each move out on a board copy with a 2-ply search and scores territory and safety; 0GB.
 - [`go/choose-move-v3.js`](go/choose-move-v3.js): see above. Next: [`choose-move.js`](../go/choose-move.js) is a Monte Carlo tree search (UCT with RAVE) with exact v3.0.0 scoring.
+- [`go/IPvGO-lite.js`](go/IPvGO-lite.js): a slim IPvGO bot that worked out valid moves and liberties from the board instead of `ns.go.analysis`, to save RAM. Replaced by [`ipvgo-bot.js`](../go/ipvgo-bot.js) with the Monte Carlo search in [`choose-move.js`](../go/choose-move.js).

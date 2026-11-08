@@ -1,4 +1,0 @@
-/** One-shot: writes the GB the orchestrator wants kept free on home to ram-hold.txt (arg 0 = none). The batcher reads it. @param {NS} ns */
-export async function main(ns) {
-    ns.write("ram-hold.txt", String(Number(ns.args[0]) || 0), "w");
-}

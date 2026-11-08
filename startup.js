@@ -11,6 +11,7 @@ import { dnetReady } from "/darknet/ready.js";
 import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
 import { pservReady } from "/pserv/ready.js";
 import { bitnodeMultsReady } from "/utils/sf5.js";
+import { batcherReady } from "/hack/ready.js";
 import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady, playerWorkReady, donateReady } from "/singularity/ready.js";
 
@@ -36,7 +37,7 @@ const SCRIPTS = [
 	{ stage: "start", script: "singularity/buy-programs.js", args: ["--once"], oneShot: true, every: 10_000, ready: programsReady },
 	// With BitNode 5 or Source-File 5: saves the BitNode multipliers once per run for utils/bitnode-mults.js (4GB, for a moment).
 	{ stage: "start", script: "tools/save-bitnode-mults.js", oneShot: true, every: 30_000, ready: bitnodeMultsReady },
-	{ stage: "start", script: "hack/batcher.js" },
+	{ stage: "start", script: "hack/batcher.js", ready: batcherReady },
 	// Invites and backdoors from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.
 	{ stage: "start", script: "singularity/join-factions.js", args: ["--once"], oneShot: true, every: 60_000 },
 	{ stage: "start", script: "singularity/auto-backdoor.js", args: ["--once"], oneShot: true, every: 120_000, ready: backdoorReady },
@@ -112,7 +113,8 @@ const CONFIG = {
  *   run /startup.js --once     one pass, then exit (the old behaviour)
  *   alias startup='run /startup.js'   (absolute path, so it works from any directory)
  *
- * Running it again replaces the copy that is running. At the "start" stage (home below
+ * Running it again replaces the copy that is running (not the scripts it started: those keep
+ * their old code until --restart). At the "start" stage (home below
  * startupStages.early, e.g. a fresh BitNode) only the scripts that earn or level run, so the batcher
  * has RAM to hack with; the rest follow after a home upgrade.
  * Home first. When home is too small (a fresh 8GB start), it roots every server it can and
@@ -147,6 +149,7 @@ export async function main(ns) {
 	const state = {
 		sf4,
 		restart: flags.restart,
+		askedRestart: flags.restart, // stays true after the first pass (restart is cleared)
 		firstPass: true,
 		stage: "",
 		daemons: new Map(),  // label -> { running, since, stoppedAt, wait }
