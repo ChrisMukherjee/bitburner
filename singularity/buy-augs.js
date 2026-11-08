@@ -4,6 +4,7 @@ import { loadConfig } from "/utils/config.js";
 import { postIncomeMix } from "/utils/income-mix.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";
 import { recordIncomeSample, buildIncomeModel, earnedOver, timeToEarn, incomeMultAt } from "/utils/income-curve.js";
+import { homeUpgradeBeatsNeuroFlux } from "/singularity/ready.js";
 // Design: docs/aug-reset.md
 const NEUROFLUX = "NeuroFlux Governor";
 const RED_PILL = "The Red Pill";
@@ -191,10 +192,10 @@ export async function main(ns) {
 		endgame = { daemonLevel: ns.getServerRequiredHackingLevel(DAEMON), level: player.skills.hacking, exp: player.exp.hacking, rate: hackExp.perSecond, statsOf };
 	}
 
-	const decision = decideReset({
+	const decision = homeBeforeNeuroFlux(decideReset({
 		queued, plan, upcoming, cash: cash() + stocks, homeCash: cash(), income, incomeModel, sinceInstallMs,
 		neuroflux, favors, daedalus, push, endgame, ratesMeasured: Object.keys(rates.perSecond).length > 0,
-	});
+	}), homeUpgradeBeatsNeuroFlux(ns, cash() + stocks));
 	// A push reset buys the fill list (cheapest augments) instead of the usual plan.
 	const pushing = push && decision.reset && decision.push;
 
@@ -321,6 +322,19 @@ function decideReset(context) {
 	}
 	const laterNote = later ? ` Best later moment: in ${eta(later.waitMs)}, ${speed(later)}.` : "";
 	return result(true, `${count} ready, worth ${speed(now)} per hour of run: no later moment beats it.${laterNote}`);
+}
+
+/**
+ * A reset that would buy only NeuroFlux levels can't happen while a home upgrade is affordable: the buyer
+ * gives that cash to the upgrade (singularity/ready.js), buys nothing, and auto-reset.js then stops
+ * everything without installing. So RESET turns into a wait until startup.js's home buyer has spent it.
+ * homeFirst: a home upgrade fits the cash the buyer will have (home plus stocks, sold before it runs).
+ */
+function homeBeforeNeuroFlux(decision, homeFirst) {
+	const now = decision.curve[0];
+	if (!decision.reset || decision.push || !homeFirst || now.augs > 0 || now.neuroflux === 0) return decision;
+	return { ...decision, reset: false, reason: `Only NeuroFlux (${now.neuroflux} level(s)) is left to buy and a home upgrade ` +
+		`is affordable, which gets the cash first: waiting for the home buyer, then resetting. (${decision.reason})` };
 }
 
 /**

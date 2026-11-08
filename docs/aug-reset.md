@@ -173,7 +173,15 @@ clears), not from the plan made before the sell-off.
 on port 33: cost plus its income reserve), the buyer leaves the leftover cash to it instead of buying
 NeuroFlux levels, since the upgrade survives the install and raises income. This rule came from an earlier version, reading the buyers' notes instead of the files it used; with no note yet (a fresh run, or startup.js not running)
 NeuroFlux is bought as before. The forecast doesn't apply it: it counts NeuroFlux from the leftover cash at
-every moment, as a stand-in for whatever that cash buys (see "Checked offline").
+every moment, as a stand-in for whatever that cash buys (see "Checked offline"). The one exception is a reset
+that would buy only NeuroFlux: while a home upgrade fits the cash (stocks included), the advice says wait,
+since the buyer would buy nothing and auto-reset would stop everything without installing.
+
+**NeuroFlux alone is a valid reset.** There is no minimum number of other augments. Once every useful
+augment is owned or out of reach, NeuroFlux levels are all a reset can buy, and each level is worth its
+`augValue` (about +1% to every stat), so the value-per-hour rule resets for NeuroFlux alone only when no
+moment within `maxWaitMinutes` beats it. The offline check found the harm was the forecast bug above
+(resetting for one or two levels every hour or two), not NeuroFlux-only resets as such.
 
 ## After The Red Pill
 
