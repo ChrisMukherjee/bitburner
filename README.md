@@ -144,6 +144,7 @@ alias augs='run /singularity/buy-augs.js --dry';
 alias buy-augs='run /singularity/buy-augs.js';
 alias install-augs='run /singularity/install-augs.js /startup.js';
 alias next-bitnode='run /singularity/next-bitnode.js';
+alias clean-home='run /tools/clean-home.js';
 ```
 
 #### Achievement aliases
