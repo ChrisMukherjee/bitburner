@@ -5,11 +5,12 @@ import { USER_CONFIG_FILE } from "/utils/config.js";
 /**
  * Changes your overrides in data/config.json without opening an editor. Keeps everything else in the
  * file, refuses to touch a file that isn't valid JSON, and checks the setting exists in config.js.
- * About 2.6GB. Scripts read the config when they start, so restart them (or `restart`) afterwards.
+ * About 3.6GB. Scripts read the config when they start, so restart them (or `restart`) afterwards.
  *
  *   run /tools/set-config.js                          show this help and your current overrides
  *   run /tools/set-config.js route 4:3 2:1 5:1        BitNode route for auto-destroy.js, as bitNode:level
- *                                                     (a bare 5 means level 1); done in order, owned ones skipped
+ *                                                     (a bare 5 means one more level of 5 than you will own);
+ *                                                     done in order, owned ones skipped
  *   run /tools/set-config.js route                    show the route
  *   run /tools/set-config.js route clear              empty the route (auto-destroy then waits for you)
  *   run /tools/set-config.js skip darknet/dnet-manager.js   add a script startup.js never starts
@@ -45,7 +46,9 @@ export async function main(ns) {
 		} else {
 			const steps = [];
 			for (const item of rest) {
-				const [bitNode, level = 1] = item.split(":").map(Number);
+				const [bitNode, given] = item.split(":").map(Number);
+				// A bare number means "one more level of it": the level you will own once this BitNode ends, plus one.
+				const level = given ?? nextLevel(ns, bitNode);
 				if (!Number.isInteger(bitNode) || bitNode < 1 || bitNode > 14 || !Number.isInteger(level) || level < 1) {
 					ns.tprint(`ERROR "${item}" isn't bitNode:level (BitNode 1-14, level 1 or more), e.g. 4:3 or 5. Nothing changed.`);
 					return;
@@ -103,6 +106,13 @@ export async function main(ns) {
 		return;
 	}
 	ns.tprint(`ERROR unknown command "${command}". Run /tools/set-config.js for help.`);
+}
+
+/** One level beyond what you will own of that BitNode after this one ends (the current BitNode is about to give one). */
+function nextLevel(ns, bitNode) {
+	const info = ns.getResetInfo();
+	const owned = new Map(info.ownedSF).get(bitNode) ?? 0;
+	return owned + (info.currentNode === bitNode ? 1 : 0) + 1;
 }
 
 function save(ns, mine, message) {
