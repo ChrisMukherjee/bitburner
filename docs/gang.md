@@ -5,8 +5,8 @@
 (via [`../gang/workers/invite.js`](../gang/workers/invite.js), port 30). Settings are `gang` in
 [`../config.js`](../config.js).
 
-**Untested in game.** It was written against the v3.0.0 Gang API before reaching BitNode 2. Tail it on
-the first run and tune; every decision is logged.
+It was written against the v3.0.0 Gang API; every decision is logged, so tail it and tune `gang` in the config if
+something looks off.
 
 ## Decisions
 

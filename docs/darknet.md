@@ -33,9 +33,9 @@ Passwords come from [`hint-interpreter.js`](../darknet/hint-interpreter.js) and
   starts it once the program is owned ([`../darknet/ready.js`](../darknet/ready.js)); before that it kept
   restarting the manager, and each exit left a sticky toast. The exit message is now a normal toast plus a
   terminal line, since it only shows when the manager is run by hand.
-- **One implementation, not two.** The other player's `darkweb.js`/`scout.js` are a different design (a scout script on every
+- **One implementation, not two.** An earlier alternative design (`darkweb.js`/`scout.js`) was a different design (a scout script on every
   authenticated node, a shared password vault merged on home, `phish.js` filling free RAM). Compared by reading, this one does
   more (stasis links, earnings, restarts, 408 retries, the map), so it stayed the base. Three ideas were taken from the other
   design: the heartbleed log pass, the DeepGreen solver, and trying known passwords on servers whose hint gave nothing. Not
-  taken: the controller on home, a blind list of default passwords, and her NIL solver (switched off in her own code because
+  taken: the controller on home, a blind list of default passwords, and its NIL solver (switched off in that code because
   the server never answered "yes"). The crawler is 0.6GB larger for the heartbleed call.

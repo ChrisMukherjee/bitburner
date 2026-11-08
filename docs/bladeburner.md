@@ -1,8 +1,8 @@
 # Bladeburner
 
 [`../bladeburner/`](../bladeburner/README.md): `bb-manage.js` decides a state, `bb-pass.js` plays, and
-[`../singularity/player-work.js`](../singularity/player-work.js) does the gym. Ported from the other player's
-scripts, which have run in game; the port itself has not.
+[`../singularity/player-work.js`](../singularity/player-work.js) does the gym. Ported from an earlier standalone
+set of scripts that had run in game.
 
 ## States
 
@@ -69,11 +69,11 @@ different multipliers exist it shows three scenarios instead. The Bladeburner si
 The augment weights for the combat route follow the state by themselves (`routeAdjust` in
 [`../utils/config.js`](../utils/config.js), see [`config.md`](config.md)); the `bladeburner` preset only forces them.
 
-## What came from the other player's scripts
+## What came from the standalone scripts
 
-`bb-manage`, `bb-pass`, `node-eta` and `route-model` are ports (state on port 36 instead of files). Her city-faction
+`bb-manage`, `bb-pass`, `node-eta` and `route-model` are ports (state on port 36 instead of files). The earlier city-faction
 choice (`city-pass.js`) is merged into [`../singularity/workers/city-plan.js`](../singularity/workers/city-plan.js)
 (groups ranked by augment value) and [`../singularity/player-work.js`](../singularity/player-work.js) (no group is picked
 while the route is unsettled), see [`player-work.md`](player-work.md). Not carried over: `bb-hold.txt` and `bb-route.txt`
-(now `plan` on the port), `node-ready.txt` (auto-destroy uses `blackOps` instead) and her debug text files
+(now `plan` on the port), `node-ready.txt` (auto-destroy uses `blackOps` instead) and its debug text files
 (`city-why.txt`, `bb-status.txt`: see `status` and `run /tools/debug-report.js`).

@@ -34,10 +34,10 @@ depends on progress is a setting, and scripts don't hardcode new ones.
 - **Detected, not configured:** the BitNode multipliers (with Source-File 5) gate mechanics a BitNode makes worthless (`mechanicGates`) and rank the route suggestion; the player's settings win.  whether the Singularity API is usable (and its RAM multiplier) comes from
   the game. Rep and price multipliers are already in the game's own numbers.
 
-## Not done yet
+## Presets and automatic adjustments
 
 Presets: `hacking` (the defaults) and `bladeburner` (combat and Bladeburner augments instead of hacking
-ones, from the other player's Bladeburner route). `loadConfig` also adjusts the augment weights by itself while
+ones, for a Bladeburner route). `loadConfig` also adjusts the augment weights by itself while
 Bladeburner is the route (state boot, train or run on port 36, or hold while the route estimate says combat): combat and
 Bladeburner augments count and hacking ones do not, as the preset does, so the preset is only needed to force it. It also
 weighs the money stats by where this run's money comes from (`augments.incomeMix`, "Income mix" in

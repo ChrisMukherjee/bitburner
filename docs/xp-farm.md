@@ -22,4 +22,4 @@
 
 ## Current state
 
-Ported from the other player's batcher, where it ran as a step of the batcher itself. Tune `xpFarm` in the config.
+Originally a step inside a batcher loop; here it is its own script. Tune `xpFarm` in the config.

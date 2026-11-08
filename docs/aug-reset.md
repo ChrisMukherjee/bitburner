@@ -21,7 +21,7 @@ On top of that:
 - Guarantee (off by default, `maxRunHours: null`): a run at least `maxRunHours` old resets once the
   batch is worth at least x`guaranteeSpeed`, whatever the forecast says.
 
-The window and the guarantee came from the other player's version of this rule: with a growing income
+The window and the guarantee came from an earlier version of this rule: with a growing income
 the forecast can keep promising a slightly better moment a little further on, so the reset recedes for
 hours. They started as a 60 min window and a 4 h guarantee. An offline simulation of BitNode 4 (below)
 showed both cut runs short and cost 5-25% of the time to The Red Pill, with no receding resets once the
@@ -170,8 +170,7 @@ clears), not from the plan made before the sell-off.
 
 **NeuroFlux waits for home.** While a home RAM or cores upgrade is affordable (the cash its buyer last posted
 on port 33: cost plus its income reserve), the buyer leaves the leftover cash to it instead of buying
-NeuroFlux levels, since the upgrade survives the install and raises income. This is the other player's
-rule, reading the buyers' notes instead of the files it used; with no note yet (a fresh run, or startup.js not running)
+NeuroFlux levels, since the upgrade survives the install and raises income. This rule came from an earlier version, reading the buyers' notes instead of the files it used; with no note yet (a fresh run, or startup.js not running)
 NeuroFlux is bought as before. The forecast doesn't apply it: it counts NeuroFlux from the leftover cash at
 every moment, as a stand-in for whatever that cash buys (see "Checked offline").
 

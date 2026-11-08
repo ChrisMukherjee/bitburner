@@ -54,8 +54,7 @@ the plan because the multipliers also steer every later choice.
 The Gang API ([`../gang/`](../gang/README.md), `SF2`) works in BitNode 2 or with Source-File 2. In BitNode 2 a gang
 only needs a gang faction's invite; elsewhere it also needs karma of -54,000, which
 [`../singularity/player-work.js`](../singularity/player-work.js) grinds with crimes when it has SF4
-([`../utils/gang.js`](../utils/gang.js)). A gang is a strong second income, so SF2 pays back in every later run. The
-gang manager has not been run in game by the repo's authors, so watch its first hour.
+([`../utils/gang.js`](../utils/gang.js)). A gang is a strong second income, so SF2 pays back in every later run.
 
 ## Source-Files 6 and 7: Bladeburner
 

@@ -5,7 +5,7 @@
 ## The problem
 
 Most work is done by one-shot passes (player-work, Bladeburner, the route estimate): they run for a moment on whichever server has
-room and exit, so their log is gone by the time anyone looks. The other player's scripts left `.txt` files with the last result,
+room and exit, so their log is gone by the time anyone looks. Earlier scripts left `.txt` files with the last result,
 which could be read in game and pasted into a chat. State here lives on ports, which is right for scripts but awkward for a person.
 
 ## Decision

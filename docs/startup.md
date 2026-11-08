@@ -28,7 +28,7 @@
   Tradeoff: a one-shot buyer reads the current income each time instead of only moving up during a run, so a dip in
   income can briefly change what it keeps back.
 - **`data/startup-why.txt`** says what could not start and why (no room, missing file, room being kept free), rewritten
-  only when it changes: `cat data/startup-why.txt`. The idea came from the other player's `placement-why.txt`.
+  only when it changes: `cat data/startup-why.txt`. 
 - **`--restart`** stops every script it manages once, so code synced since they started takes effect. The batcher's
   workers already in flight keep running.
 - **Stages come from home RAM** (`startupStages` in [`../config.js`](../config.js): start below 64GB, early,
@@ -53,8 +53,8 @@ Stages already keep back what doesn't fit, and it would need the batcher to read
 highest-priority script that may run off home finds no room, startup.js reserves room for it on one server
 ([`ram.md`](ram.md)), one reservation at a time.
 - **player-work.js is a one-shot too**, a pass every minute that keeps its state on a port
-  ([`player-work.md`](player-work.md)), so its 30GB is no longer held all run. It starts at the early stage;
-  below that a 14.6GB stand-in (study, then crime) moves the player, since 32.5GB fits nowhere on a
+  ([`player-work.md`](player-work.md)), so its 32.5GB is no longer held all run. It starts at the early stage;
+  below that an 8.35GB stand-in (study, gang invite, port openers, then crime) moves the player, since 32.5GB fits nowhere on a
   32GB home and network.
 
 ## Structure across BitNodes

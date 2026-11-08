@@ -36,7 +36,7 @@ splitting every step into workers (many scripts for one stage).
 
 [`../startup.js`](../startup.js) runs it `--once` about every minute as a one-shot. A pass refreshes what's due,
 takes one travel step and one work step, and exits; the game keeps the work going without a script. So its
-30GB is used for a moment instead of all the time, which matters most at a BitNode start (8GB home), when it
+32.5GB is used for a moment instead of all the time, which matters most at a BitNode start (8GB home), when it
 otherwise came out of the batcher's RAM. What the next pass needs (goals, city plan, what was started or
 announced) is kept on port 35, tagged with the last install time so a new run starts clean; the helpers' own
 ports aren't enough because the state also says what this script did (e.g. the class was started, so a
@@ -137,8 +137,7 @@ City factions come in rival groups: joining one locks the others out for that ru
   Ties keep the config order. A group that sells nothing wanted is never sought out.
 - While Bladeburner is `boot`, `train` or `run` and the route estimate hasn't been posted yet, no group is
   picked: the augment weights follow the route and a join can't be undone this run. A group already joined
-  stays. (From the other player's `city-pass.js`; her flight-only-when-the-invite-needs-nothing-else rule
-  is `pursue()`'s existing cash check here.)
+  stays. (The rule that flies only when the invite needs nothing else is `pursue()`'s existing cash check.)
 - A group is only joined if it sells a wanted aug that no faction in `cities.otherSources` sells. Owned and
   queued augs decide the group, so no state file is needed across resets.
 - A city invite is still accepted when it locks out nothing wanted (a faction of the same group is already

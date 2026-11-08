@@ -26,4 +26,6 @@ and [`../stocks/workers/promote-stock.js`](../stocks/workers/promote-stock.js).
 
 ## Open
 
-Positions are lost when augs are installed; selling everything before a reset is planned with the reset rule.
+Positions are lost when augs are installed, so [`auto-reset.js`](../singularity/auto-reset.js) sells everything
+(`stock-trader.js --liquidate`) before the buyer runs, and the reset rule counts stock value as cash
+([`aug-reset.md`](aug-reset.md)). A manual install does not liquidate.
