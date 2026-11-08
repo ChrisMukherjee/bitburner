@@ -82,7 +82,7 @@ export async function solveMastermind(ns, host, details, observed = []) {
 		if (result.verdict === "ok") return { password: guess, attempts: [] };
 		if (result.verdict === "later") return { later: result };
 		attempts.push({ password: guess, code: result.code, message: result.message, data: result.data });
-		const reply = /^\s*(\d+)\s*,\s*(\d+)\s*$/.exec(String(result.data ?? ""));
+		const reply = String(result.data ?? "").match(/^\s*(\d+)\s*,\s*(\d+)\s*$/);
 		if (!reply) break; // no usable reply: stop instead of guessing blind
 		const exact = Number(reply[1]);
 		const misplaced = Number(reply[2]);

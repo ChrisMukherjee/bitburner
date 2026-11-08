@@ -62,7 +62,7 @@ export async function main(ns) {
 		}
 
 		// Ending the BitNode stops everything anyway, so free home for the 34GB destroy (next-bitnode.js, then its worker).
-		ns.toast(`Destroying ${DAEMON}, next stop BitNode ${nextBN}`, "success", 10_000);
+		notify(ns, "[daemon]", `Destroying ${DAEMON}, next stop BitNode ${nextBN}`, "success");
 		for (const proc of ns.ps("home")) {
 			if (proc.pid !== ns.pid) ns.kill(proc.pid);
 		}

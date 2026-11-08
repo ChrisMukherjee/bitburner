@@ -1,4 +1,5 @@
 import { loadConfig } from "/utils/config.js";
+import { notify } from "/utils/notify.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
 import { readIncomeRate } from "/utils/income.js";
 
@@ -43,8 +44,10 @@ export async function main(ns) {
 	while (true) {
 		const formulasOn = ns.fileExists("Formulas.exe", "home");
 		if (formulasOn !== formulasWasOn) {
+			const mode = `Formulas.exe ${formulasOn ? "found: exact production and costs on" : "not found: estimating"}.`;
+			if (formulasWasOn === null) ns.print(`[hacknet] ${mode}`); // first pass: routine
+			else notify(ns, "[hacknet]", mode, "info"); // the mode changed mid-run: toast only
 			formulasWasOn = formulasOn;
-			ns.tprint(`[hacknet] Formulas.exe ${formulasOn ? "found: exact production and costs on" : "not found: estimating"}.`);
 		}
 		const policy = getPolicy(ns);
 		if (policy.name !== lastStageName) {

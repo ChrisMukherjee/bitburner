@@ -7,6 +7,8 @@ import { buildRamPool, allocate, threadCapacity, freeRamTotal } from "/utils/ram
 import { isHackable, hasFormulas, preppedServer } from "/utils/targets.js";
 import { postIncomeRate } from "/utils/income.js";
 
+// Reads of these keys elsewhere in this file are written scriptRam["hack"], not scriptRam.hack: the static RAM
+// check charges any .hack/.grow/.weaken property as the NS call of that name (see docs/NETSCRIPT.md).
 const WORKER_SCRIPTS = {
 	hack: "/hack/workers/hack.js",
 	grow: "/hack/workers/grow.js",
@@ -143,8 +145,10 @@ export async function main(ns) {
 		// fx is null without Formulas.exe; every function that takes it falls back to target-stats.js numbers.
 		const fx = hasFormulas(ns) ? { player: ns.getPlayer() } : null;
 		if (!!fx !== formulasWasOn) {
+			const mode = `Formulas.exe ${fx ? "found: exact planning on" : "not found: estimating"}.`;
+			if (formulasWasOn === null) ns.print(`[batcher] ${mode}`); // first pass: routine
+			else notify(ns, "[batcher]", mode, "info"); // the mode changed mid-run: toast only
 			formulasWasOn = !!fx;
-			ns.tprint(`[batcher] Formulas.exe ${fx ? "found: exact planning on" : "not found: estimating"}.`);
 			lastRetarget = 0; // re-rank with the new scoring
 		}
 
@@ -319,12 +323,12 @@ function chooseTargets(ns, allServers, scriptRam, totalRam, currentlyActive, ctx
 		// target-stats.js's measured grow rate; ranking by money alone picked foodnstuff on a fresh BitNode.
 		const plan = makePlan(ns, target, estimate.hackPerThread, CONFIG.hackFraction, scriptRam, ctx);
 		if (!Number.isFinite(plan.ramCost)) continue;
-		let score = (plan.stolen * maxMoney * estimate.chance) / (plan.ramCost * estimate.weaken);
+		let score = (plan.stolen * maxMoney * estimate.chance) / (plan.ramCost * estimate["weaken"]);
 		// A target that is nearly prepped earns sooner (matters after a restart or on a fresh BitNode)
 		score *= 0.5 + 0.5 * Math.min(1, ns.getServerMoneyAvailable(target) / maxMoney);
 		if (currentlyActive.has(target)) score *= CONFIG.stickiness;
 		// Game ratios: hack time = weaken / 4, grow time = weaken x 0.8
-		const timings = { hack: estimate.weaken / 4, grow: estimate.weaken * 0.8, weaken: estimate.weaken };
+		const timings = { hack: estimate["weaken"] / 4, grow: estimate["weaken"] * 0.8, weaken: estimate["weaken"] };
 		candidates.push({ target, score, estimate, timings });
 	}
 	candidates.sort((a, b) => b.score - a.score);
@@ -556,10 +560,10 @@ function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft,
 		const now = Date.now();
 		// Every op must be able to start now or later (delay >= 0)
 		const earliestLandTime = now + 50 + Math.max(
-			liveTimes.hack,
-			liveTimes.weaken - gap,
-			liveTimes.grow - 2 * gap,
-			liveTimes.weaken - 3 * gap
+			liveTimes["hack"],
+			liveTimes["weaken"] - gap,
+			liveTimes["grow"] - 2 * gap,
+			liveTimes["weaken"] - 3 * gap
 		);
 		// Spacing is recomputed every tick, so a target whose RAM share grows speeds up straight away
 		const nextLandTime = state.lastLandTime + state.spacing;
@@ -589,9 +593,9 @@ function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft,
 // RAM x ms one batch ties up: each op holds its RAM from launch (launchLeadMs early) until it lands.
 function batchRamMs(plan, timings, scriptRam) {
 	const held = (duration) => duration * plan.durationSafety + CONFIG.launchLeadMs;
-	return plan.hackThreads * scriptRam.hack * held(timings.hack) +
-		plan.growThreads * scriptRam.grow * held(timings.grow) +
-		(plan.hackWeakenThreads + plan.growWeakenThreads) * scriptRam.weaken * held(timings.weaken);
+	return plan.hackThreads * scriptRam["hack"] * held(timings["hack"]) +
+		plan.growThreads * scriptRam["grow"] * held(timings["grow"]) +
+		(plan.hackWeakenThreads + plan.growWeakenThreads) * scriptRam["weaken"] * held(timings["weaken"]);
 }
 
 /**
@@ -705,9 +709,9 @@ function makePlan(ns, target, hackPerThread, hackFraction, scriptRam, ctx, catch
 	const securityAdded = hackSecurityAdded + growSecurityAdded;
 	const durationSafety = 1 + securityAdded / ns.getServerMinSecurityLevel(target);
 	const ramCost =
-		hackThreads * scriptRam.hack +
-		growThreads * scriptRam.grow +
-		(hackWeakenThreads + growWeakenThreads) * scriptRam.weaken;
+		hackThreads * scriptRam["hack"] +
+		growThreads * scriptRam["grow"] +
+		(hackWeakenThreads + growWeakenThreads) * scriptRam["weaken"];
 
 	return { hackThreads, growThreads, hackWeakenThreads, growWeakenThreads, ramCost, durationSafety, stolen, securityAdded };
 }
@@ -735,7 +739,7 @@ function prepWave(ns, target, ramPool, scriptRam, minSecurity, security, maxMone
 
 	if (security > minSecurity + 0.01) {
 		const threadsNeeded = Math.ceil((security - minSecurity) / weakenPerThread);
-		const weakenThreads = Math.min(threadsNeeded, threadCapacity(ramPool, scriptRam.weaken));
+		const weakenThreads = Math.min(threadsNeeded, threadCapacity(ramPool, scriptRam["weaken"]));
 		if (weakenThreads > 0) {
 			const assignments = allocate(
 				ramPool,
@@ -777,7 +781,7 @@ function prepWaveFormulas(ns, target, ramPool, scriptRam, minSecurity, security,
 	const weakenPerThread = ctx.weakenPerThread;
 	const gap = CONFIG.gapMs;
 	const weakenThreads = Math.ceil(Math.max(0, security - minSecurity) / weakenPerThread);
-	const weakenCapacity = threadCapacity(ramPool, scriptRam.weaken);
+	const weakenCapacity = threadCapacity(ramPool, scriptRam["weaken"]);
 	// Ops start now at current security, so use the current (longer) times to find the landing
 	const landTime = Date.now() + 50 + Math.max(
 		ns.getWeakenTime(target),

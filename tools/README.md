@@ -10,7 +10,7 @@ Scripts to run by hand. RAM figures are approximate; `mem <script>` in game give
 | [`reminders.js`](reminders.js) | Only without the Singularity API: startup.js runs it every minute and it tells you once each when a server worth backdooring can be (with the command to paste) and when you can afford TOR or programs. Design: [`docs/reminders.md`](../docs/reminders.md) | none | 5.55GB, for a moment |
 | [`track-income.js`](track-income.js) | Logs income every 10 seconds | none | 2.7GB |
 | [`debug-report.js`](debug-report.js) | Writes `data/debug-report.txt` to paste when something looks wrong: run, what is running, why startup skipped things, the last pass of every one-shot, every port. Design: [`docs/debug-report.md`](../docs/debug-report.md) | `--full` | 5.5GB |
-| [`dump-state.js`](dump-state.js) | Prints a snapshot of the game state to paste elsewhere | none | 8.7GB |
+| [`dump-state.js`](dump-state.js) | Prints a snapshot of the game state to paste elsewhere | none | 8.55GB |
 | [`list-backdoors.js`](list-backdoors.js) | Lists servers worth backdooring and the path to each | `--all` | 4.45GB |
 | [`check-servers.js`](check-servers.js) | Lists purchased servers | none | 2.75GB |
 | [`kill-all-remote.js`](kill-all-remote.js) | Kills every script on every server except home | none | 2.3GB |

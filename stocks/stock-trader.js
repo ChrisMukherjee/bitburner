@@ -1,5 +1,6 @@
 // Design: docs/stocks.md
 import { loadConfig } from "/utils/config.js";
+import { notify } from "/utils/notify.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
 import { STOCK_INFLUENCE_PORT, SYMBOL_SERVERS } from "/stocks/stock-servers.js";
 import { HOME_PASSWORD_FILE, PHISH_SCRIPT } from "/darknet/config.js"; // constants only, no RAM
@@ -118,8 +119,10 @@ export async function main(ns) {
 		if (flags["buy-4s"] && !ns.stock.has4SDataTixApi()) maybeBuyAccess(ns, constants.MarketDataTixApi4SCost, getPolicy(ns), true);
 		const exactOn = ns.stock.has4SDataTixApi();
 		if (exactOn !== exactWasOn) {
+			const mode = `4S TIX API ${exactOn ? "found: exact forecasts on" : "not owned: estimating from price history"}.`;
+			if (exactWasOn === null) ns.print(`[stocks] ${mode}`); // first tick: routine
+			else notify(ns, "[stocks]", mode, "info"); // the mode changed mid-run: toast only
 			exactWasOn = exactOn;
-			ns.tprint(`[stocks] 4S TIX API ${exactOn ? "found: exact forecasts on" : "not owned: estimating from price history"}.`);
 		}
 
 		const outlooks = symbols.map((sym) => outlook(ns, sym, exactOn, history[sym]));
@@ -287,7 +290,7 @@ function postInfluence(ns, symbols) {
 		const host = SYMBOL_SERVERS[sym];
 		if (!host) continue;
 		const [longShares] = ns.stock.getPosition(sym);
-		if (longShares > 0) influence.grow.push(host);
+		if (longShares > 0) influence["grow"].push(host);
 	}
 	ns.clearPort(STOCK_INFLUENCE_PORT);
 	ns.writePort(STOCK_INFLUENCE_PORT, JSON.stringify(influence));
