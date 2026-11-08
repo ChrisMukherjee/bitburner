@@ -278,6 +278,12 @@ export const DEFAULTS = {
 	startupStages: { start: 0, early: 64, mid: 128, late: 256 },
 	startupSkip: [],
 
+	// singularity/buy-programs.js. DarkscapeNavigator.exe ($50m, opens the darknet) is normally bought after the
+	// last port opener (SQLInject, $250m). Once home has darknetFirstHomeRam GB it is bought before that opener,
+	// so the darknet's income starts sooner. null = startupStages.mid, the size where startup.js starts the darknet
+	// manager; a huge number (1e9) keeps the old order.
+	programs: { darknetFirstHomeRam: null },
+
 	// Mechanics a BitNode makes worthless (startup.js; needs the BitNode multipliers, so BitNode 5 or Source-File 5; without
 	// them nothing is held back). A script is not started while a multiplier listed for it is below minMultiplier.
 	// `force` lists scripts to start anyway (paths as in startupSkip), and enabled: false turns the whole check off,

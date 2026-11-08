@@ -25,6 +25,7 @@ named `regression: ...` pin a bug that was fixed; if one fails, that bug is back
 | [`income-curve.test.mjs`](income-curve.test.mjs) | [`utils/income-curve.js`](../utils/income-curve.js): flat and growing forecasts, fit from samples, cap, sample history across runs |
 | [`aug-filter.test.mjs`](aug-filter.test.mjs) | [`utils/aug-filter.js`](../utils/aug-filter.js): which augments are wanted per route and income mix, their value, `never` and special augments |
 | [`bitnode-route.test.mjs`](bitnode-route.test.mjs) | [`utils/bitnode-route.js`](../utils/bitnode-route.js): route steps counting this destroy, ease score, plan suggestion by tier and multipliers |
+| [`buy-programs.test.mjs`](buy-programs.test.mjs) | [`singularity/buy-programs.js`](../singularity/buy-programs.js): the darknet program before SQLInject only on a home of `programs.darknetFirstHomeRam` GB or more, configurable threshold, what a pass buys at each size |
 | [`repo.test.mjs`](repo.test.mjs) | Whole repo: imports and script paths exist, startup.js's scripts exist, every script is in its folder README, aliases use absolute paths, [`tools/status.js`](../tools/status.js) parses startup.js's list and the Go rotation |
 | [`support/register.mjs`](support/register.mjs) | Not a test: loaded first; maps game import paths to the repo ([`support/game-path.mjs`](support/game-path.mjs), [`support/hooks.mjs`](support/hooks.mjs) for older Node) |
 | [`support/fake-ns.mjs`](support/fake-ns.mjs) | Not a test: the fake `ns` (files, ports, cash, recorded calls; throws on anything not set up) |

@@ -56,6 +56,13 @@ highest-priority script that may run off home finds no room, startup.js reserves
   ([`player-work.md`](player-work.md)), so its 32.5GB is no longer held all run. It starts at the early stage;
   below that an 8.35GB stand-in (study, gang invite, port openers, then crime) moves the player, since 32.5GB fits nowhere on a
   32GB home and network.
+- **Buying order of programs.** The port openers come first (they root more servers for the batcher at no RAM cost);
+  DarkscapeNavigator.exe ($50m) normally follows SQLInject ($250m). Once home has `programs.darknetFirstHomeRam` GB
+  (default: `startupStages.mid`, where the darknet manager starts), `programOrder` in
+  [`../singularity/buy-programs.js`](../singularity/buy-programs.js) buys it before SQLInject, so the darknet's income
+  doesn't wait behind a $250m purchase. On a smaller home the darknet's RAM (manager and crawlers) would cost the
+  batcher more than it earns. Rejected: buying it in Chongqing for $30m, since only a button in the game's UI sells
+  it at that price and no Netscript function reaches it.
 
 ## Structure across BitNodes
 
