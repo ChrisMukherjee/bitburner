@@ -34,3 +34,14 @@ export function batcherReady(ns, config) {
 	}
 	return false;
 }
+
+/**
+ * True when the saved BitNode multipliers say hacking pays almost nothing here (the same test batcherReady uses, without
+ * its waiting or message). False when unknown, so a run without Source-File 5 never counts as one. 0GB.
+ */
+/** @param {NS} ns */
+export function hackIsWorthless(ns, config) {
+	if (!config.hackWorth?.enabled || !config.mechanicGates?.enabled || config.mechanicGates.force?.includes("hack/batcher.js")) return false;
+	const mults = bitnodeMults(ns);
+	return mults.known && mults.get("ScriptHackMoney") * mults.get("ScriptHackMoneyGain") < config.hackWorth.minProduct;
+}

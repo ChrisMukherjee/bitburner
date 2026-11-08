@@ -11,7 +11,7 @@ import { dnetReady } from "/darknet/ready.js";
 import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
 import { pservReady } from "/pserv/ready.js";
 import { bitnodeMultsReady } from "/utils/sf5.js";
-import { batcherReady } from "/hack/ready.js";
+import { batcherReady, hackIsWorthless } from "/hack/ready.js";
 import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady, playerWorkReady, donateReady } from "/singularity/ready.js";
 
@@ -26,6 +26,7 @@ import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady,
 //   homeOnly:         reads or writes data files on its own server, so it must run on home.
 //   ready:            (ns, config) => false leaves it out this time. For a mechanic's manager,
 //                     imported from its folder, so startup.js knows nothing about the mechanic.
+//   earlyIf:          (ns, config) => true starts it at the "early" stage instead of its own (later) one.
 //   needsSF4:         needs the Singularity API (BitNode 4 or Source-File 4). Every script in
 //                     singularity/ counts as this too; without the API they are all left out.
 // Scripts listed in `startupSkip` in the config (config.js, data/config.json) are never started.
@@ -81,7 +82,8 @@ const SCRIPTS = [
 	// back afterwards. Add args: ["--dry"] to only log (restartOnNewArgs swaps a running copy).
 	{ stage: "mid", script: "singularity/auto-reset.js", args: [], restartOnNewArgs: true, homeOnly: true },
 	{ stage: "late", script: "go/ipvgo-bot.js", args: ["--opponent", "Daedalus"], restartOnNewArgs: true },
-	{ stage: "late", script: "stocks/stock-trader.js", args: ["--buy-4s", "--promote", 32], homeOnly: true },
+	// Where hacking pays nothing (BitNode 8) the stock market is the income, so it starts at the early stage (64GB home) instead of the late one.
+	{ stage: "late", script: "stocks/stock-trader.js", args: ["--buy-4s", "--promote", 32], homeOnly: true, earlyIf: hackIsWorthless },
 ];
 const STAGES = ["start", "early", "mid", "late"];
 // Printed at the end of the first pass when startup.js is run by hand (see the end of main).
@@ -177,7 +179,7 @@ function runPass(ns, requested, state) {
 	const mults = bitnodeMults(ns);
 	const needsSingularity = (entry) => entry.needsSF4 || entry.script.startsWith("singularity/");
 	const inStage = SCRIPTS.filter((entry) =>
-		STAGES.indexOf(entry.stage) <= level &&
+		STAGES.indexOf(entry.earlyIf?.(ns, config) ? "early" : entry.stage) <= level &&
 		(!entry.until || STAGES.indexOf(entry.until) > level) &&
 		!config.startupSkip.includes(entry.script) &&
 		!gatedByMultipliers(ns, state, config, mults, entry.script)
