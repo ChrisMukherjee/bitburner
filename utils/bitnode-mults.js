@@ -20,6 +20,7 @@ export const MULTS_FILE = "data/bitnode-mults.json";
 /** @param {NS} ns */
 export function bitnodeMults(ns) {
 	let values = {};
+	let others = {};
 	let known = false;
 	try {
 		const saved = JSON.parse(ns.read(MULTS_FILE));
@@ -27,6 +28,7 @@ export function bitnodeMults(ns) {
 		// The file survives a BitNode change; only trust it for the BitNode it was written in.
 		if (saved && saved.mults && typeof saved.mults === "object" && Number.isFinite(node) && saved.node === node) {
 			values = saved.mults;
+			others = saved.others && typeof saved.others === "object" ? saved.others : {};
 			known = true;
 		}
 	} catch { /* no file yet */ }
@@ -36,6 +38,11 @@ export function bitnodeMults(ns) {
 		get(name) {
 			const value = values[name];
 			return typeof value === "number" && Number.isFinite(value) ? value : 1;
+		},
+		/** The multipliers of another BitNode (as saved for its next level), or null when unknown. */
+		other(bitNode) {
+			const mults = others[bitNode];
+			return mults && typeof mults === "object" ? mults : null;
 		},
 	};
 }

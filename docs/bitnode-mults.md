@@ -19,22 +19,29 @@ Formulas), hacknet payback (real node production), augment prices and rep costs
 (`singularity.getAugmentationPrice` / `RepReq`), the donation rate (`repMult` from the faction). Pure money
 multipliers also cancel when ranking targets, because every target is scaled the same.
 
-## Where a multiplier still changes a decision (plan)
+## Where a multiplier changes a decision
 
 1. **Done:** batcher's weaken guess before the first measurement (`ServerWeakenRate`); hacknet's price of a
    first node without Formulas (`HacknetNodeMoney`).
-2. **Gating (next):** skip or lower the priority of mechanics a BitNode makes worthless: hacknet at
-   `HacknetNodeMoney` ~0, the gang at `GangSoftcap` ~0, coding contracts at `CodingContractMoney` ~0,
-   infiltration, corporation. Each goes in that folder's ready check, not in startup.js.
-3. **Hacking worth:** with `ScriptHackMoney` x `ScriptHackMoneyGain` very low, hack income is not worth the
-   RAM; the batcher should say so and leave the RAM to share, XP farm and stock-influence. Needs a design
-   pass before any code.
-4. **Reset rule:** `PRICE_MULT` 1.9 and the NeuroFlux 1.14 are game constants, not BitNode multipliers
-   (Source-File 11 changes the 1.9). `AugmentationMoneyCost`/`AugmentationRepCost` are already in the live
-   prices. `DaedalusAugsRequirement` and `FavorToDonateToFaction` would replace assumptions in the Daedalus
-   rule (the latter is already read live via `getFavorToDonate`).
-5. **`bitnodes` in `config.js`:** it is empty today, so there is nothing to replace yet. Rule going forward:
-   a per-BitNode value that only encodes a multiplier effect is derived from the multiplier, not written by hand.
+2. **Gating, done:** `mechanicGates` in the config maps a script to the multipliers it lives on; startup.js leaves it
+   out while one is below `minMultiplier` (0.1) and says so once. Today: hacknet (`HacknetNodeMoney`) and the gang
+   (`GangSoftcap`). The player's overrides win: `mechanicGates.force` lists scripts to start anyway and
+   `enabled: false` turns it off (`set-config set mechanicGates.enabled false`). Coding contracts are not gated: they
+   also pay faction and company rep, not only money.
+3. **Route suggestion, done:** with `bitnodeRoute` empty, `bitnodePlan` (a generic order of Source-Files worth having, in
+   tiers, in the config) is walked against the Source-Files the game says are owned: the first tier with a level not
+   owned yet, and inside it the BitNode whose multipliers (`easeScore` in
+   [`utils/bitnode-route.js`](../utils/bitnode-route.js): hack money, server money, hacking level, faction rep, minus
+   augment costs) make it easiest. The multipliers of every BitNode come from the same saved file, so this needs SF5;
+   without it the listed order is used. By default it only suggests (status and the "ready" notice), because ending
+   a BitNode is not undoable; `bitnodeRouteAuto: true` lets auto-destroy.js follow it. A `bitnodeRoute` of the player's
+   own always wins, and `next-bitnode <n>` / `afk-route` still work, e.g. to go for a specific achievement.
+4. **Hacking worth (open):** with `ScriptHackMoney` x `ScriptHackMoneyGain` very low, hack income is not worth the RAM.
+   Waiting on a decision before any batcher change.
+5. **Reset rule:** `PRICE_MULT` 1.9 and the NeuroFlux 1.14 are game constants, not BitNode multipliers
+   (Source-File 11 changes the 1.9). Augment cost and rep multipliers are already in the live prices.
+6. **`bitnodes` in `config.js`:** empty today. A per-BitNode value that only encodes a multiplier effect should be
+   derived from the multiplier, as the two above are.
 
 ## Tradeoffs and rejected ideas
 

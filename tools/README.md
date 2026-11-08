@@ -11,7 +11,7 @@ Scripts to run by hand. RAM figures are approximate; `mem <script>` in game give
 | [`save-bitnode-mults.js`](save-bitnode-mults.js) | Run by startup.js once per run with BitNode 5 or Source-File 5: saves `data/bitnode-mults.json` for [`utils/bitnode-mults.js`](../utils/bitnode-mults.js). Design: [`docs/bitnode-mults.md`](../docs/bitnode-mults.md) | none | about 6GB, for a moment |
 | [`track-income.js`](track-income.js) | Logs income every 10 seconds | none | 2.7GB |
 | [`debug-report.js`](debug-report.js) | Writes `data/debug-report.txt` to paste when something looks wrong: run, what is running, why startup skipped things, the last pass of every one-shot, every port. Design: [`docs/debug-report.md`](../docs/debug-report.md) | `--full` | 5.5GB |
-| [`dump-state.js`](dump-state.js) | Prints a snapshot of the game state to paste elsewhere | none | 8.7GB |
+| [`dump-state.js`](dump-state.js) | Prints a snapshot of the game state to paste elsewhere | none | 8.55GB |
 | [`list-backdoors.js`](list-backdoors.js) | Lists servers worth backdooring and the path to each | `--all` | 4.45GB |
 | [`check-servers.js`](check-servers.js) | Lists purchased servers | none | 2.75GB |
 | [`kill-all-remote.js`](kill-all-remote.js) | Kills every script on every server except home | none | 2.3GB |

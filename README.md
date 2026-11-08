@@ -129,13 +129,15 @@ Settings that should differ by BitNode go in a `bitnodes` section keyed by BitNo
 current BitNode's entry applies automatically; [`startup.js`](startup.js) records which BitNode you're in
 (`data/bitnode.txt`), so run it once in a new BitNode before relying on them.
 
+With Source-File 5, [`startup.js`](startup.js) also leaves out hacknet or the gang in a BitNode whose multiplier for them is below 0.1 (`mechanicGates` in the config; `force` or `enabled: false` overrides it).
+
 ### Planning your BitNode route and settings
 
 Do this once, in the game, to tailor the scripts to your save:
 
 1. **See where you are.** `run /tools/show-config.js` prints the settings the scripts will use, and `run /tools/status.js` shows the Source-File level this BitNode gives and the next BitNode on the route.
 2. **Set the route without an editor.** `afk-route 4:3 2:1 5:1` (bitNode:level, done in order; a bare `afk-route 5` means one more level of BitNode 5 than you will own once this BitNode ends) stores the BitNode route in `data/config.json`; `afk-route` alone shows it, `afk-route clear` empties it. `set-config set <path> <value>` and `set-config unset <path>` change any other setting. Or create your file by hand: `run /tools/show-config.js --example` prints a starter `data/config.json`; paste it into `nano data/config.json`. Keep only the lines you want to change. If the file doesn't exist, the defaults apply.
-3. **Set your route.** `bitnodeRoute` is a list of `{ "bitNode": N, "level": L }`, done in order. [`auto-destroy.js`](singularity/auto-destroy.js) enters the first entry whose Source-File level you don't have yet, counting the level the current destroy gives. Source-Files you already own are skipped automatically, so you can list your whole plan. The default route is empty: with no route (or once it's done) nothing is destroyed, you get one sticky notice, and `next-bitnode <n>` ends the BitNode when you choose.
+3. **Set your route.** `bitnodeRoute` is a list of `{ "bitNode": N, "level": L }`, done in order. [`auto-destroy.js`](singularity/auto-destroy.js) enters the first entry whose Source-File level you don't have yet, counting the level the current destroy gives. Source-Files you already own are skipped automatically, so you can list your whole plan. With the route empty, the next BitNode is only *suggested* (in `status`, and in the notice) from `bitnodePlan` and the Source-Files you own, easiest multipliers first when you have Source-File 5; set `bitnodeRouteAuto` to `true` to let it follow that by itself. Your own route always wins. The default route is empty: with no route (or once it's done) nothing is destroyed, you get one sticky notice, and `next-bitnode <n>` ends the BitNode when you choose.
 4. **Tune a single BitNode.** Put settings that only apply in one BitNode under `"bitnodes": { "<N>": { ... } }`. They are laid over your other settings while you are in BitNode N. Run [`startup.js`](startup.js) once in a new BitNode so it records which one you are in.
 5. **Pick a preset if one fits.** `"profile": "bladeburner"` (see `PRESETS` in [`config.js`](config.js)) swaps the augment weights for a Bladeburner run.
 6. **Restart.** Scripts read the config when they start: `run /startup.js --restart`. Bad JSON gives a sticky alert and falls back to the defaults.

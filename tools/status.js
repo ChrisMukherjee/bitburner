@@ -1,7 +1,8 @@
 import { loadConfig } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { readIncomeRate } from "/utils/income.js";
-import { nextRouteStep } from "/utils/bitnode-route.js";
+import { routeStep } from "/utils/bitnode-route.js";
+import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { hasSingularity } from "/utils/singularity.js";
 
 /**
@@ -126,9 +127,11 @@ export async function main(ns) {
 	const node = resetInfo.currentNode;
 	const destroyer = processes.find((proc) => proc.filename === "singularity/auto-destroy.js");
 	const forcedBN = destroyer ? argValue(destroyer.args, "--bn") : null;
-	const step = nextRouteStep(ns, config.bitnodeRoute);
+	const routed = routeStep(ns, config, bitnodeMults(ns));
+	const step = routed && routed.source !== "suggestion-only" ? routed : null; // a mere suggestion destroys nothing
 	const nextBN = forcedBN ? `BitNode ${forcedBN} (auto-destroy --bn)`
-		: step ? `BitNode ${step.bitNode} (route: SF${step.bitNode}.${step.level})` : "none, bitnodeRoute is done (you pick)";
+		: step ? `BitNode ${step.bitNode} (${step.source === "route" ? "route" : "plan"}: SF${step.bitNode}.${step.level})`
+		: routed ? `none set (you pick; the plan suggests BitNode ${routed.bitNode}: ${routed.why})` : "none, bitnodeRoute is done (you pick)";
 	const sfAfter = (resetInfo.ownedSF.get(node) ?? 0) + 1;
 	out.push(`BitNode ${node}: destroying gives SF${node}.${sfAfter}, next ${nextBN} | auto-destroy ` +
 		(destroyer ? (destroyer.args.includes("--dry") ? "running in --dry" : "running") : "not running"));
