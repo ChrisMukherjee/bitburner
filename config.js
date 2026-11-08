@@ -331,8 +331,9 @@ export const DEFAULTS = {
 	bladeburner: { route: "combat" },
 
 	// Go bot (go/ipvgo-bot.js, go/go-plan.js). rotation: the order it moves on to once the focus opponent's bonus
-	// levels off. planAware: opponents in `boosts` jump the queue while the plan uses their bonus (gang running ->
-	// crime/combat bonus, Bladeburner running -> combat stats, an open Daedalus rep goal -> rep gain); false, or
+	// levels off. planAware: opponents in `boosts` jump the queue while the plan uses their bonus (Bladeburner running ->
+	// combat stats, an open Daedalus rep goal -> rep gain; `gang` is empty because gang members never use your
+	// multipliers, see docs/go-bot.md); false, or
 	// `--no-plan` / `--rotation` on the bot, keeps the plain order. Opponent names: Netburners (hacknet),
 	// Slum Snakes (crime success), The Black Hand (hacking money), Tetrads (combat stats), Daedalus (rep gain),
 	// Illuminati (hack/grow/weaken speed).
@@ -340,7 +341,7 @@ export const DEFAULTS = {
 		planAware: true,
 		rotation: ["The Black Hand", "Daedalus", "Illuminati", "Netburners", "Tetrads", "Slum Snakes"],
 		boosts: {
-			gang: ["Slum Snakes", "Tetrads"],
+			gang: [],
 			bladeburner: ["Tetrads"],
 			repGoals: ["Daedalus"],
 		},

@@ -24,10 +24,12 @@
   them in game; its predictions held up.
 
 - **Plan-aware order.** `go/go-plan.js` puts opponents whose bonus the running plan uses ahead of the stage's
-  focus, re-checked before every game: a running gang (port 28) -> Slum Snakes and Tetrads, Bladeburner
-  booting/training/running (port 36) -> Tetrads, an open Daedalus rep goal (port 23) -> Daedalus. The
-  conditions come from posted state, not BitNode numbers, so a run without a gang, Bladeburner or goals gets
-  the old order. Lists live in `go` in `config.js`; `--no-plan`, `--rotation` and `--no-rotate` override it.
+  focus, re-checked before every game: Bladeburner booting/training/running (port 36) -> Tetrads, an open
+  Daedalus rep goal (port 23) -> Daedalus. The conditions come from posted state, not BitNode numbers, so a run
+  without Bladeburner or goals gets the plain order. Lists live in `go` in `config.js`; `--no-plan`,
+  `--rotation` and `--no-rotate` override it. A running gang (port 28) is a supported signal but boosts nothing
+  by default: gang members never read the player's multipliers ([`aug-reset.md`](aug-reset.md)), so Slum Snakes
+  and Tetrads would not help it. Fill `go.boosts.gang` to change that.
   Rejected: asking the game APIs directly (gang/Bladeburner calls would add RAM to a 9.6GB bot) and
   weighting by measured bonus value (the bonuses aren't comparable across mechanics).
 
