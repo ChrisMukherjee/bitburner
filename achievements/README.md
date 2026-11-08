@@ -7,7 +7,7 @@ the unlocked IDs, so drop those from the lists below first.
 
 Already covered elsewhere (not repeated here):
 
-- **Exploit achievements** (11, plus Source-File -1): [`tools/exploits/`](../tools/exploits/README.md).
+- **Exploit achievements** (11, plus Source-File -1): [`exploits/`](exploits/README.md).
 - **BitNode challenge achievements** (`BN1: Challenge` ... `BN15: Challenge`): done per BitNode over time. Several
   conflict with the default scripts, see [Challenges](#challenges).
 

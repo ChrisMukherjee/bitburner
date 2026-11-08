@@ -129,7 +129,6 @@ alias debug-report='run /tools/debug-report.js; cat data/debug-report.txt';
 alias config='run /tools/show-config.js';
 alias set-config='run /tools/set-config.js';
 alias afk-route='run /tools/set-config.js route';
-alias challenge='run /tools/set-config.js challenge';
 alias track-income='run /tools/track-income.js; tail /tools/track-income.js';
 alias hack-only='run /tools/track-income.js; run /hack/batcher.js';
 alias gobot='run /go/ipvgo-bot.js --opponent "The Black Hand"';
@@ -145,7 +144,15 @@ alias augs='run /singularity/buy-augs.js --dry';
 alias buy-augs='run /singularity/buy-augs.js';
 alias install-augs='run /singularity/install-augs.js /startup.js';
 alias next-bitnode='run /singularity/next-bitnode.js';
-alias exploits='run /tools/exploits/easy.js; run /tools/exploits/time-compression.js; run /tools/exploits/prototype-tampering.js; run /tools/exploits/unclickable.js';
+```
+
+#### Achievement aliases
+
+Only needed when chasing achievements, see [`achievements/`](achievements/README.md).
+
+```text
+alias challenge='run /tools/set-config.js challenge';
+alias exploits='run /achievements/exploits/easy.js; run /achievements/exploits/time-compression.js; run /achievements/exploits/prototype-tampering.js; run /achievements/exploits/unclickable.js';
 ```
 
 ## Folders
@@ -165,7 +172,8 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | [`bladeburner/`](bladeburner/README.md) | Bladeburner: state manager, action pass and route estimate |
 | [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links |
 | [`go/`](go/README.md) | IPvGO bot |
-| [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks, exploit achievements |
+| [`achievements/`](achievements/README.md) | Which achievements the scripts earn by themselves, which need a step, and how |
+| [`tools/`](tools/README.md) | Manual tools: status, settings, state dump, income tracker, backdoor list, server checks |
 | [`utils/`](utils/README.md) | Shared helpers |
 | [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do, and [which BitNodes to do first](docs/bitnode-order.md) |
 | [`archive/`](archive/README.md) | Older versions of scripts, kept for history (not synced to the game) |
