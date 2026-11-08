@@ -23,6 +23,11 @@ On every connect it pushes all files (`pushAllOnConnection`), so edits made whil
 Files the game writes (anything in `data/`) never come back to disk.
 [`NetscriptDefinitions.d.ts`](NetscriptDefinitions.d.ts) is refreshed from the game on connect, for editor autocomplete and type checking (add `// @ts-check` to a script; see [`docs/typecheck.md`](docs/typecheck.md)). The `.d.ts` and `jsconfig.json` files are never synced to the game (filesync only pushes `.js` and `.txt`).
 
+`npm test` runs the automated tests in [`tests/`](tests/README.md) with Node 22 or later: the reset rule, the batcher's
+thread math, the gym and study choices, the config layers and repo checks (imports, README listings, aliases), outside
+the game with a fake `ns`. Run it after changing a script; it prints the name of anything that broke. The tests are
+`.mjs` files, so filesync never pushes them. Why and how: [`docs/testing.md`](docs/testing.md).
+
 ## Running it
 
 ```text
@@ -178,6 +183,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | [`utils/`](utils/README.md) | Shared helpers |
 | [`docs/`](docs/README.md) | Design notes: why the scripts work the way they do, and [which BitNodes to do first](docs/bitnode-order.md) |
 | [`archive/`](archive/README.md) | Older versions of scripts, kept for history (not synced to the game) |
+| [`tests/`](tests/README.md) | Automated tests run with `npm test` on your PC (not synced to the game) |
 
 [`startup.js`](startup.js) (the stage-based launcher) and [`config.js`](config.js) (default settings and presets) stay at the root.
 

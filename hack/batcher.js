@@ -22,7 +22,7 @@ const STATS_PORT = 27; // (26 is stock-trader.js summary)
 // Free RAM the batcher still wants for its planned batches, so share/share-manager.js leaves it alone
 const CLAIM_PORT = 31;
 
-const CONFIG = {
+export const CONFIG = {
 	homeReservedRam: 64,   // RAM on home the batcher never uses (for startup.js, status and typed commands)...
 	homeReservedShare: 0.25, // ...but at most this share of home, so a small home (fresh BitNode) still helps
 	gapMs: 40,             // time between the four landings inside one batch (a target gets at most one
@@ -248,7 +248,7 @@ export async function main(ns) {
 	}
 }
 
-function newTargetState() {
+export function newTargetState() {
 	return {
 		mode: "prep",           // "prep" or "batch"
 		timings: null,          // times and hack fraction measured while target is at min security
@@ -365,7 +365,7 @@ function chooseTargets(ns, allServers, scriptRam, totalRam, currentlyActive, ctx
  * ones win (fewer grow threads per dollar), until the 1-thread minimums on each op make them wasteful.
  * Returns { plan, ramMs } or null if nothing fits.
  */
-function pickPlan(ns, target, hackPerThread, timings, budget, scriptRam, ctx, catchUp = 1) {
+export function pickPlan(ns, target, hackPerThread, timings, budget, scriptRam, ctx, catchUp = 1) {
 	// Without Formulas.exe big fractions are safe too: the grow rate from target-stats.js is rescaled
 	// exactly to min security, and growSafety plus the catch-up grow cover the rest.
 	const fractions = [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.15];
@@ -444,7 +444,7 @@ async function measureTargets(ns, targets, ramPool, statsRam) {
  * budgetLeft is the steady-state RAM still uncommitted after higher-ranked targets.
  * Returns { batchId, ramUsed } where ramUsed is the RAM this target commits out of budgetLeft.
  */
-function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft, batchId, ctx) {
+export function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft, batchId, ctx) {
 	const fx = ctx.fx;
 	const minSecurity = ns.getServerMinSecurityLevel(target);
 	const security = ns.getServerSecurityLevel(target);
@@ -593,7 +593,7 @@ function stepTarget(ns, target, state, inFlight, ramPool, scriptRam, budgetLeft,
 }
 
 // RAM x ms one batch ties up: each op holds its RAM from launch (launchLeadMs early) until it lands.
-function batchRamMs(plan, timings, scriptRam) {
+export function batchRamMs(plan, timings, scriptRam) {
 	const held = (duration) => duration * plan.durationSafety + CONFIG.launchLeadMs;
 	return plan.hackThreads * scriptRam["hack"] * held(timings["hack"]) +
 		plan.growThreads * scriptRam["grow"] * held(timings["grow"]) +
@@ -648,7 +648,7 @@ function launchDueOps(ns, states, ramPool, scriptRam, ctx) {
  * each thread stronger, so it needs threads / homeBonus. Otherwise (and for hack, which cores don't
  * help) the op is spread over the pool as usual.
  */
-function placeOp(ramPool, operation, scriptRam, homeBonus) {
+export function placeOp(ramPool, operation, scriptRam, homeBonus) {
 	if (homeBonus > 1 && (operation.type === "grow" || operation.type === "weaken")) {
 		const home = ramPool.find((entry) => entry.host === "home");
 		const threads = Math.max(1, Math.ceil(operation.threads / homeBonus));
@@ -665,7 +665,7 @@ function placeOp(ramPool, operation, scriptRam, homeBonus) {
  * Runs fn on a copy of the pool that holds at most cap GB of free RAM, then charges what fn
  * allocated back to the real pool. Returns the RAM used.
  */
-function withRamCap(ramPool, cap, fn) {
+export function withRamCap(ramPool, cap, fn) {
 	const cappedPool = [];
 	let left = cap;
 	for (const entry of ramPool) {
@@ -685,7 +685,7 @@ function withRamCap(ramPool, cap, fn) {
 }
 
 /** catchUp: extra money multiplier the grow should add on top of regrowing what the hack took (1 = none). */
-function makePlan(ns, target, hackPerThread, hackFraction, scriptRam, ctx, catchUp = 1) {
+export function makePlan(ns, target, hackPerThread, hackFraction, scriptRam, ctx, catchUp = 1) {
 	const fx = ctx.fx;
 	const weakenPerThread = ctx.weakenPerThread;
 	const hackThreads = Math.max(1, Math.floor(hackFraction / hackPerThread));

@@ -342,7 +342,7 @@ function workStep(ns, state, player) {
  * trainFloor, or the gang invite's): the best gym in this city, else flies to Sector-12, unless the travel step is
  * waiting here for a faction invite (state.holdCity). Returns the log line, or null when no stat needs it.
  */
-function gymStep(ns, state, player, current, floor, tag) {
+export function gymStep(ns, state, player, current, floor, tag) {
 	const [stat, gymType] = GYM_STATS.slice().sort((first, second) => player.skills[first[0]] - player.skills[second[0]])[0];
 	if (player.skills[stat] >= floor) return null;
 	// Keep a gym class that is running for a stat still below the floor, so the lowest stat changing doesn't swap it every pass.

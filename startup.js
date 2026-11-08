@@ -32,7 +32,7 @@ import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady,
 //                     singularity/ counts as this too; without the API they are all left out.
 // Scripts listed in `startupSkip` in the config (config.js, data/config.json) are never started.
 // Everything else may run on a rooted server when home is too small (see main below).
-const SCRIPTS = [
+export const SCRIPTS = [
 	// "start": a fresh BitNode or a small home. Only what earns money or levels, so the batcher gets
 	// most of the free servers' RAM; everything else waits for the early stage (more home RAM).
 	{ stage: "start", script: "singularity/upgrade-home-ram.js", args: ["--once"], oneShot: true, every: 10_000, ready: homeRamReady },

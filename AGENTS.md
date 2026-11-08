@@ -42,6 +42,12 @@ Before writing or changing a script, read [`docs/NETSCRIPT.md`](docs/NETSCRIPT.m
 
 - New scripts start with `// @ts-check` (after the `// Design:` line) and JSDoc types, and must pass `tsc -p jsconfig.json`. Fixes must not change behaviour or RAM; see [`docs/typecheck.md`](docs/typecheck.md).
 
+## Tests
+
+- `npm test` (Node 22+) runs [`tests/`](tests/README.md); run it after changing a script and keep it passing. See [`docs/testing.md`](docs/testing.md).
+- A bug fix comes with a test that fails without the fix, where the logic can run outside the game. New decision logic gets tests in the same change.
+- To test a function, export it from its script (adding `export` changes neither behaviour nor RAM); move logic into a pure helper only when that is low risk. Tests are `.mjs` files in `tests/`, never synced.
+
 ## Sync to the game
 
 - bitburner-filesync (`npm run sync`, port 12525) is **one way** (disk to game), never deletes in game, and skips [`archive/`](archive/). Moving or renaming a file must also be done in game.

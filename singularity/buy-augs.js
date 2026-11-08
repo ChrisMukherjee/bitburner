@@ -25,6 +25,12 @@ const FORECAST_MINUTES = [10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 
 let AUG_CONFIG = null;
 let RESET_RULE = null;
 
+/** Sets the augments config (and its resetRule) the functions below use. main calls it; tests call it too. */
+export function setAugConfig(augConfig) {
+	AUG_CONFIG = augConfig;
+	RESET_RULE = augConfig.resetRule;
+}
+
 /**
  * Buys the augments worth having (by default: ones that help hacking, hacknet, darknet or
  * rep gain, plus The Red Pill, Neuroreceptor Management Implant and CashRoot; money stats such as hacknet
@@ -64,8 +70,7 @@ let RESET_RULE = null;
 export async function main(ns) {
 	ns.disableLog("ALL");
 	postIncomeMix(ns); // first: loadConfig weighs the money stats by where this run's money comes from (port 38)
-	AUG_CONFIG = loadConfig(ns).augments;
-	RESET_RULE = AUG_CONFIG.resetRule;
+	setAugConfig(loadConfig(ns).augments);
 	const flags = ns.flags([["dry", false], ["all", false], ["no-neuroflux", false], ["reserve", 0], ["plan", false]]);
 	const cash = () => ns.getServerMoneyAvailable("home") - flags.reserve;
 	const money = (amount) => "$" + ns.format.number(amount);
@@ -247,7 +252,7 @@ export async function main(ns) {
  * On top of that: The Red Pill (resetRule.keyAugs) resets at once, and the Daedalus rule
  * (daedalusRule) holds or forces a reset around Daedalus favor reaching the donation line.
  */
-function decideReset(context) {
+export function decideReset(context) {
 	const { queued, plan, upcoming, income, sinceInstallMs, daedalus, push, endgame, ratesMeasured } = context;
 	const minutes = (ms) => `${Math.max(1, Math.round(ms / 60_000))} min`;
 	const eta = (ms) => (ms < 3600_000 ? minutes(ms) : `${(ms / 3600_000).toFixed(1)}h`);
@@ -330,7 +335,7 @@ function decideReset(context) {
  * everything without installing. So RESET turns into a wait until startup.js's home buyer has spent it.
  * homeFirst: a home upgrade fits the cash the buyer will have (home plus stocks, sold before it runs).
  */
-function homeBeforeNeuroFlux(decision, homeFirst) {
+export function homeBeforeNeuroFlux(decision, homeFirst) {
 	const now = decision.curve[0];
 	if (!decision.reset || decision.push || !homeFirst || now.augs > 0 || now.neuroflux === 0) return decision;
 	return { ...decision, reset: false, reason: `Only NeuroFlux (${now.neuroflux} level(s)) is left to buy and a home upgrade ` +
@@ -386,7 +391,7 @@ function daedalusRule(daedalus, { income, incomeModel, homeCash }, horizonMs, et
  * then NeuroFlux with what's left, plus the favor the run's rep turns into.
  * Returns { value, augs, neuroflux }.
  */
-function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux, favors }, waitMs) {
+export function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux, favors }, waitMs) {
 	const waitS = waitMs / 1000;
 	const cashThen = cash + earnedOver(Math.max(0, income), incomeModel, waitS);
 	const unlocked = [...plan, ...upcoming.filter((entry) => entry.etaMs !== null && entry.etaMs <= waitMs)]
@@ -432,7 +437,7 @@ function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux,
  * still missing at today's rate. Level = mult x (32 ln(exp + 534.6) - 200), the game's formula,
  * with the effective mult read back from the current level and exp (so BitNode multipliers count).
  */
-function afterRedPillRule(endgame, ready, neurofluxLevels, eta) {
+export function afterRedPillRule(endgame, ready, neurofluxLevels, eta) {
 	const { daemonLevel, level, exp, rate, statsOf } = endgame;
 	if (level >= daemonLevel) return { reset: false, reason: `Hacking ${level} reaches ${DAEMON} (${daemonLevel}): no reset, auto-destroy ends the BitNode.` };
 	if (!(rate > 0)) return { reset: false, reason: `The Red Pill is installed: hacking ${level} of ${daemonLevel} for ${DAEMON}. Measuring the hack exp rate before weighing a reset.` };
@@ -489,7 +494,7 @@ function daedalusPush(ns, factions, installed, queued) {
 }
 
 /** Is one invite requirement met? Unknown kinds count as not met, so the push only starts when sure. */
-function requirementMet(entry, player) {
+export function requirementMet(entry, player) {
 	switch (entry.type) {
 		case "money": return player.money >= entry.money;
 		case "skills": return Object.entries(entry.skills).every(([skill, level]) => (player.skills[skill] ?? 0) >= level);
@@ -500,7 +505,7 @@ function requirementMet(entry, player) {
 }
 
 /** Up to `count` augments, cheapest first, that fit the cash when bought most expensive first. */
-function cheapestFill(pool, cash, count) {
+export function cheapestFill(pool, cash, count) {
 	const picked = [];
 	for (const entry of [...pool].sort((first, second) => first.price - second.price)) {
 		if (picked.length >= count) break;
@@ -512,10 +517,10 @@ function cheapestFill(pool, cash, count) {
 }
 
 /** Rep needed in total for this much favor, and back (the game's formulas). */
-function favorToRep(favor) {
+export function favorToRep(favor) {
 	return 25_000 * (Math.pow(1.02, favor) - 1);
 }
-function repToFavor(rep) {
+export function repToFavor(rep) {
 	return Math.log(rep / 25_000 + 1) / Math.log(1.02);
 }
 
@@ -524,7 +529,7 @@ function round(number) {
 }
 
 /** Most expensive first, each later one 1.9x dearer; skips ones that don't fit (like a real run). */
-function whatFits(plan, cash) {
+export function whatFits(plan, cash) {
 	const augs = [];
 	let cost = 0;
 	let mult = 1;

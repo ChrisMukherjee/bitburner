@@ -290,7 +290,7 @@ function describeNeeds(ns, needs, player, installed) {
 	return needs.map(one).join(", ");
 }
 
-function describeWork(work) {
+export function describeWork(work) {
 	if (!work) return "nothing (idle)";
 	switch (work.type) {
 		case "FACTION": return `${work.factionWorkType} work for ${work.factionName}`;
@@ -328,7 +328,7 @@ function repRates(ns, rep, plan, now, lastReset) {
 }
 
 // "climbing" / "levelled" / "losing", as go/go-bot.js decides it.
-function goProgress(entry) {
+export function goProgress(entry) {
 	const { span, levelOff, minWinRate } = GO_SETTINGS;
 	if (!entry || entry.gains.length < span * 2) return "climbing";
 	const results = entry.wins.slice(-span);
@@ -337,17 +337,19 @@ function goProgress(entry) {
 	return recent < entry.peak * levelOff ? "levelled" : "climbing";
 }
 
-/** [{ stage, script, until, oneShot }] from startup.js's SCRIPTS list. */
-function parseStartupScripts(text) {
-	return [...text.matchAll(/\{\s*stage:\s*"(\w+)",\s*script:\s*"([^"]+)"([^\n]*)/g)].map((match) => ({
-		stage: match[1], script: match[2], until: match[3].match(/until:\s*"(\w+)"/)?.[1],
-		oneShot: /oneShot:\s*true/.test(match[3]),
-		hasReady: /\bready:/.test(match[3]),
-	}));
+/** [{ stage, script, until, oneShot, hasReady }] from startup.js's SCRIPTS list (one entry per line, keys in any order). */
+export function parseStartupScripts(text) {
+	return [...text.matchAll(/^[ \t]*\{[^\n]*\bstage:\s*"(\w+)"[^\n]*$/gm)]
+		.filter((line) => /\bscript:\s*"[^"]+"/.test(line[0]))
+		.map((line) => ({
+			stage: line[1], script: line[0].match(/\bscript:\s*"([^"]+)"/)?.[1], until: line[0].match(/\buntil:\s*"(\w+)"/)?.[1],
+			oneShot: /\boneShot:\s*true/.test(line[0]),
+			hasReady: /\bready:/.test(line[0]),
+		}));
 }
 
 /** The quoted strings in `const NAME = [...]`. */
-function parseList(text, name) {
+export function parseList(text, name) {
 	const body = text.match(new RegExp(`const ${name}\\s*=\\s*\\[([^\\]]*)\\]`))?.[1] ?? "";
 	return [...body.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
 }

@@ -50,6 +50,10 @@ batcher, server and home buying and player work. It found:
 
 The model's income and rep numbers are rough, so the hours are only good for comparing rules.
 
+`npm test` checks the rule case by case ([`../tests/reset-rule.test.mjs`](../tests/reset-rule.test.mjs), [`testing.md`](testing.md)),
+including regression tests for the forecast bug above, the NeuroFlux-only reset held for a home upgrade, and the
+Daedalus rule switched off under the Bladeburner route.
+
 ## Why
 
 **Value is a sum of logs.** A run's speed (money, hack level, rep) scales with the product of
