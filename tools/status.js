@@ -80,7 +80,11 @@ export async function main(ns) {
 	// No extra RAM: getResetInfo is already called above.
 	const sf4 = hasSingularity(ns);
 	const work = sf4 ? ns.singularity.getCurrentWork() : null;
-	out.push(`Doing: ${sf4 ? describeWork(work) : "unknown (needs BitNode 4 or Source-File 4)"}`);
+	// Bladeburner actions are not "work" to getCurrentWork; bb-pass.js posts the running one on port 36.
+	const bbAction = peekJson(ns, 36)?.action;
+	const bbFresh = bbAction && Date.now() - (bbAction.time ?? 0) < 10 * 60_000;
+	const doing = !work && bbFresh ? `Bladeburner: ${bbAction.name} (${bbAction.type})` : sf4 ? describeWork(work) : null;
+	out.push(`Doing: ${doing ?? "unknown (needs BitNode 4 or Source-File 4)"}`);
 
 	const plan = readJson(ns, PLAN_FILE);
 	const goalsPost = peekJson(ns, GOALS_PORT);

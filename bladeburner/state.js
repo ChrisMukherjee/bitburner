@@ -5,7 +5,8 @@
 //   plan               the route estimate (route "combat"|"hacking", hold, time; trainTarget is read but nobody writes it yet), written by node-eta.js
 //   eta                node-eta.js: its hacking exp samples of this run
 //   rank, actions      bb-pass.js: rank samples of the last hour, and the live action readings the estimate uses
-//   blackOps           bb-pass.js: { done, time }, done when getNextBlackOp() found none (auto-destroy.js ends the BitNode)
+//   action             bb-pass.js: { type, name, time } of the running action (null when none), shown on status' "Doing:" line
+//   blackOps         bb-pass.js: { done, time }, done when getNextBlackOp() found none (auto-destroy.js ends the BitNode)
 //   time, title, script, oneShot, lines   the status line tools/status.js shows
 // 0GB (ports only). The one-shots run one at a time (startup.js), so read-modify-write is safe.
 export const BB_PORT = 36;

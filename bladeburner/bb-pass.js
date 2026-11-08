@@ -140,7 +140,8 @@ export async function main(ns) {
 	const summary = `rank ${Math.floor(rank)}${Number.isFinite(perHour) ? ` (${Math.round(perHour)}/h)` : ""}; stamina ${Math.round(ratio * 100)}%; ` +
 		`next Black Op: ${next ? `${next.name} at rank ${next.rank}` : "all done"}`;
 	postPass(ns, ns.getScriptName(), [summary, ...notes.slice(0, 3)]);
-	postBladeburner(ns, { script: ns.getScriptName(), lines: [summary, ...notes.slice(0, 3)], rank: samples, ...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(actions ? { actions } : {}) });
+	const now2 = bb.getCurrentAction(); // what is running after this pass, for the "Doing:" line of tools/status.js
+	postBladeburner(ns, { script: ns.getScriptName(), action: now2 ? { type: now2.type, name: now2.name, time: now } : null, lines: [summary, ...notes.slice(0, 3)], rank: samples, ...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(actions ? { actions } : {}) });
 }
 
 /** Live readings the route estimate scales to other skill levels with the game's formulas. */
