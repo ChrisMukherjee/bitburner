@@ -43,6 +43,8 @@
 - **Skips what can't run instead of failing.** Without the Singularity API every [`../singularity/`](../singularity/)
   script is left out with one summary line, checked through [`../utils/singularity.js`](../utils/singularity.js).
   The gang manager starts only once a gang or gang faction exists.
+  What each script needs (SF4, SF2, Formulas ...) is the `Requires` column of its folder README; startup.js only
+  repeats that in code through the ready checks.
 - **`restartOnNewArgs`** swaps a running copy when the args change (for example the Go bot's opponent per
   stage), so two copies never fight over the same thing.
 
