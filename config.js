@@ -264,6 +264,13 @@ export const DEFAULTS = {
 		{ name: "established", minIncome: 1e7, reserve: 500e6, maxFraction: 0.9 },
 		{ name: "late", minIncome: 1e8, reserve: 2e9, maxFraction: 0.9 },
 	],
+	// stocks/stock-trader.js decisions, all on; set one to false to turn it off (see docs/stocks.md):
+	//   costAware         - buy only when the expected drift over the time the forecast lasts pays for the spread and commissions
+	//   cycleClock        - with 4S, find the market's cycle boundaries (every TicksPerCycle ticks) and use the time left in the cycle
+	//   rotate            - with 4S and no cash left, sell the weakest holding to fund a clearly better stock
+	//   holdBackForBuyers - keep the cash a home RAM/cores, programs or donation buyer is about to need (its note on port 33)
+	//                       instead of spending it on shares, when income covers the gap within one market cycle
+	stocks: { costAware: true, cycleClock: true, rotate: true, holdBackForBuyers: true },
 	// Home RAM and core upgrades (singularity/upgrade-home-ram.js, upgrade-home-cores.js): buy while the
 	// cash left afterwards still covers reserveSeconds of income, so the batcher, servers and augments
 	// aren't starved. RAM is the best early buy (every other manager runs on it) and keeps 2 minutes;

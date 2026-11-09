@@ -446,6 +446,7 @@ function portfolioValue(ns, symbols) {
 /** Each held long's shares, bid and expected drift, for the next tick's drift accounting. */
 export function snapshotHeld(ns, symbols, outlooks) {
 	const expected = Object.fromEntries(outlooks.map((view) => [view.sym, view.expected]));
+	/** @type {Record<string, { shares: number, bid: number, expected: number }>} */
 	const snapshot = {};
 	for (const sym of symbols) {
 		const [shares] = ns.stock.getPosition(sym);

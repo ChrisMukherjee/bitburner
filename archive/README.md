@@ -80,7 +80,8 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`stocks/stock-trader-v2.js`](stocks/stock-trader-v2.js): see above. Next (v3): posts held companies on port 21 so batcher grows push longs up and hacks push shorts down.
 - [`stocks/stock-trader-v3.js`](stocks/stock-trader-v3.js): see above, last version with `--short`. Next (v4): longs only (shorts need BN8/SF8.2 and cost 5GB), buys 4S through a one-shot helper, cheaper price reads.
 - [`stocks/stock-trader-v4.js`](stocks/stock-trader-v4.js): see above. Next (v5): buys the TIX API itself through the helper when cash allows (`--no-buy-tix` to skip).
-- [`stocks/stock-trader-v5.js`](stocks/stock-trader-v5.js): see above. Next: [`stock-trader.js`](../stocks/stock-trader.js) runs promote workers on darkweb and stasis-linked darknet servers and posts a summary on port 26.
+- [`stocks/stock-trader-v5.js`](stocks/stock-trader-v5.js): see above. Next (v6): runs promote workers on darkweb and stasis-linked darknet servers and posts a summary on port 26.
+- [`stocks/stock-trader-v6.js`](stocks/stock-trader-v6.js): see above, with the promote workers and the port-26 summary (first posted after 10 ticks). Bought on any forecast over the line (spread and commission ignored), no knowledge of the market's cycles, spent every coin above the reserve (starving the home and donation buyers), and asked for the 4S price at the listed amount (a refused purchase every tick in BitNodes 7 and 9). Next: [`stock-trader.js`](../stocks/stock-trader.js) buys only when the drift over the horizon beats the costs, runs a cycle clock, rotates, holds cash for other buyers, learns the 4S price and posts measuring figures.
 
 ## Singularity
 
