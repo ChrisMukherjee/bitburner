@@ -1,6 +1,6 @@
 # bladeburner/
 
-Bladeburner. Design: [`docs/bladeburner.md`](../docs/bladeburner.md). RAM figures follow the game's static RAM check (base 1.6GB plus each NS function named in the script and what it imports); `mem <script>` in game gives the exact cost. All of it comes from the other player's scripts, which have run in game; this port (state on a port instead of files, startup.js instead of her orchestrator) has not.
+Bladeburner. Design: [`docs/bladeburner.md`](../docs/bladeburner.md). RAM figures follow the game's static RAM check (base 1.6GB plus each NS function named in the script and what it imports); `mem <script>` in game gives the exact cost. State lives on port 36 and [`startup.js`](../startup.js) runs the one-shots.
 
 Requires column: see the [requirement tags](../README.md#requirements). The Bladeburner API (SF6/7) only works in BitNode 6 or 7, or with Source-File 6 or 7. The scripts exit cleanly without it (see [`utils/bladeburner.js`](../utils/bladeburner.js)).
 

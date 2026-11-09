@@ -10,6 +10,6 @@ The hacking engine. Design: [`docs/batcher.md`](../docs/batcher.md). RAM figures
 | [`workers/hack.js`](workers/hack.js) | One timed hack; keeps the hacked-money total on port 22 and follows stock influence on port 21 | args: target, land time | none | 1.75GB |
 | [`workers/grow.js`](workers/grow.js) | One timed grow; follows stock influence on port 21 | args: target, land time | none | 1.8GB |
 | [`workers/weaken.js`](workers/weaken.js) | One timed weaken | args: target, land time | none | 1.8GB |
-| [`workers/target-stats.js`](workers/target-stats.js) | One-shot every 30s: measures targets (without Formulas.exe) and home's cores, reports on port 27 | args: hostnames | none | about 7.6GB, for a moment |
+| [`workers/target-stats.js`](workers/target-stats.js) | One-shot every 30s: measures targets (without Formulas.exe) and home's cores, reports on port 27 | args: hostnames | none | about 7.7GB, for a moment |
 
 After editing a worker, restart the batcher.

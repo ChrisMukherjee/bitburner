@@ -4,8 +4,7 @@ Gang manager. Design: [`docs/gang.md`](../docs/gang.md). RAM figures are approxi
 
 Requires column: see the [requirement tags](../README.md#requirements). The manager and its equipment worker need the Gang API (SF2), which only works in BitNode 2 or with Source-File 2. Outside BitNode 2 the gang also needs karma -54,000 (see [`utils/gang.js`](../utils/gang.js)). The manager exits cleanly without the API. The invite worker is `SF4`: it uses crimes and the gym.
 
-> **Untested in game.** Written against the v3.0.0 Gang API before reaching BitNode 2. Tail
-> `gang/gang-manager.js` on the first run; every decision is logged.
+Every decision is logged: tail `gang/gang-manager.js` if something looks off.
 
 | Script | What it does | Flags | Requires | RAM |
 | --- | --- | --- | --- | --- |

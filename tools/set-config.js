@@ -6,7 +6,7 @@ import { USER_CONFIG_FILE } from "/utils/config.js";
 /**
  * Changes your overrides in data/config.json without opening an editor. Keeps everything else in the
  * file, refuses to touch a file that isn't valid JSON, and checks the setting exists in config.js.
- * About 3.6GB. Scripts read the config when they start, so restart them (or `restart`) afterwards.
+ * About 2.6GB. Scripts read the config when they start, so restart them (or `restart`) afterwards.
  *
  *   run /tools/set-config.js                          show this help and your current overrides
  *   run /tools/set-config.js route 4:3 2:1 5:1        BitNode route for auto-destroy.js, as bitNode:level

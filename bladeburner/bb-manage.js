@@ -106,11 +106,13 @@ export async function main(ns) {
  */
 function spendAdaptive(bb, post) {
 	if (!post.actions || !Array.isArray(post.actions.rows) || post.actions.rows.length === 0) return false;
+	/** @type {Record<string, number>} */
 	const levels = {};
 	for (const name of SKILL_NAMES) levels[name] = bb.getSkillLevel(name);
 	const values = skillValues(post.actions, levels, post.restShare);
 	let points = bb.getSkillPoints();
 	for (let guard = 0; guard < 100; guard++) {
+		/** @type {Record<string, number>} */
 		const costs = {};
 		for (const name of SKILL_NAMES) costs[name] = name === "Overclock" && levels[name] >= OVERCLOCK_MAX ? Infinity : bb.getSkillUpgradeCost(name, 1);
 		const pick = pickSkill(costs, values);

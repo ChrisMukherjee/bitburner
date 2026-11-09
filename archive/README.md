@@ -129,8 +129,8 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 - [`go/ipvgo-debug.js`](go/ipvgo-debug.js): one-off check that `resetBoardState` works.
 - [`go/ipvgo-bot-v3.js`](go/ipvgo-bot-v3.js): see above. Next (v4): rewritten with `--opponent`, `--size`, `--games` flags, resumes a game in progress, passes to take a won game.
 - [`go/ipvgo-bot-v4.js`](go/ipvgo-bot-v4.js): see above. Next (v5): rotates opponents when their bonus gain levels off (data/go-bonus.json, `--status`, `--no-rotate`).
-- [`go/ipvgo-bot-v5.js`](go/ipvgo-bot-v5.js): see above. Next: [`ipvgo-bot.js`](../go/ipvgo-bot.js) plays Illuminati on 5x5 (x8 multiplier) and passes `--think` to the Monte Carlo search.
+- [`go/ipvgo-bot-v5.js`](go/ipvgo-bot-v5.js): see above. Next: `ipvgo-bot.js` (now [`go-bot.js`](../go/go-bot.js)) plays Illuminati on 5x5 (x8 multiplier) and passes `--think` to the Monte Carlo search.
 - [`go/choose-move-v1.js`](go/choose-move-v1.js): scored moves by position, skipped obvious suicides. Next (v2): group and liberty analysis, captures, saves and atari first.
 - [`go/choose-move-v2.js`](go/choose-move-v2.js): see above. Next (v3): plays each move out on a board copy with a 2-ply search and scores territory and safety; 0GB.
 - [`go/choose-move-v3.js`](go/choose-move-v3.js): see above. Next: [`choose-move.js`](../go/choose-move.js) is a Monte Carlo tree search (UCT with RAVE) with exact v3.0.0 scoring.
-- [`go/IPvGO-lite.js`](go/IPvGO-lite.js): a slim IPvGO bot that worked out valid moves and liberties from the board instead of `ns.go.analysis`, to save RAM. Replaced by [`ipvgo-bot.js`](../go/ipvgo-bot.js) with the Monte Carlo search in [`choose-move.js`](../go/choose-move.js).
+- [`go/IPvGO-lite.js`](go/IPvGO-lite.js): a slim IPvGO bot that worked out valid moves and liberties from the board instead of `ns.go.analysis`, to save RAM. Replaced by `ipvgo-bot.js` (now [`go-bot.js`](../go/go-bot.js)) with the Monte Carlo search in [`choose-move.js`](../go/choose-move.js).

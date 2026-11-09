@@ -145,23 +145,22 @@ function estimate(ns) {
 		history = history.slice(-30);
 		ns.write(HISTORY_FILE, JSON.stringify(history), "w");
 	}
-	let incomeExponent = NaN;
-	const points = history.filter((entry) => entry.income > 0 && entry.mult > 0);
-	if (points.length >= 3 && Math.max(...points.map((entry) => entry.mult)) / Math.min(...points.map((entry) => entry.mult)) > 1.3) {
-		const xs = points.map((entry) => Math.log(entry.mult));
-		const ys = points.map((entry) => Math.log(entry.income));
-		const meanX = xs.reduce((sum, x) => sum + x, 0) / xs.length;
-		const meanY = ys.reduce((sum, y) => sum + y, 0) / ys.length;
-		const sxx = xs.reduce((sum, x) => sum + (x - meanX) ** 2, 0);
-		const sxy = xs.reduce((sum, x, index) => sum + (x - meanX) * (ys[index] - meanY), 0);
-		if (sxx > 0) incomeExponent = Math.min(3, Math.max(0, sxy / sxx));
-	}
+	// Only a fit that explains the data counts (route-model.js fitIncomeExponent); otherwise the scenarios are shown and the verdict
+	// uses the flat-income one, the conservative case for both routes. Income that jumps for another reason (RAM, servers) would
+	// otherwise be credited to the multiplier and make hacking look far better than it is.
+	const fit = RM.fitIncomeExponent(history);
+	const incomeExponent = fit.reliable ? fit.exponent : NaN;
 	const scenarios = Number.isFinite(incomeExponent)
-		? [{ name: "low", income: incomeExponent * 0.7, exp: incomeExponent * 0.35 }, { name: "measured", income: incomeExponent, exp: incomeExponent * 0.5 }, { name: "high", income: incomeExponent * 1.3, exp: incomeExponent * 0.65 }]
+		? [{ name: "low", income: incomeExponent * 0.7, exp: incomeExponent * 0.35 }, { name: "measured", income: incomeExponent, exp: incomeExponent * 0.5 }, { name: "high", income: incomeExponent * 1.3, exp: incomeExponent * 0.65 },
+			{ name: "flat (income and exp do not grow)", income: 0, exp: 0 }]
 		: [{ name: "low (income flat)", income: 0, exp: 0 }, { name: "middle (income ~ multiplier)", income: 1, exp: 0.5 }, { name: "high (income ~ multiplier^2)", income: 2, exp: 1 }];
+	// The scenario the verdict is based on: the measured one, or the flat one while the growth is not measured
+	const verdictIndex = Number.isFinite(incomeExponent) ? 1 : 0;
 	lines.push(Number.isFinite(incomeExponent)
-		? `Confidence: medium, income growth measured over ${points.length} runs (income ~ multiplier^${incomeExponent.toFixed(2)})`
-		: "Confidence: low, income growth with the multiplier is not measured yet (needs 3 runs with different multipliers), so three scenarios are shown");
+		? `Confidence: medium, income growth measured over ${fit.runs} runs (income ~ multiplier^${incomeExponent.toFixed(2)}, R2 ${fit.r2.toFixed(2)}); the verdict uses the "measured" scenario`
+		: fit.runs >= 3 && Number.isFinite(fit.raw)
+			? `Confidence: low, the income fit over ${fit.runs} runs is not usable (slope ${fit.raw.toFixed(1)}, R2 ${fit.r2.toFixed(2)}: income moved for other reasons than the multiplier), so the verdict uses the flat-income scenario`
+			: "Confidence: low, income growth with the multiplier is not measured yet (needs 3 runs with different multipliers), so the verdict uses the flat-income scenario");
 	const fmtHours = (result) => !result ? "unknown" : result.reached && result.hours <= 400 ? `${result.hours.toFixed(0)} h (${result.runs} runs)`
 		: result.reached ? `over 400 h (${result.hours.toFixed(0)} h modelled: too uncertain to call an estimate)` : "not reached within 60 runs";
 	const repConfig = { facMult: player.mults.faction_rep || 1, bn: BN_FACTION_REP[node] ?? 1, timeShare: 0.7 };
@@ -265,7 +264,7 @@ function estimate(ns) {
 	}
 
 	// Verdict: only calibrated numbers count (over 400 h is "no estimate")
-	const middle = (sim) => sim && sim[1] ? sim[1].result : null;
+	const middle = (sim) => sim && sim[verdictIndex] ? sim[verdictIndex].result : null;
 	const finishes = (result) => result && result.reached && result.hours <= 400 ? result.hours : Infinity;
 	const hackHours = finishes(middle(hackSim));
 	const bladeHours = finishes(middle(bladeSim));
@@ -286,7 +285,7 @@ function estimate(ns) {
 			if (!Number.isFinite(keep) && !Number.isFinite(other)) route = previous;
 		}
 		const anyNumber = Number.isFinite(hackHours) || Number.isFinite(bladeHours);
-		lines.push(`RECOMMENDED ROUTE: ${route === "hacking" ? "hacking over several resets" : "Bladeburner (combat augs first)"}${anyNumber ? `, about ${Math.min(hackHours, bladeHours).toFixed(0)} h in the middle scenario` : ": ETA unknown (no scenario finishes within 400 h at today's income); the route that needs the smaller income increase to become a 100 h route"}`);
+		lines.push(`RECOMMENDED ROUTE: ${route === "hacking" ? "hacking over several resets" : "Bladeburner (combat augs first)"}${anyNumber ? `, about ${Math.min(hackHours, bladeHours).toFixed(0)} h in the verdict scenario` : ": ETA unknown (no scenario finishes within 400 h at today's income); the route that needs the smaller income increase to become a 100 h route"}`);
 	}
 	// Is Bladeburner worth the player's time right now? From the live chance rescaled to the current skills (hysteresis).
 	const wasHold = shared.plan?.hold === true;

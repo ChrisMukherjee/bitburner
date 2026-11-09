@@ -20,6 +20,7 @@ Passwords come from [`hint-interpreter.js`](../darknet/hint-interpreter.js) and
 - **Only a 401 means a wrong password.** `login` retries 408 timeouts (they happen even with the right
   password); anything else (moved, offline, too little charisma) means "try again on the next re-check",
   not "unsolvable". Skips are counted in the manager's summary so they stay visible.
+- **Quiet by default.** The manager logs a summary every `darknetLog.logMinutes` and prints one to the terminal every `darknetLog.terminalMinutes` (0 = never), or at once when a stasis link fails.
 - **Earning is on by default:** phishing, freeing blocked RAM and opening caches. Freeing RAM is slow
   (about 0.2GB per call), so crawlers keep doing it on their opened neighbours and top up phishing as RAM
   frees.

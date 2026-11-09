@@ -22,7 +22,7 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`nuke-all.js`](nuke-all.js) | Roots every server it can | none | 0.75GB |
 | [`ram-pool.js`](ram-pool.js) | Free RAM across rooted servers (minus reserved room), all-or-nothing thread placement | none | 0.15GB |
 | [`ram-reserve.js`](ram-reserve.js) | Room kept free on another server for a script waiting to start, on port 34; the RAM pool leaves it out. Design: [`docs/ram.md`](../docs/ram.md) | none | 0.1GB |
-| [`targets.js`](targets.js) | Hacking target scoring | Formulas (opt) | 3.35GB |
+| [`targets.js`](targets.js) | Hacking target scoring | Formulas (opt) | 3.2GB |
 | [`income.js`](income.js) | Real money income rate on port 24; use it instead of `ns.getTotalScriptIncome` | none | 0GB |
 | [`income-mix.js`](income-mix.js) | `postIncomeMix`: this run's money by source on port 38; `loadConfig` weighs the money augment stats by it. Only buy-augs.js imports it. Design: [`docs/aug-reset.md`](../docs/aug-reset.md) | none | 1GB |
 | [`income-curve.js`](income-curve.js) | Income history and growth forecast for the reset rule and faction goals. Design: [`docs/aug-reset.md`](../docs/aug-reset.md) | none | 0GB |

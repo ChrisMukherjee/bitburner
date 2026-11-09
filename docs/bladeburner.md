@@ -94,8 +94,11 @@ the Singularity API too, as before.
 "hacking or Bladeburner?" from live game state only, with the models in
 [`../bladeburner/route-model.js`](../bladeburner/route-model.js). It walks both routes reset by reset: every installed aug keeps
 its multiplier, skill exp restarts at each install, income and exp grow with the hacking multiplier. Income growth is
-measured over earlier runs (`data/node-eta-history.json`, the one file, because it must survive resets); until 3 runs with
-different multipliers exist it shows three scenarios instead. The Bladeburner side is scaled from the live readings of
+measured over earlier runs (`data/node-eta-history.json`, the one file, because it must survive resets) with a log-log fit that
+is used only when it explains the data (3+ runs, R-squared 0.5+, slope under the cap of 3); otherwise three scenarios are shown
+and the verdict uses the flat-income one. A slope at the cap means income grew for other reasons (RAM, servers) and the fit would
+credit it to the multiplier, which makes hacking look far better than it is: a real history had x90 income for 7% more
+multiplier. A reliable fit adds a flat scenario to the report for comparison. The Bladeburner side is scaled from the live readings of
 `bb-pass.js` with the game's own formulas, and calibrated against the measured rank per hour. The readable report is
 `data/node-eta.txt`; the verdict is `plan` on the port.
 

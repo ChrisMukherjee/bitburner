@@ -223,4 +223,26 @@ function incomeNeeded(goal, cfg, maxHours = 100) {
     return Infinity;
 }
 
-export { AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };
+/**
+ * Income growth with the hacking multiplier across runs: a log-log fit of `points` ({ mult, income }). Only a fit that explains
+ * the data is used: it needs at least 3 runs spanning a 1.3x range of multipliers, an R-squared of at least 0.5, and a raw slope
+ * under the cap. A slope at or past the cap means income grew by something other than the multiplier (more RAM, servers, a new
+ * target...), which would be credited to the multiplier and make hacking look far better than it is.
+ * Returns { exponent (capped 0..cap, NaN when there is no fit), raw, r2, reliable, runs }.
+ */
+function fitIncomeExponent(points, cap = 3) {
+    const usable = (points || []).filter((p) => p && p.income > 0 && p.mult > 0);
+    const none = { exponent: NaN, raw: NaN, r2: NaN, reliable: false, runs: usable.length };
+    if (usable.length < 3) return none;
+    const mults = usable.map((p) => p.mult);
+    if (Math.max(...mults) / Math.min(...mults) <= 1.3) return none;
+    const xs = usable.map((p) => Math.log(p.mult)), ys = usable.map((p) => Math.log(p.income));
+    const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const sxx = xs.reduce((a, x) => a + (x - mx) ** 2, 0), syy = ys.reduce((a, y) => a + (y - my) ** 2, 0);
+    const sxy = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0);
+    if (!(sxx > 0)) return none;
+    const raw = sxy / sxx, r2 = syy > 0 ? (sxy * sxy) / (sxx * syy) : 0;
+    return { exponent: Math.min(cap, Math.max(0, raw)), raw, r2, reliable: raw >= 0 && raw < cap && r2 >= 0.5, runs: usable.length };
+}
+
+export { fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };

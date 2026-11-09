@@ -80,7 +80,9 @@ Docs (including [`docs/`](docs/)), rules, script output and code comments should
 
 ## Keep the READMEs up to date
 
-Update docs in the same change as the code, not later.
+Update docs in the same change as the code, not later. Every change updates the READMEs and docs that describe the behaviour it changes, and the final report says which docs it touched.
+
+- **Docs that state current state** (defaults, config keys, counts, ports, routes, plans, RAM figures, test counts) must match the code after the change. Before finishing, check each figure and name you touched against the code (`config.js`, the script's flags, `mem <script>` or the static RAM check) rather than copying it from the old text.
 
 - **Folder READMEs**: every script must be listed in its folder's `README.md`, one line with what it does, its flags, what it requires (the `Requires` tag, see above), its RAM cost and a link to its [`docs/`](docs/) note if it has one. Update the line in the same change when any of these change. A new folder gets a README and a row in the root README.
 - **[README.md](README.md)**: update it when folders, aliases or ports change, or when a script's behaviour changes in a way it describes.

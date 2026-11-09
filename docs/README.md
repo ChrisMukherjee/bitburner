@@ -22,7 +22,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`darknet.md`](darknet.md): hint-driven cracking, earning, stasis links, no backdoors.
 - [`stocks.md`](stocks.md): longs only, 4S or estimates, steering prices through the batcher.
 - [`go-bot.md`](go-bot.md): Monte Carlo search at 0GB, opponent rotation, Illuminati on 5x5.
-- [`gang.md`](gang.md): BitNode 2 gang manager (untested in game).
+- [`gang.md`](gang.md): gang manager: combat gang by default, member tasks scored with the game's formula, ascension and equipment.
 - [`reminders.md`](reminders.md): what a run without the Singularity API is told to do by hand, and why it is a one-shot.
 - [`debug-report.md`](debug-report.md): why one-shots keep their last result on a port and one tool writes it to a file to paste.
 - [`bitnode-mults.md`](bitnode-mults.md): BitNode multipliers saved once per run and read at 0GB, 1 when unknown.

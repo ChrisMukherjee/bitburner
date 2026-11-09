@@ -37,7 +37,7 @@ export const SCRIPTS = [
 	// most of the free servers' RAM; everything else waits for the early stage (more home RAM).
 	{ stage: "start", script: "singularity/upgrade-home-ram.js", args: ["--once"], oneShot: true, every: 10_000, ready: homeRamReady },
 	{ stage: "start", script: "singularity/buy-programs.js", args: ["--once"], oneShot: true, every: 10_000, ready: programsReady },
-	// With BitNode 5 or Source-File 5: saves the BitNode multipliers once per run for utils/bitnode-mults.js (4GB, for a moment).
+	// With BitNode 5 or Source-File 5: saves the BitNode multipliers once per run for utils/bitnode-mults.js (6.35GB, for a moment).
 	{ stage: "start", script: "tools/save-bitnode-mults.js", oneShot: true, every: 30_000, ready: bitnodeMultsReady },
 	{ stage: "start", script: "hack/batcher.js", ready: batcherReady },
 	// Invites and backdoors from the start, so CyberSec/NiteSec/Tian Di Hui need nobody at the keyboard.

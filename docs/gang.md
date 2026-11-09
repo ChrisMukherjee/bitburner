@@ -5,8 +5,7 @@
 (via [`../gang/workers/invite.js`](../gang/workers/invite.js), port 30). Settings are `gang` in
 [`../config.js`](../config.js).
 
-It was written against the v3.0.0 Gang API; every decision is logged, so tail it and tune `gang` in the config if
-something looks off.
+Every decision is logged, so tail it and tune `gang` in the config if something looks off.
 
 ## Decisions
 

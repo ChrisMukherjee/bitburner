@@ -6,7 +6,7 @@ Requires column: see the [requirement tags](../README.md#requirements). The scri
 
 | Script | What it does | Flags | Requires | RAM |
 | --- | --- | --- | --- | --- |
-| [`dnet-manager.js`](dnet-manager.js) | Entry point: starts crawlers, reads their reports, keeps the map and passwords; exits without DarkscapeNavigator.exe | `--once`, `--recon`, `--no-stasis`, `--no-migrate`; `darknet.storm.enabled: false` in `data/config.json` turns off the storm | Darknet | 7GB |
+| [`dnet-manager.js`](dnet-manager.js) | Entry point: starts crawlers, reads their reports, keeps the map and passwords; exits without DarkscapeNavigator.exe | `--once`, `--recon`, `--no-stasis`, `--no-migrate`; `darknet.storm.enabled: false` in `data/config.json` turns off the storm; `darknetLog` sets how often it logs and prints a summary | Darknet | 7GB |
 | [`crawler.js`](crawler.js) | Spreads across darknet servers and cracks them (logs first, then the hint, then passwords from other servers) | args: earn, stasis, migrate (set by the manager) | Darknet | 11.05GB |
 | [`phish.js`](phish.js) | Phishing worker, one per opened server | none | Darknet | 3.65GB |
 | [`migrate.js`](migrate.js) | Pushes one neighbour with `induceServerMigration` until it moves; started by a crawler when the manager lists that neighbour as a target | arg: target host | Darknet | 5.8GB |

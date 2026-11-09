@@ -13,7 +13,7 @@ import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
 import { main as manage } from "/bladeburner/bb-manage.js";
 import {
 	skillAt, expFor, rawChance, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour,
-	projectRoute, incomeNeeded, DONATE_REP,
+	projectRoute, incomeNeeded, DONATE_REP, fitIncomeExponent,
 } from "/bladeburner/route-model.js";
 
 const minutesAgo = (n) => Date.now() - n * 60_000;
@@ -573,4 +573,34 @@ test("bb-pass: posts how much of the time it spends resting", async () => {
 	const fresh = pass({ cities });
 	await play(fresh.ns);
 	assert.ok(fresh.ns.portJson(BB_PORT).restShare < 0.5);
+});
+
+// ---- income fit (route-model.js fitIncomeExponent)
+const HISTORY = [[1.2666, 903121], [1.2666, 434143], [1.3716, 287114], [1.4416, 195396], [1.4853, 2229749], [1.6375, 2361507], [1.7211, 779919], [1.7733, 7893511], [1.8974, 712538533], [2.4123, 835280806], [2.6648, 284077330]]
+	.map(([mult, income]) => ({ mult, income }));
+
+test("fitIncomeExponent: a clean power law is reliable and recovers the exponent", () => {
+	const points = [1, 1.2, 1.5, 2, 2.5].map((mult) => ({ mult, income: 1e5 * mult ** 1.5 }));
+	const fit = fitIncomeExponent(points);
+	assert.equal(fit.reliable, true);
+	assert.ok(Math.abs(fit.exponent - 1.5) < 1e-6 && fit.r2 > 0.999);
+});
+
+test("fitIncomeExponent: income that jumped for other reasons is not trusted (a real history: x90 income for 7% more multiplier)", () => {
+	const fit = fitIncomeExponent(HISTORY);
+	assert.equal(fit.reliable, false, `slope ${fit.raw}, R2 ${fit.r2}`);
+	assert.equal(fit.runs, 11);
+});
+
+test("fitIncomeExponent: too few runs, or multipliers that barely differ, give no fit", () => {
+	assert.equal(fitIncomeExponent([{ mult: 1, income: 5 }, { mult: 2, income: 9 }]).reliable, false);
+	assert.equal(fitIncomeExponent([1, 1.1, 1.2, 1.25].map((mult) => ({ mult, income: 100 * mult }))).reliable, false);
+	assert.equal(fitIncomeExponent(undefined).reliable, false);
+	assert.ok(Number.isNaN(fitIncomeExponent([]).exponent));
+});
+
+test("fitIncomeExponent: a falling income is not reliable (negative slope)", () => {
+	const fit = fitIncomeExponent([1, 1.5, 2, 3].map((mult, i) => ({ mult, income: 1e6 / (1 + i * 3) })));
+	assert.equal(fit.reliable, false);
+	assert.equal(fit.exponent, 0, "clamped at zero");
 });
