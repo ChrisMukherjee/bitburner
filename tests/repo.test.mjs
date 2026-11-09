@@ -129,3 +129,23 @@ test("aliases in the README run scripts by absolute path", () => {
 	}
 	assert.deepEqual(relative, []);
 });
+
+/** Every .js file under archive/, as paths relative to archive/ with forward slashes. */
+function archivedScripts(dir = path.join(ROOT, "archive")) {
+	const found = [];
+	for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+		const full = path.join(dir, entry.name);
+		if (entry.isDirectory()) found.push(...archivedScripts(full));
+		else if (entry.name.endsWith(".js")) found.push(path.relative(path.join(ROOT, "archive"), full).split(path.sep).join("/"));
+	}
+	return found;
+}
+
+test("every archived script has a line in archive/README.md", () => {
+	const readme = read("archive/README.md");
+	assert.deepEqual(archivedScripts().filter((file) => !readme.includes(`(${file})`)), []);
+});
+
+test("no -vX copy is left outside archive/ (move it there and list it in archive/README.md)", () => {
+	assert.deepEqual(scripts.filter((file) => /-v\d+\.js$/.test(file)), []);
+});
