@@ -14,7 +14,7 @@ Passwords come from [`hint-interpreter.js`](../darknet/hint-interpreter.js) and
 - **Passwords from what the server tells us.** Per neighbour, in order: the server's logs (`heartbleed.js`: a login that
   worked, a passcode a model leaks, passwords known to be wrong, Mastermind replies), then the solvers read the answer
   from the hint, or narrow it down from the replies to wrong guesses (Factori-Os by prime factoring from "divisible"
-  feedback within the hint's password length, starting from its "divisible by N" factor; DeepGreen as Mastermind; PHP 5.4 shows the real password with its characters sorted, so its candidates are the anagrams of Data, capped at 720), and last a few passwords that opened other servers. Blind guessing from fixed
+  feedback within the hint's password length, starting from its "divisible by N" factor; DeepGreen as Mastermind; OpenWebAccessPoint returns a captured packet of ~125-145 characters with the password hidden in it on every wrong guess, so the runs of the right length and format common to the captures narrow to the password, usually after two guesses (a `host:password` marker on easy servers is tried at once); PHP 5.4 shows the real password with its characters sorted, so its candidates are the anagrams of Data, capped at 720), and last a few passwords that opened other servers. Blind guessing from fixed
   word lists is out of scope; those passwords can be entered by hand in `data/darknet-passwords.txt`. Other
   feedback-driven models can be added the same way. Logs are read with `peek`, so the lines stay on the server.
 - **Only a 401 means a wrong password.** `login` retries 408 timeouts (they happen even with the right

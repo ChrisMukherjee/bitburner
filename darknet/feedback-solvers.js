@@ -1,5 +1,5 @@
 // Solvers for server models that answer each wrong attempt with feedback we can learn from (plus Pr0verFl0, solved by one
-// overflow guess). So far: DeepGreen (Mastermind:
+// overflow guess, and OpenWebAccessPoint, read from captured packets). So far: DeepGreen (Mastermind:
 // each wrong attempt replies "exact,misplaced") and the Factori-Os model ("The password is divisible by 1 ;)"). The password is a product
 // of primes, and each wrong attempt replies whether the password is divisible by what we sent (data "true"
 // or "false"). We build the password up one prime factor at a time: if it's divisible by found * p, then p
@@ -11,6 +11,8 @@ import { login } from "darknet/auth.js";
 export const FACTORIOS_MODEL = "Factori-Os";
 export const DEEPGREEN_MODEL = "DeepGreen";
 export const OVERFLOW_MODEL = "Pr0verFl0";
+export const PACKET_SNIFFER_MODEL = "OpenWebAccessPoint";
+const SNIFF_MAX_ATTEMPTS = 8; // captures to intersect before giving up (two nearly always suffice)
 const OVERFLOW_LENGTHS = [4, 5, 6, 7]; // the game builds these buffers 4 to 7 bytes long
 const MASTERMIND_MAX_LENGTH = 6; // 10^6 candidates is the most worth holding in memory
 
@@ -143,6 +145,80 @@ export async function solveOverflow(ns, host, details) {
 		attempts.push({ password: guess, code: result.code, message: result.message, data: result.data });
 	}
 	return { password: undefined, attempts };
+}
+
+/**
+ * Candidate passwords inside one captured packet: on easy servers the game writes " <host>:<password> " into random data, and
+ * on harder ones the password is a plain run of `length` characters hidden in random data of the same character set. Returns the
+ * set of every run that fits the format (host-marked one first when present, then flagged `marked`).
+ * @param {string} data
+ * @param {string} host
+ * @param {number} length
+ * @param {string} [format]
+ * @returns {{ marked: string|undefined, windows: Set<string> }}
+ */
+export function sniffCandidates(data, host, length, format) {
+	const text = String(data ?? "");
+	const fits = { numeric: /^\d+$/, alphabetic: /^[A-Za-z]+$/, alphanumeric: /^[A-Za-z0-9]+$/ }[format ?? ""] ?? /^\S+$/;
+	let marked;
+	const at = text.indexOf(host + ":");
+	if (at >= 0) {
+		const word = text.slice(at + host.length + 1, at + host.length + 1 + length);
+		if (word.length === length && fits.test(word)) marked = word;
+	}
+	const windows = new Set();
+	for (let i = 0; i + length <= text.length; i++) {
+		const word = text.slice(i, i + length);
+		if (fits.test(word)) windows.add(word);
+	}
+	return { marked, windows };
+}
+
+/**
+ * OpenWebAccessPoint (hint about browsing at the cafe): every wrong attempt replies with a captured packet in `data`, ~125-145
+ * characters of noise with the password hidden in it (bitburner-src DarkNet/models/packetSniffing.ts). The noise is random per
+ * capture but the password is not, so the runs of the right length and format that appear in every capture narrow to the
+ * password (usually after two). Same return shape as solveDivisibility.
+ * @param {NS} ns
+ */
+export async function solvePacketSniffer(ns, host, details) {
+	const length = details.passwordLength;
+	if (!(length > 0)) return { password: undefined, attempts: [] };
+	const attempts = [];
+	const wrong = new Set();
+	let common;
+	const guessWith = async (word) => {
+		const result = await login(ns, host, word);
+		if (result.verdict === "ok") return { password: word };
+		if (result.verdict === "later") return { later: result };
+		wrong.add(word);
+		attempts.push({ password: word, code: result.code, message: result.message, data: String(result.data ?? "").slice(0, 40) });
+		return { result };
+	};
+	const filler = details.passwordFormat === "numeric" ? "0".repeat(length) : "a".repeat(length);
+	for (let round = 0; round < SNIFF_MAX_ATTEMPTS; round++) {
+		const first = await guessWith(round === 0 ? filler : filler.slice(1) + String(round % 10));
+		if (first.password) return { password: first.password, attempts: [] };
+		if (first.later) return { later: first.later };
+		const { marked, windows } = sniffCandidates(first.result.data, host, length, details.passwordFormat);
+		if (marked && !wrong.has(marked)) {
+			const outcome = await guessWith(marked);
+			if (outcome.password) return { password: outcome.password, attempts: [] };
+			if (outcome.later) return { later: outcome.later };
+		}
+		common = common ? new Set([...common].filter((word) => windows.has(word))) : windows;
+		for (const word of wrong) common.delete(word);
+		if (common.size === 0) common = undefined; // a capture without the password (server moved?): start over
+		else if (round > 0 && common.size <= 3) {
+			for (const word of [...common]) {
+				const outcome = await guessWith(word);
+				if (outcome.password) return { password: outcome.password, attempts: [] };
+				if (outcome.later) return { later: outcome.later };
+				common.delete(word);
+			}
+		}
+	}
+	return { password: undefined, attempts: attempts.slice(-5) };
 }
 
 /** Mastermind scoring: [exact, misplaced] of guess against code (digit strings, repeats allowed). */
