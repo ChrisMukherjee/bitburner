@@ -155,10 +155,15 @@ export async function main(ns) {
 	const state = newStartupState(sf4, flags.restart);
 
 	while (true) {
-		runPass(ns, requested, state);
+		const result = runPass(ns, requested, state);
 		if (flags.once) return;
-		await ns.sleep(CONFIG.passMs);
+		await ns.sleep(passDelay(result));
 	}
+}
+
+/** Time to the next pass: queueMs while one-shots wait behind a running one (drains a fresh run's queue in seconds), else passMs. */
+export function passDelay(result) {
+	return result?.queued ? CONFIG.queueMs : CONFIG.passMs;
 }
 
 /** What runPass keeps between passes. sf4: singularityInfo(ns); restart: --restart was given. */

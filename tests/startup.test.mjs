@@ -4,7 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeWorld } from "./support/fake-world.mjs";
-import { runPass, newStartupState, SCRIPTS, CONFIG } from "/startup.js";
+import { runPass, newStartupState, SCRIPTS, CONFIG, passDelay } from "/startup.js";
+import { readFileSync } from "node:fs";
 import { DEFAULTS } from "/config.js";
 
 const START = 1_800_000_000_000;
@@ -193,4 +194,13 @@ test("no quick passes when no one-shot is waiting", (t) => {
 	const { game, pass } = setup(t, { homeRam: 8, node: 4, sf4: SINGULARITY });
 	game.ns.write("data/config.json", JSON.stringify({ startupSkip: oneShots.slice(1) }), "w");
 	assert.equal(pass().queued, false);
+});
+
+test("regression: the main loop sleeps queueMs while one-shots are queued, passMs otherwise", () => {
+	assert.equal(passDelay({ queued: true }), CONFIG.queueMs);
+	assert.equal(passDelay({ queued: false }), CONFIG.passMs);
+	assert.equal(passDelay(undefined), CONFIG.passMs);
+	// The loop must use it: queueMs was once defined, and runPass returned queued, but the loop never slept on it.
+	const source = readFileSync(new URL("../startup.js", import.meta.url), "utf8");
+	assert.match(source, /await ns\.sleep\(passDelay\(/);
 });
