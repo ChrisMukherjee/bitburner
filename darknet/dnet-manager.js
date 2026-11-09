@@ -1,5 +1,6 @@
 // Design: docs/darknet.md
 import { notify } from "/utils/notify.js";
+import { loadConfig } from "/utils/config.js";
 import { candidatePasswords } from "darknet/hint-interpreter.js";
 import {
 	REPORT_PORT, CRAWLER_SCRIPT, PHISH_SCRIPT, STASIS_SCRIPT, MIGRATE_SCRIPT, MIGRATE, MIGRATE_TARGET_FILE,
@@ -7,7 +8,6 @@ import {
 } from "darknet/config.js";
 
 const RESEED_INTERVAL = 10000; // ms between checks that the crawler is still alive on darkweb
-const TERMINAL_INTERVAL = 5 * 60 * 1000; // ms between summaries in the terminal; the script log gets one every check
 const RETRY_WINDOW = 10 * 60 * 1000; // ms of crawler skips (timeouts, moved, offline) counted in the summary
 
 // Runs on home. Seeds a crawler onto darkweb, then collects what every crawler reports: a map of the
@@ -51,6 +51,8 @@ export async function main(ns) {
 	await seed(ns, passwords, earn, stasis, migrate);
 	let lastReseed = Date.now();
 	let lastTerminal = Date.now();
+	let lastLog = 0;
+	let alertedNote = null;
 	let stasisTargets = null; // forces a first write, replacing any stale list from an earlier run
 
 	while (true) {
@@ -64,10 +66,14 @@ export async function main(ns) {
 		if (!flags.once && Date.now() - lastReseed > RESEED_INTERVAL) {
 			if (!runningOn(ns, CRAWLER_SCRIPT, "darkweb")) await seed(ns, passwords, earn, stasis, migrate);
 			lastReseed = Date.now();
-			const toTerminal = Date.now() - lastTerminal > TERMINAL_INTERVAL;
-			if (toTerminal) lastTerminal = Date.now();
+			// A failed stasis link is worth a terminal line right away, once per distinct note.
+			const failed = /failed$/.test(earnings.stasisNote ?? "") && earnings.stasisNote !== alertedNote;
+			if (failed) alertedNote = earnings.stasisNote;
+			const due = summaryDue(Date.now(), { lastLog, lastTerminal }, loadConfig(ns).darknetLog, failed);
+			if (due.log) lastLog = Date.now();
+			if (due.terminal) lastTerminal = Date.now();
 			// @ts-expect-error unsolved is extra on purpose
-			printSummary(ns, { map, passwords, earnings, unsolved }, toTerminal);
+			if (due.log) printSummary(ns, { map, passwords, earnings, unsolved }, due.terminal);
 		}
 		await ns.sleep(1000);
 	}
@@ -296,7 +302,23 @@ function writeOutputs(ns, { map, passwords, earnings, unsolved }) {
 	ns.write(MODEL_SUMMARY_FILE, lines.join("\n"), "w");
 }
 
-/** Always to the script log; to the terminal too when toTerminal is set. */
+/**
+ * Which summary outputs are due. The script log gets the full line every `logMinutes`, the terminal a short one
+ * every `terminalMinutes` (0 turns the periodic line off); `urgent` (e.g. a failed stasis link) forces both now.
+ * @param {number} now
+ * @param {{ lastLog: number, lastTerminal: number }} last  ms timestamps of the previous outputs
+ * @param {{ logMinutes?: number, terminalMinutes?: number }} [settings]
+ * @param {boolean} [urgent]
+ */
+export function summaryDue(now, last, settings = {}, urgent = false) {
+	const logMs = (settings.logMinutes ?? 5) * 60000;
+	const terminalMs = (settings.terminalMinutes ?? 30) * 60000;
+	const terminal = urgent || (terminalMs > 0 && now - last.lastTerminal >= terminalMs);
+	const log = terminal || now - last.lastLog >= logMs;
+	return { log, terminal };
+}
+
+/** Full line to the script log; a short one (no retry/migration detail) to the terminal when toTerminal is set. */
 function printSummary(ns, { map, passwords, earnings }, toTerminal = false) {
 	// Unsolved is every mapped server without a password. Phishing money isn't script income, so income comes
 	// from the darknet money source: earned since this manager started, and that averaged per second.
@@ -312,7 +334,11 @@ function printSummary(ns, { map, passwords, earnings }, toTerminal = false) {
 		`${linked}/${ns.dnet.getStasisLinkLimit()} stasis-linked` +
 		(earnings.stasisNote ? ` (last: ${earnings.stasisNote})` : "") + migrateSummary(earnings) + retrySummary(earnings) + ".";
 	ns.print(line);
-	if (toTerminal) ns.tprint(line);
+	if (toTerminal) {
+		ns.tprint(`INFO darknet: ${total} servers, ${stillUnsolved} unsolved, $${ns.format.number(earned)} earned ` +
+			`($${ns.format.number(perSecond)}/s), ${linked}/${ns.dnet.getStasisLinkLimit()} stasis-linked` +
+			(earnings.stasisNote?.endsWith("failed") ? ` (last: ${earnings.stasisNote})` : "") + ".");
+	}
 }
 
 /** ", pushing 2 servers (3 moved, 1 stayed)" while migrations are being induced, ", 3 moved" after; empty before any. */

@@ -120,7 +120,7 @@ async function crack(ns, host, details, passwords) {
 	}
 	if (details.modelId === OVERFLOW_MODEL) return await solveOverflow(ns, host, details);
 	if (details.modelId === FACTORIOS_MODEL) return await solveDivisibility(ns, host, details);
-	if (details.modelId === DEEPGREEN_MODEL) return await solveMastermind(ns, host, details, logs.observed);
+	if (details.modelId === DEEPGREEN_MODEL) return await solveMastermind(ns, host, details, logs.observed, logs.clues);
 	if (details.modelId === PACKET_SNIFFER_MODEL) return await solvePacketSniffer(ns, host, details);
 	const { candidates } = candidatePasswords(details);
 	// Last resort, after the hint's own candidates: passwords that opened other servers (people reuse them), capped.
