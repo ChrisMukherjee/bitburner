@@ -56,6 +56,7 @@ alias solve-contracts='run /contracts/solve-contracts.js';
 alias list-backdoors='run /tools/list-backdoors.js';
 alias check-servers='run /tools/check-servers.js';
 alias darknet-phishing='run /darknet/dnet-manager.js';
+alias gang-report='run /gang/gang-report.js';
 alias stock-trading='run /stocks/stock-trader.js';
 alias upgrade-home='run /singularity/upgrade-home-ram.js --once; run /singularity/upgrade-home-cores.js --once';
 alias auto-backdoor='run /singularity/auto-backdoor.js --once';
@@ -182,7 +183,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | [`contracts/`](contracts/README.md) | Finds and solves coding contracts |
 | [`share/`](share/README.md) | Shares spare RAM for faction rep during faction work |
 | [`singularity/`](singularity/README.md) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, next BitNode |
-| [`gang/`](gang/README.md) | Gang manager |
+| [`gang/`](gang/README.md) | Gang manager, growth planner and metrics report |
 | [`bladeburner/`](bladeburner/README.md) | Bladeburner: state manager, action pass and route estimate |
 | [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links |
 | [`go/`](go/README.md) | IPvGO bot |
@@ -236,7 +237,7 @@ Which scripts need which BitNode, Source-File or item is not decided per folder:
 | 33 | One-shot gates (cash the next home upgrade or program needs, player-work done, for startup.js) |
 | 34 | RAM reservations (room kept free on a server for a script waiting to start; the batcher and share-manager leave it alone) |
 | 35 | player-work state between passes |
-| 36 | Bladeburner state, route estimate, rank samples and status lines (bladeburner/) |
+| 36 | Bladeburner state, route estimate, rank samples, efficiency figures and status lines (bladeburner/) |
 | 37 | Last pass of each one-shot, for the debug report ([`utils/pass-log.js`](utils/pass-log.js)) |
 | 38 | This run's money by source, for the augment weights ([`utils/income-mix.js`](utils/income-mix.js), posted by buy-augs.js) |
 

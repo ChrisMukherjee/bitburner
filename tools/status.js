@@ -23,7 +23,7 @@ import { goOrder } from "/go/go-plan.js";
  *   port 23  faction rep goals        (singularity/workers/faction-goals.js, via player-work.js)
  *   port 24  batcher income            (utils/income.js)
  *   port 25  city-faction plan         (singularity/workers/city-plan.js, via player-work.js)
- *   port 26  stock summary             (stock-trader.js, every 10 ticks)
+ *   port 26  stock summary             (stock-trader.js, its first tick, then every 10 ticks)
  *   port 28  gang summary              (gang/gang-manager.js, every gang update; any mechanic
  *            manager listed in MECHANIC_PORTS posts ready-made lines the same way)
  *   port 36  Bladeburner state + lines (bladeburner/bb-manage.js and bb-pass.js, one-shots)
@@ -213,16 +213,9 @@ export async function main(ns) {
 	}
 
 	// --- Stocks ---
-	const stocks = peekJson(ns, STOCK_SUMMARY_PORT);
-	const trader = processes.find((proc) => proc.filename === "stocks/stock-trader.js");
-	if (!trader) {
-		out.push("Stocks: stock-trader.js not running");
-	} else if (!stocks) {
-		out.push("Stocks: trader running, no summary yet (it posts every 10 market ticks)");
-	} else {
-		out.push(`Stocks (${ago(stocks.time)}): ${stocks.mode}, ${stocks.positions} positions worth ${money(stocks.value)} ` +
-			`(unrealized ${money(stocks.unrealized)}), profit since install ${money(stocks.earned)}`);
-	}
+	out.push(...stockLines(peekJson(ns, STOCK_SUMMARY_PORT), !!processes.find((proc) => proc.filename === "stocks/stock-trader.js"), {
+		money, percent: (value, digits = 0) => ns.format.percent(value, digits), time: (ms) => ns.format.time(ms), ago: (time) => ago(time),
+	}));
 
 	// --- Mechanics (gang/, later bladeburner/, corp/ ...): their managers post ready-made lines ---
 	for (const port of MECHANIC_PORTS) {
@@ -274,6 +267,35 @@ export async function main(ns) {
  * Daedalus's invite requirements (from getFactionInviteRequirements) as text, each one marked
  * done or with what you have. Only the kinds Daedalus uses are spelled out.
  */
+/**
+ * The status lines for the stock trader (stocks/stock-trader.js posts the summary on port 26). A trader that is up but has
+ * no summary is only seconds old (it posts on its first market tick); one waiting for the TIX API says so and what it
+ * needs. With a summary: positions and profit, then how it is doing since its window started (profit per hour, share of
+ * capital invested, drawdown, costs) when it has been measuring long enough to mean something.
+ * @param {any} stocks the summary, or null
+ * @param {boolean} running whether stocks/stock-trader.js is in the process list
+ * @param {{ money: (n: number) => string, percent: (n: number, digits?: number) => string, time: (ms: number) => string, ago: (t: number) => string }} fmt
+ */
+export function stockLines(stocks, running, fmt) {
+	if (!running) return ["Stocks: stock-trader.js not running"];
+	if (!stocks) return ["Stocks: trader just started, first summary on its next market tick (a few seconds)"];
+	if (stocks.mode === "waiting") {
+		return [`Stocks (${fmt.ago(stocks.time)}): waiting for the ${stocks.waitingFor}, which costs ${fmt.money(stocks.cost)} ` +
+			`(cash ${fmt.money(stocks.cash)}, ${fmt.money(stocks.reserve)} stays in reserve)`];
+	}
+	const lines = [`Stocks (${fmt.ago(stocks.time)}): ${stocks.mode}, ${stocks.positions} positions worth ${fmt.money(stocks.value)} ` +
+		`(unrealized ${fmt.money(stocks.unrealized)}), profit since install ${fmt.money(stocks.earned)}`];
+	const measure = stocks.measure;
+	if (measure && measure.sinceMs >= 600_000) {
+		lines.push(`  last ${fmt.time(measure.sinceMs)}: ${fmt.money(measure.perHour)}/h (${fmt.percent(measure.returnPerHour, 1)}/h of working capital), ` +
+			`invested ${fmt.percent(measure.invested)}, idle ${fmt.percent(measure.idle)}` +
+			(measure.heldBack > 0.01 ? `, held back for buyers ${fmt.percent(measure.heldBack)}` : "") +
+			`, max drawdown ${fmt.money(measure.maxDrawdown)}, trading costs ${fmt.money(measure.costs)}` +
+			(measure.capture === null || measure.capture === undefined ? "" : `, drift captured ${fmt.percent(measure.capture)} of the forecast`));
+	}
+	return lines;
+}
+
 function describeNeeds(ns, needs, player, installed) {
 	const tick = (ok) => (ok ? " ok" : "");
 	const one = (need) => {

@@ -41,8 +41,8 @@ milliseconds, and a fixed bug stays fixed when a test pins it.
   to servers, with the clock mocked (`t.mock.timers`) for waits. It checks what starts where and in what order, not the
   real RAM costs (every script is 2GB unless a test says otherwise).
 - Not covered yet: the batcher's main loop (target choice over time, launch timing against a real clock), the Go bot's
-  `main` loop (its plan order and move search are tested), the gang and stock traders' `main` loops (their per-pass
-  decisions are tested), `bladeburner/bb-pass.js` and `node-eta.js`, player-work beyond the gym. These are mostly long
+  `main` loop (its plan order and move search are tested), the gang manager's `main` loop (its per-pass
+  decisions are tested; the stock trader's `main` runs a few ticks in a fake market), `bladeburner/bb-pass.js` and `node-eta.js`, player-work beyond the gym. These are mostly long
   `main` functions; split a piece into a function a test can call when a bug shows up there.
 - The Go search is random and time-boxed, so its tests use boards where one move is clearly right and check the move,
   not the win-chance figure.
@@ -53,8 +53,8 @@ milliseconds, and a fixed bug stays fixed when a test pins it.
 modules (the tests would check a copy, not the synced script); end-to-end runs against the game (the Remote API can't
 drive scripts or read their state).
 
-**Current state:** about 290 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
+**Current state:** about 345 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
 step, home-upgrade hold, Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without
 Formulas.exe, RAM pool, startup.js stages and one-shots, gym and study choice, income curve, augment filter, BitNode route,
-Go plan order and move search, the gang manager's per-pass decisions, the stock trader's sell and buy rules, the Bladeburner
+Go plan order and move search, the gang manager's per-pass decisions, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
 state machine (with the wait for Stanek's Gift) and route model, the darknet's solvers, migration and storm rule, the program order, and repo checks.

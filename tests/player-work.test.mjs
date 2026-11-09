@@ -86,3 +86,58 @@ test("isCourse matches the class name the game reports", () => {
 	assert.equal(isCourse({ type: "CLASS", classType: "GYMSTRENGTH" }, "Algorithms"), false);
 	assert.equal(isCourse(null, "Algorithms"), false);
 });
+
+// --- idleStep: nothing left to do past the study target -> crime instead of the free class ---
+import { idleStep } from "/singularity/player-work.js";
+
+const idleState = (studying = {}) => ({ focus: true, studyLevel: 50, config: { studying: { paidCourse: "Algorithms", ...studying } } });
+const idlePlayer = (hacking = 225) => ({ skills: { hacking } });
+function idleNs() {
+	return fakeNs({
+		files: { "singularity/workers/start-crime.js": "", "utils/notify.js": "" },
+		overrides: {
+			getHostname: () => "home", getScriptRam: () => 12.1, hasRootAccess: () => false,
+			getServer: () => ({}), scan: () => [], scp: () => true,
+			exec: () => 4242, getServerMaxRam: () => 64, getServerUsedRam: () => 0,
+		},
+	});
+}
+const startedCrime = (ns) => ns.called("exec").some(([script]) => script === "singularity/workers/start-crime.js");
+
+test("regression: the free class running past the study target with nothing else to do is replaced by the cash crime", () => {
+	const ns = idleNs();
+	const line = idleStep(ns, idleState(), idlePlayer(), { type: "CLASS", classType: "STUDYCOMPUTERSCIENCE" });
+	assert.match(line, /crime for cash/);
+	assert.ok(startedCrime(ns));
+});
+
+test("idle with no work at all also takes the crime", () => {
+	const ns = idleNs();
+	assert.ok(idleStep(ns, idleState(), idlePlayer(), null));
+	assert.ok(startedCrime(ns));
+});
+
+test("not idle: still studying, other work, a crime already running, or the paid course", () => {
+	for (const [hacking, current] of [
+		[40, { type: "CLASS", classType: "STUDYCOMPUTERSCIENCE" }],
+		[225, { type: "FACTION", factionName: "CyberSec" }],
+		[225, { type: "CRIME", crimeType: "Mug" }],
+		[225, { type: "CLASS", classType: "ALGORITHMS" }],
+	]) {
+		const ns = idleNs();
+		assert.equal(idleStep(ns, idleState(), idlePlayer(hacking), current), null);
+		assert.ok(!startedCrime(ns));
+	}
+});
+
+test("studying.idleCrime: false keeps the class", () => {
+	const ns = idleNs();
+	assert.equal(idleStep(ns, idleState({ idleCrime: false }), idlePlayer(), { type: "CLASS", classType: "STUDYCOMPUTERSCIENCE" }), null);
+	assert.ok(!startedCrime(ns));
+});
+
+test("no room for the helper yet: says so and the class keeps running", () => {
+	const ns = fakeNs({ files: { "singularity/workers/start-crime.js": "" },
+		overrides: { getHostname: () => "home", getScriptRam: () => 12.1, hasRootAccess: () => false, getServer: () => ({}), scan: () => [], scp: () => true, exec: () => 0, getServerMaxRam: () => 8, getServerUsedRam: () => 8 } });
+	assert.match(idleStep(ns, idleState(), idlePlayer(), { type: "CLASS", classType: "STUDYCOMPUTERSCIENCE" }), /no room/);
+});

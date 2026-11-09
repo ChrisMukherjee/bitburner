@@ -37,6 +37,15 @@ splitting every step into workers (many scripts for one stage).
 The free Computer Science course gives a fraction of the exp of a paid one, so levels crawl past ~45. Once cash covers
 `studying.paidSeconds` of the fee (`studying.paidPerSecond`, Rothman's price), [`../utils/study.js`](../utils/study.js) switches
 to `studying.paidCourse` (Algorithms), restarting a running free class once. `paidCourse: ""` keeps the free one.
+
+**The gap after the study target.** Past `studying.hackLevel` the class used to keep running until faction or company work
+started, so a run with no joined faction below its rep goal and no company that would hire (the first ten minutes or more)
+trained for free while cash went unearned. Now `idleStep` in [`../singularity/player-work.js`](../singularity/player-work.js)
+stops the free class and starts [`../singularity/workers/start-crime.js`](../singularity/workers/start-crime.js) (best chance x money / time)
+when nothing else is on offer; faction or company work replaces the crime by itself once it opens. Left alone: the paid course
+(cash is then no longer scarce and its exp is worth more), any non-class work, a crime already running, and a missing helper
+room (retried next pass). On by default; `studying.idleCrime: false` keeps the class. Rejected: leaving the choice to an
+opt-in flag, and deciding by a fixed number of minutes: the state (nothing to do) is the guard.
 Rejected: flying to ZB Institute (Volhaven) for more exp: the trip and fee outweigh the gain at these levels.
 
 ## Short passes

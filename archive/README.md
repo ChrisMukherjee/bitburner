@@ -118,8 +118,14 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 ## Gang
 
 - [`gang/gang-manager-v1.js`](gang/gang-manager-v1.js): picked each member's task by trying every task and reading the gain back from `getMemberInformation`. Next: [`gang-manager.js`](../gang/gang-manager.js) scores tasks with the game's own stat-weight formula from `getTaskStats`, with no trial assignments.
+- [`gang/gang-manager-v2.js`](gang/gang-manager-v2.js): trained members to a fixed main-stat level (200), ascended at a fixed 1.5x main-stat gain, scored tasks with one difficulty factor (4) for money, respect and wanted alike, picked warriors as the strongest members, engaged clashes on the worst single win chance and bought the cheapest useful gear first. Next: [`gang-manager.js`](../gang/gang-manager.js) plans growth per member (earn or train, which stat to train, when to ascend) with the game's exact formulas from [`formulas.js`](../gang/formulas.js), picks warriors by pay given up per point of power, engages on the land outlook, buys gear by payback, and logs metrics.
 - [`gang/gang.js`](gang/gang.js): a single-file gang manager with the settings at the top. Replaced by [`gang-manager.js`](../gang/gang-manager.js), which scores tasks with the game's own formula and splits equipment and invites into workers.
 - [`gang/workers/invite-v1.js`](gang/workers/invite-v1.js): picked a crime for the gang invite only where the invite was all a gang needed (BitNode 2). Next: [`invite.js`](../gang/workers/invite.js) also handles the 54,000 karma grind elsewhere, picks the crime by expected gain per minute (failures included), and sends combat stats to the gym once karma is done.
+
+## Bladeburner
+
+- [`bladeburner/bb-pass-v1.js`](bladeburner/bb-pass-v1.js): the action pass before measuring: best chance x gain / seconds among the safe actions (exhausted ones included, refused one by one), Black Op at 80 %, city switch and Field Analysis scouting, rank per hour from the samples. Next: [`bb-pass.js`](../bladeburner/bb-pass.js) skips actions with no count left, posts the next Black Op and the efficiency report (measured rank per hour against the ceiling in [`ideal.js`](../bladeburner/ideal.js), idle and low-stamina share, banked counts, hourly log).
+- [`bladeburner/picks-v1.js`](bladeburner/picks-v1.js): skill values from the Contracts and Operations being played only, so chance skills were worth nothing once those were capped at 100 % while the Black Ops sat far below the safe chance. Next: [`picks.js`](../bladeburner/picks.js) blends in the next Black Op's chance (`blackOpWeight`, `bladeburner.blackOpSkills`).
 
 ## Go
 

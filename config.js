@@ -175,6 +175,9 @@ export const DEFAULTS = {
 		paidCourse: "Algorithms",
 		paidPerSecond: 960,
 		paidSeconds: 600,
+		// Past hackLevel with no faction or company work to do (waiting for an invite or a job), stop the free class and
+		// commit the best-paying crime until that work opens up. false = keep the class running.
+		idleCrime: true,
 	},
 
 	// Start stage only (player-work-start.js): create a port opener yourself when your hacking level allows it
@@ -313,7 +316,7 @@ export const DEFAULTS = {
 	// started and share and the XP farm get the RAM. enabled: false, or "hack/batcher.js" in mechanicGates.force, hacks anyway.
 	hackWorth: { enabled: true, minProduct: 0.1 },
 
-	// Gang (gang/gang-manager.js; BitNode 2, or anywhere with Source-File 2). Untested in game so far.
+	// Gang (gang/gang-manager.js; BitNode 2, or anywhere with Source-File 2). Design and maths: docs/gang.md.
 	gang: {
 		// Factions to create the gang with, in order: the first one you're a member of is used, and
 		// that decides the gang type for good. Slum Snakes and the others here make a COMBAT gang
@@ -330,20 +333,33 @@ export const DEFAULTS = {
 		inviteCrimes: null,
 		startInvite: true,          // below a 64GB home (start stage) work on the invite too, so the gang starts early; false = wait for player-work.js
 		inviteGym: true,            // once karma is met, missing combat stats go to the gym (much faster); false = crimes
-		trainLevel: 200,            // members train until their main stat (combat average, or hacking) reaches this
+		// Growth (on by default): each member earns or trains, whichever is worth more over the horizon, and ascends when
+		// the stronger multiplier outweighs the re-training. The horizon is the run's age (so an older run invests for
+		// longer), within the limits below. enabled: false = the old rules: train below trainLevel, ascend at ascendAt.
+		growth: {
+			enabled: true,
+			horizonMinSeconds: 3600,  // never value growth over less than this
+			horizonMaxSeconds: 86_400, // ...or more than this
+			recoverySeconds: 300,     // training time that rebuilds a member's stats after an ascension
+			cycleSeconds: 1500,       // a member ascends after about this much training (15 to 60 minutes is best in simulation; 2 minutes stalls)
+			probeMaxSeconds: 7200,    // longest training stretch the model looks ahead
+			minEarnShare: 1 / 3,      // at least this share of the members always earns (cash flow for gear, respect to recruit), however good training looks
+		},
+		trainLevel: 200,            // growth off only: members train until their main stat (combat average, or hacking) reaches this
 		trainTasks: { combat: "Train Combat", hacking: "Train Hacking" },
 		focus: "auto",              // "respect", "money", or "auto": respect until the gang is full (12), then money
-		ascendAt: 1.5,              // ascend once the main-stat multiplier would grow this much
-		ascendMaxRespectShare: 0.25, // ...unless that member holds more than this share of the gang's respect
+		ascendAt: 1.5,              // growth off only: ascend once the main-stat multiplier would grow this much
+		ascendMaxRespectShare: 0.25, // growth off only: ...unless that member holds more than this share of the gang's respect
 		maxWantedPenalty: 0.05,     // above this wanted penalty, weakest earners switch to a cool task...
 		okWantedPenalty: 0.01,      // ...until it is back below this
 		coolTasks: ["Vigilante Justice", "Ethical Hacking"],
 		warfareTask: "Territory Warfare",
 		warfareShare: 0.5,          // with a full gang and territory left: this share of trained members builds power
-		engageAt: 0.55,             // clashes on once the win chance against every gang holding territory is this high
+		engageAt: 0.55,             // clashes on once our share of the land that would change hands (win chance and gain, over every gang holding land) is this high
 		disengageAt: 0.5,           // ...and off again below this
 		buyAugmentations: true,     // gang member augments (permanent through ascension) first, then equipment
 		planMs: 20_000,             // re-plan tasks and ascensions this often
+		logMs: 300_000,             // append a metric sample to data/gang-log.json this often (0 = never)
 		buyMs: 60_000,              // equipment pass this often
 		// Spending stages for equipment, as for hacknetBuying (reserve, maxFraction of cash per pass).
 		buying: [
@@ -365,7 +381,10 @@ export const DEFAULTS = {
 	// false = the fixed tiers (Overclock to 90 first). switchCity: play in the city whose population and chaos give the best
 	// chances, when the gain beats the noise of the estimates; false = stay in the starting city. fieldAnalysis: while a safe
 	// action is played, scout (Field Analysis) when a better one is too uncertain to call; false = only when nothing is safe.
-	bladeburner: { route: "combat", stanekFirst: false, adaptiveSkills: true, switchCity: true, fieldAnalysis: true },
+	// blackOpSkills: the next Black Op's success chance steers the skill points too, once its rank is near (the late Black Ops
+	// are far harder than any Contract or Operation, so chance skills must not stop mattering when those are capped); false =
+	// only the Contracts and Operations count.
+	bladeburner: { route: "combat", stanekFirst: false, adaptiveSkills: true, switchCity: true, fieldAnalysis: true, blackOpSkills: true },
 
 	// Go bot (go/go-bot.js, go/go-plan.js). rotation: the order it moves on to once the focus opponent's bonus
 	// levels off. planAware: opponents in `boosts` jump the queue while the plan uses their bonus (Bladeburner running ->

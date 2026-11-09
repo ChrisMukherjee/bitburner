@@ -48,6 +48,8 @@ const CONFIG = {
 	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	gangHelper: "gang/workers/invite.js",
 	gangImports: ["utils/gang.js"],
+	idleCrimeHelper: "singularity/workers/start-crime.js",
+	idleCrimeImports: ["utils/notify.js"],
 	gangRefreshMs: 2 * 60_000, // re-check the gang invite needs (and the best crime, as the stats grow) this often
 };
 
@@ -238,7 +240,7 @@ function workStep(ns, state, player) {
 	const { factionWork, companyWork, studying } = state.config;
 
 	if (state.studyStarted && !state.studyAnnounced && hacking >= state.studyLevel) {
-		notify(ns, "[study]", `hacking ${hacking} reached. The class keeps running until faction work takes over.`, "success");
+		notify(ns, "[study]", `hacking ${hacking} reached. Faction or company work takes over; with none to do, the cash crime does (studying.idleCrime).`, "success");
 		state.studyAnnounced = true;
 	}
 
@@ -319,7 +321,8 @@ function workStep(ns, state, player) {
 			const message = gangStep(ns, state, player, current, invite);
 			if (message) return { message, done };
 		}
-		return { message: `${factionMessage}; ${state.noCompany ? "company work off (--no-company)" : "every megacorp faction is joined"}`, done };
+		const idle = idleStep(ns, state, player, current);
+		return { message: `${factionMessage}; ${state.noCompany ? "company work off (--no-company)" : "every megacorp faction is joined"}${idle ? `; ${idle}` : ""}`, done };
 	}
 	if (current?.type === "FACTION") {
 		return { message: `[company-work] you're working for ${current.factionName} yourself; leaving it alone`, done };
@@ -328,7 +331,8 @@ function workStep(ns, state, player) {
 	const newJob = ns.singularity.applyToCompany(target.company, companyWork.field); // hire or promote
 	if (newJob) ns.print(`[company-work] ${target.company}: now ${newJob}`);
 	if (!(target.company in player.jobs) && !newJob) {
-		return { message: `[company-work] ${target.company} won't hire you for ${companyWork.field} yet (needs more hacking or charisma)`, done };
+		const idle = idleStep(ns, state, player, current);
+		return { message: `[company-work] ${target.company} won't hire you for ${companyWork.field} yet (needs more hacking or charisma)${idle ? `; ${idle}` : ""}`, done };
 	}
 	const working = current?.type === "COMPANY" && current.companyName === target.company;
 	if (!working || newJob) ns.singularity.workForCompany(target.company, state.focus);
@@ -366,6 +370,25 @@ export function gymStep(ns, state, player, current, floor, tag) {
 	if (!ns.singularity.gymWorkout(gym, gymType, state.focus)) return `${tag} ${gym} refused ${stat}, will retry`;
 	notify(ns, tag, `training ${stat} at ${gym} (now ${Math.floor(player.skills[stat])} / ${floor})`, "info");
 	return `${tag} training ${stat} at ${gym}`;
+}
+
+/**
+ * Past the study target with nothing for the player to do (no faction below its rep goal that is joined, no company
+ * that will hire): the free class would otherwise run on, and a gap of many minutes costs cash for the home upgrades.
+ * Stops it and commits the best-paying crime (singularity/workers/start-crime.js, which picks by chance x money / time).
+ * Left alone: the paid course (cash is no longer scarce, and its hacking exp is worth more than the crime), any work
+ * other than a class or nothing, and a crime already running. Faction or company work replaces the crime by itself
+ * once it becomes available. `studying.idleCrime: false` keeps the class. Returns a log line, or null when it did nothing.
+ */
+export function idleStep(ns, state, player, current) {
+	const { studying } = state.config;
+	if (studying.idleCrime === false) return null;
+	if (current && current.type !== "CLASS") return null;
+	if (isCourse(current, studying.paidCourse)) return null;
+	if (player.skills.hacking < state.studyLevel) return null;
+	const pid = startHelper(ns, CONFIG.idleCrimeHelper, CONFIG.idleCrimeImports, state.focus);
+	if (pid === 0) return "[idle] nothing else to do, but no room yet for the cash crime; retrying";
+	return "[idle] nothing else to do: crime for cash until faction or company work opens up";
 }
 
 /**
