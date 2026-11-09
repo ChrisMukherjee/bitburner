@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeNs } from "./support/fake-ns.mjs";
+import { DEFAULTS } from "/config.js";
 import { nextRouteStep, suggestedStep, routeStep, easeScore } from "/utils/bitnode-route.js";
 
 /** In BitNode `node`, owning these Source-File levels ([[1, 3], [4, 1]] ...). */
@@ -39,4 +40,13 @@ test("routeStep: your own route first; once it's done, no suggestion overrides i
 	const auto = routeStep(inNode(1, [[1, 1]]), { ...config, bitnodeRoute: [] }, null);
 	assert.deepEqual([auto.bitNode, auto.source], [2, "suggested"]);
 	assert.equal(routeStep(inNode(1, [[1, 1]]), { ...config, bitnodeRoute: [], bitnodeRouteAuto: false }, null).source, "suggestion-only");
+});
+
+test("default plan: SF6 is enough for Bladeburner, so BitNode 7 comes after SF1.3, not beside BitNode 6", () => {
+	const plan = DEFAULTS.bitnodePlan;
+	const owned = [[1, 1], [4, 3], [5, 1], [2, 1]];
+	assert.equal(suggestedStep(inNode(1, owned), plan, null).bitNode, 6);
+	assert.equal(suggestedStep(inNode(1, [...owned, [6, 1]]), plan, null).bitNode, 1, "SF1.3 before BN7");
+	assert.equal(suggestedStep(inNode(1, [...owned, [6, 1]]), plan, null).level, 3);
+	assert.equal(suggestedStep(inNode(1, [...owned.slice(1), [1, 3], [6, 1]]), plan, null).bitNode, 7);
 });

@@ -11,8 +11,9 @@ not from this repo, so check them in game.
 1. **BitNode 1 once** (you start there). Destroying it gives Source-File 1.
 2. **BitNode 4 up to Source-File 4.3.** This is the gate for automation. Do it before anything else that costs time.
 3. **BitNode 5** (Formulas.exe, BitNode multipliers, Intelligence) and **BitNode 2** (gangs), in either order.
-4. **BitNode 6 and 7** (Bladeburner).
+4. **BitNode 6** (Bladeburner).
 5. **BitNode 1 up to Source-File 1.3** (a bigger starting home).
+6. **BitNode 7** (optional: a Bladeburner bonus only).
 
 That is the default `bitnodePlan`. Replace it in `data/config.json` if your goals differ.
 
@@ -64,6 +65,12 @@ Ops done) and the route that suits BitNodes where hacking is weak, so it sits af
 training goes through `player-work.js`, which needs SF4. The `bladeburner` preset in [`../config.js`](../config.js)
 swaps the augment weights for combat; `bladeburner.route` picks between playing it and holding it.
 
+Source-File 6 is enough, so the default plan does BitNode 6 early and puts BitNode 7 last, as an optional extra. What
+SF7 adds on top of SF6 is a bonus to Bladeburner multipliers **(game rule, check the BitNode screen)**, which no script
+here reads; BitNode 7 also has weak hacking, so it costs a full run for a small gain. Do it if you stay on the
+Bladeburner route and want the bonus, or for its challenge achievement, which forbids Bladeburner
+([`../achievements/README.md`](../achievements/README.md)).
+
 ## Source-File 1: a bigger starting home
 
 **(game rule)** Source-File 1 raises the home RAM you start each run with (32GB at level 1, 64GB at level 2, 128GB at
@@ -101,7 +108,8 @@ lists replace the default. Lower tier numbers go first. Settings that should dif
 
 - SF4 first because it is what makes the scripts hands off, and the level matters (the RAM multiplier above).
 - SF5 and SF2 next because they change what the scripts do in every later run, not just the one that earned them.
-- Bladeburner after, because it is a different way to play a BitNode rather than something every run uses.
+- Bladeburner after, because it is a different way to play a BitNode rather than something every run uses. Only
+  BitNode 6 is in the main order; SF7 duplicates what SF6 unlocks, so BitNode 7 comes last.
 - SF1 last because it speeds runs up and unlocks nothing; each level costs a full BitNode 1 clear.
 
 Rejected: a fixed route in code. The right order depends on how far a save already is, so the plan is a list in the

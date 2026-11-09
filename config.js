@@ -389,8 +389,9 @@ export const DEFAULTS = {
 		{ bitNode: 5, level: 1, tier: 3 },
 		{ bitNode: 2, level: 1, tier: 3 },
 		{ bitNode: 6, level: 1, tier: 4 },
-		{ bitNode: 7, level: 1, tier: 4 },
 		{ bitNode: 1, level: 3, tier: 5 },
+		// Optional extra: Source-File 6 already unlocks Bladeburner everywhere, so SF7 only adds a Bladeburner bonus.
+		{ bitNode: 7, level: 1, tier: 6 },
 	],
 
 	// Per-BitNode overrides, keyed by BitNode number: laid over the settings above only while
