@@ -2,15 +2,25 @@
 // @ts-check
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
+import { readIncomeRate } from "/utils/income.js";
+import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { createPolicyTracker, getBudget, getCash, formatMoney } from "/utils/spending.js";
+import { readGates } from "/singularity/ready.js"; // the buyers' "I need this much cash" notes (port 33)
 import { STOCK_INFLUENCE_PORT, SYMBOL_SERVERS } from "/stocks/stock-servers.js";
 import { HOME_PASSWORD_FILE, PHISH_SCRIPT } from "/darknet/config.js"; // constants only, no RAM
+import {
+	spreadFraction, holdHorizon, netEdge, swapEdge, accessCostGuess, learnFactor, CycleClock, pendingClaim,
+} from "/stocks/stock-math.js";
+import { Meter, newStats, addTradeCost, accrueDrift } from "/stocks/stock-meter.js";
 // tools/status.js peeks a one-line summary here (ports: 20 darknet ... 25 city plan).
 const STOCK_SUMMARY_PORT = 26;
+/** The access helper (workers/buy-market-access.js) leaves what it did here; this script learns from it. */
+export const ACCESS_RESULT_FILE = "data/stock-access.json";
 
 const CONFIG = {
 	// Spending stages (reserve, maxFraction, ... by income) are `stockTrading` in the config
-	// (config.js, data/config.json).
+	// (config.js, data/config.json). The decisions below (cost-aware buying, the cycle clock, rotation, holding
+	// cash back for other buyers) can each be switched off with `stocks` in the same file; all are on by default.
 	// Each buy and sell costs a flat commission (~$100k), so tiny trades lose money.
 	// A buy smaller than this many commissions is skipped.
 	minTradeCommissions: 50,
@@ -30,6 +40,12 @@ const CONFIG = {
 		flipForecast: 0.35, // on the short window: sell even if the long window still looks fine
 	},
 	summaryEveryTicks: 10,
+	// Rotation: at most this many sell-to-fund-a-better-stock swaps in one tick.
+	maxSwapsPerTick: 3,
+	// Holding cash back for another buyer: a note counts for 2 market cycles (the buyers repost after every pass, so an
+	// older one is from a buyer that is not running), and only when income closes the gap within one cycle.
+	claimMaxAgeCycles: 2,
+	claimWindowCycles: 1,
 	// --promote: how many of the biggest longs get a promoteStock worker (threads split between them),
 	// and how often (ticks) to re-pick them. promoteStock only runs ON a darknet server, so workers go to
 	// darkweb and the stasis-linked servers (the only darknet servers home can exec on), using the passwords
@@ -43,10 +59,21 @@ const CONFIG = {
 	waitForTixMs: 10000,
 };
 
+/** The switches in `stocks` in the config, all on unless the player turned one off. */
+export function stockSettings(config) {
+	return { costAware: true, cycleClock: true, rotate: true, holdBackForBuyers: true, ...(config?.stocks ?? {}) };
+}
+
 /**
  * Stock trader. Uses the exact forecast and volatility from the 4S Market Data TIX API when you
  * own it, otherwise estimates both from price history. Checked every tick, so buying 4S
  * mid-run switches it to exact mode (like Formulas.exe in the other managers).
+ *
+ * How the game's market works (src/StockMarket in v3.0.0), which the rules below follow: every tick (6s) each stock
+ * moves up with probability = its forecast, by the same random size scaled by its volatility. The forecast barely
+ * drifts inside a cycle of TicksPerCycle (75) ticks; at each cycle boundary every stock flips to its mirror forecast
+ * with 45% chance, all on the same tick. Buying and selling cost the spread plus a flat commission. Our own trades
+ * hardly move anything (they nudge the forecast 0.006 points per ~tens of thousands of shares, never below 55%).
  *
  * Every tick it also posts the servers of the companies it holds on a port, so the batcher's grow
  * workers push held longs up with { stock: true }.
@@ -78,7 +105,10 @@ export async function main(ns) {
 	]);
 
 	const constants = ns.stock.getConstants();
-	const getPolicy = createPolicyTracker(loadConfig(ns).stockTrading);
+	const config = loadConfig(ns);
+	const settings = stockSettings(config);
+	const getPolicy = createPolicyTracker(config.stockTrading);
+	const access = newAccessState(Date.now());
 	if (!ns.stock.hasTixApiAccess()) {
 		if (flags["no-buy-tix"]) {
 			ns.tprint("[stocks] no TIX API access; buy it at the WSE first.");
@@ -86,7 +116,10 @@ export async function main(ns) {
 		}
 		ns.tprint(`[stocks] no TIX API access; buying it once cash above the reserve covers ${formatMoney(ns, constants.TixApiCost)}.`);
 		while (!ns.stock.hasTixApiAccess()) {
-			maybeBuyAccess(ns, constants.TixApiCost, getPolicy(ns), false);
+			const policy = getPolicy(ns);
+			absorbAccessResult(ns, access);
+			maybeBuyAccess(ns, constants.TixApiCost, policy, false);
+			postWaiting(ns, "TIX API", constants.TixApiCost, policy);
 			await ns.sleep(CONFIG.waitForTixMs);
 		}
 	}
@@ -103,7 +136,12 @@ export async function main(ns) {
 	const minTrade = constants.StockMarketCommission * CONFIG.minTradeCommissions;
 	const history = Object.fromEntries(symbols.map((sym) => [sym, []])); // relative price change per tick
 	const lastPrice = Object.fromEntries(symbols.map((sym) => [sym, midPrice(ns, sym)]));
-	const stats = { realized: 0, trades: 0 };
+	const clock = new CycleClock(constants.TicksPerCycle);
+	const cycleMs = constants.TicksPerCycle * constants.msPerStockUpdate;
+	const fourSMult = bitnodeMults(ns);
+	let session = null; // { stats, meter }: restarted when 4S arrives, so each window is one mode
+	/** @type {Record<string, {shares: number, bid: number, expected: number}>} */
+	let held = {}; // positions at the end of the last tick, for the drift accounting
 	let exactWasOn = null; // null so the first tick always reports the mode
 	let tick = 0;
 	const promoters = {}; // sym -> { workers: [{ pid, host, threads }], threads }
@@ -116,26 +154,56 @@ export async function main(ns) {
 	while (true) {
 		await ns.stock.nextUpdate();
 		tick++;
+		const now = Date.now();
 		recordTick(ns, symbols, history, lastPrice);
 
-		if (flags["buy-4s"] && !ns.stock.has4SDataTixApi()) maybeBuyAccess(ns, constants.MarketDataTixApi4SCost, getPolicy(ns), true);
+		absorbAccessResult(ns, access);
+		if (flags["buy-4s"] && !ns.stock.has4SDataTixApi() && !access.fourSOff) {
+			const known = fourSMult.known ? fourSMult.get("FourSigmaMarketDataApiCost") : null;
+			maybeBuyAccess(ns, accessCostGuess(constants.MarketDataTixApi4SCost, known, access.factor), getPolicy(ns), true);
+		}
 		const exactOn = ns.stock.has4SDataTixApi();
+		const outlooks = symbols.map((sym) => outlook(ns, sym, exactOn, history[sym]));
 		if (exactOn !== exactWasOn) {
 			const mode = `4S TIX API ${exactOn ? "found: exact forecasts on" : "not owned: estimating from price history"}.`;
 			if (exactWasOn === null) ns.print(`[stocks] ${mode}`); // first tick: routine
 			else notify(ns, "[stocks]", mode, "info"); // the mode changed mid-run: toast only
 			exactWasOn = exactOn;
+			session = { stats: newStats(), meter: new Meter(now, earnedNow(ns, symbols)) }; // measure each mode on its own
+			held = {};
 		}
+		const { stats, meter } = session;
+		accrueDrift(stats, held, (sym) => ns.stock.getBidPrice(sym), exactOn);
 
-		const outlooks = symbols.map((sym) => outlook(ns, sym, exactOn, history[sym]));
+		if (exactOn && settings.cycleClock) clock.observe(tick, outlooks.map((view) => view.forecast));
+		const ticksLeft = exactOn && settings.cycleClock ? clock.ticksLeft(tick) : null;
+		const policy = getPolicy(ns);
+		const claim = settings.holdBackForBuyers ? buyerClaim(ns, cycleMs) : 0;
+		const options = {
+			costAware: settings.costAware,
+			rotate: settings.rotate,
+			horizon: holdHorizon(ticksLeft, constants.TicksPerCycle),
+			claim,
+		};
+
 		for (const view of outlooks) sellIfTurned(ns, view, stats);
-		buyBest(ns, outlooks, getPolicy(ns), minTrade, stats);
+		buyBest(ns, outlooks, policy, minTrade, stats, options);
 		if (!flags["no-influence"]) postInfluence(ns, symbols);
+
+		held = snapshotHeld(ns, symbols, outlooks);
+		const value = Object.values(held).reduce((sum, entry) => sum + entry.shares * entry.bid, 0);
+		meter.record({
+			now, value, idle: Math.max(0, getCash(ns) - policy.reserve), earned: earnedNow(ns, symbols),
+			heldBack: claim > policy.reserve,
+		});
 
 		if (flags.promote > 0 && tick % CONFIG.promote.retargetEveryTicks === 0) {
 			retargetPromoters(ns, symbols, exactOn ? flags.promote : 0, promoters);
 		}
-		if (tick % CONFIG.summaryEveryTicks === 0) printSummary(ns, symbols, exactOn, stats, promoters);
+		// The first tick posts at once, so the status line never shows "no summary" for a trader that is trading.
+		if (tick === 1 || tick % CONFIG.summaryEveryTicks === 0) {
+			printSummary(ns, symbols, exactOn, session, promoters, { now, ticksLeft, policy, claim });
+		}
 	}
 }
 
@@ -166,7 +234,7 @@ export function upShare(moves, span) {
 	return recent.filter((move) => move > 0).length / recent.length;
 }
 
-/** Average size of a move. Only used to rank stocks against each other, so its scale doesn't matter. */
+/** Average size of a move (a fraction of the price). */
 function averageMove(moves) {
 	return moves.reduce((sum, move) => sum + Math.abs(move), 0) / moves.length;
 }
@@ -174,6 +242,9 @@ function averageMove(moves) {
 /**
  * What we think a stock will do: forecast (chance of going up next tick), how sure we are of it,
  * and expected gain per tick as a fraction of price. Exact with 4S; estimated otherwise.
+ *
+ * Volatility is the game's getVolatility scale: the largest a tick's move can be. A tick's size is uniform up to that, so
+ * the average move is half of it; the estimate doubles what it sees so both modes put the same number on a stock.
  */
 export function outlook(ns, sym, exactOn, moves) {
 	const view = { sym, ready: true, buyReady: true, forecast: 0.5, nearForecast: 0.5 };
@@ -189,10 +260,10 @@ export function outlook(ns, sym, exactOn, moves) {
 			view.forecast = upShare(moves, settings.longWindow);
 			view.nearForecast = upShare(moves, settings.shortWindow);
 		}
-		view.volatility = moves.length > 0 ? averageMove(moves) : 0;
+		view.volatility = moves.length > 0 ? 2 * averageMove(moves) : 0;
 	}
 	view.exact = exactOn;
-	// Expected move per tick: |forecast - 0.5| * volatility, signed by direction.
+	// Expected move per tick: (2 * forecast - 1) * average move = (forecast - 0.5) * volatility, signed by direction.
 	view.expected = (view.forecast - 0.5) * view.volatility;
 	return view;
 }
@@ -224,25 +295,49 @@ export function sellAll(ns, sym, reason, stats) {
 	return proceeds;
 }
 
+/** Sells `shares` of a long (for a swap into a better stock). Returns the cash it brought in. */
+function sellPart(ns, sym, shares, reason, stats) {
+	const [longShares, longAvg] = ns.stock.getPosition(sym);
+	const count = Math.min(shares, longShares);
+	if (count <= 0) return 0;
+	const price = ns.stock.sellStock(sym, count);
+	return price > 0 ? report(ns, sym, "long", count, longAvg, price - longAvg, price, reason, stats) : 0;
+}
+
 function report(ns, sym, side, shares, average, gainPerShare, valuePerShare, reason, stats) {
 	const commission = ns.stock.getConstants().StockMarketCommission;
 	const profit = shares * gainPerShare - 2 * commission; // buy + sell commission
 	if (stats) {
 		stats.realized += profit;
 		stats.trades++;
+		addTradeCost(stats, shares, ns.stock.getAskPrice(sym), valuePerShare, 0); // spread of the sale; commission below
+		stats.commissionPaid = (stats.commissionPaid ?? 0) + commission;
 	}
 	ns.print(`[stocks] sold ${side} ${sym} x${ns.format.number(shares)} (${reason}): profit ${formatMoney(ns, profit)}`);
 	return shares * valuePerShare - commission;
 }
 
-/** Puts the budget into the stocks with the best expected gain per tick, best first. */
-export function buyBest(ns, outlooks, policy, minTrade, stats) {
-	let budget = getBudget(ns, policy);
-	if (budget < minTrade) return;
-	const commission = ns.stock.getConstants().StockMarketCommission;
-	const perStockCap = CONFIG.maxPerStock * (getCash(ns) + portfolioValue(ns, outlooks.map((view) => view.sym)));
+/**
+ * Puts the budget into the stocks with the best expected gain per tick, best first.
+ *
+ * `options` (all off when left out, so callers that only want the plain rule get it):
+ *   costAware - skip a buy whose expected drift over `horizon` ticks does not cover the spread and both commissions
+ *   horizon   - ticks the forecast can be counted on (holdHorizon)
+ *   rotate    - with exact forecasts and no cash left, sell the weakest holding to fund a clearly better stock
+ *   claim     - cash another buyer is about to need; the reserve is at least this much
+ */
+export function buyBest(ns, outlooks, policy, minTrade, stats, options = {}) {
+	const spend = { ...policy, reserve: Math.max(policy.reserve, options.claim ?? 0) };
+	for (let swaps = 0; ; swaps++) {
+		buyPass(ns, outlooks, spend, minTrade, stats, options);
+		if (!options.rotate || !options.costAware || swaps >= CONFIG.maxSwapsPerTick) return;
+		if (!fundBetterStock(ns, outlooks, spend, minTrade, stats, options)) return;
+	}
+}
 
-	const candidates = outlooks
+/** The stocks worth buying now, best expected gain first. */
+function buyCandidates(outlooks) {
+	return outlooks
 		.filter((view) => view.ready && view.buyReady)
 		.filter((view) => {
 			const limits = thresholds(view);
@@ -250,18 +345,41 @@ export function buyBest(ns, outlooks, policy, minTrade, stats) {
 			return view.forecast >= limits.buyForecast && view.nearForecast >= 0.5;
 		})
 		.sort((first, second) => second.expected - first.expected);
+}
 
-	for (const view of candidates) {
+/** How many shares of a stock the share limit, the budget and the per-stock cap allow. */
+function sharesFor(ns, sym, budget, perStockCap) {
+	const commission = ns.stock.getConstants().StockMarketCommission;
+	const [longShares] = ns.stock.getPosition(sym);
+	const room = ns.stock.getMaxShares(sym) - longShares;
+	const price = ns.stock.getAskPrice(sym);
+	const held = longShares * price;
+	return Math.floor(Math.min(room, (budget - commission) / price, (perStockCap - held) / price));
+}
+
+function buyPass(ns, outlooks, policy, minTrade, stats, options) {
+	let budget = getBudget(ns, policy);
+	if (budget < minTrade) return;
+	const commission = ns.stock.getConstants().StockMarketCommission;
+	const perStockCap = CONFIG.maxPerStock * (getCash(ns) + portfolioValue(ns, outlooks.map((view) => view.sym)));
+
+	for (const view of buyCandidates(outlooks)) {
 		const [longShares, , shortShares] = ns.stock.getPosition(view.sym);
 		if (shortShares > 0) continue; // a short left from stock-trader-v3.js --short: sell it by hand or with v3
-		const room = ns.stock.getMaxShares(view.sym) - longShares;
 		const price = ns.stock.getAskPrice(view.sym);
-		const held = longShares * price;
-		const shares = Math.floor(Math.min(room, (budget - commission) / price, (perStockCap - held) / price));
+		const shares = sharesFor(ns, view.sym, budget, perStockCap);
 		if (shares <= 0 || shares * price < minTrade) continue;
+		if (options.costAware) {
+			const edge = netEdge({
+				expected: view.expected, horizon: options.horizon ?? 0, value: shares * price, commission,
+				spread: spreadFraction(price, ns.stock.getBidPrice(view.sym)),
+			});
+			if (edge <= 0) continue; // the drift over the time the forecast lasts would not pay for getting in and out
+		}
 
 		const paid = ns.stock.buyStock(view.sym, shares);
 		if (paid <= 0) continue;
+		addTradeCost(stats, shares, paid, ns.stock.getBidPrice(view.sym), commission);
 		budget -= shares * paid + commission;
 		ns.print(
 			`[stocks] bought long ${view.sym} x${ns.format.number(shares)} for ` +
@@ -272,6 +390,49 @@ export function buyBest(ns, outlooks, policy, minTrade, stats) {
 	}
 }
 
+/**
+ * Cash is all invested but a clearly better stock is waiting: sell part of the weakest holding to fund it, when the
+ * extra drift over the horizon pays for the new stock's spread and commissions. Exact forecasts only (estimates are too
+ * noisy to trade on small differences). Returns true if it sold something, so the caller buys again.
+ */
+function fundBetterStock(ns, outlooks, policy, minTrade, stats, options) {
+	if (getBudget(ns, policy) >= minTrade) return false; // cash left: buyPass had nothing it wanted
+	const commission = ns.stock.getConstants().StockMarketCommission;
+	const perStockCap = CONFIG.maxPerStock * (getCash(ns) + portfolioValue(ns, outlooks.map((view) => view.sym)));
+	const holdings = outlooks
+		.filter((view) => view.exact && view.ready && ns.stock.getPosition(view.sym)[0] > 0)
+		.sort((first, second) => first.expected - second.expected); // weakest first
+	for (const target of buyCandidates(outlooks).filter((view) => view.exact)) {
+		const price = ns.stock.getAskPrice(target.sym);
+		const [targetShares] = ns.stock.getPosition(target.sym);
+		const roomValue = Math.min(
+			(ns.stock.getMaxShares(target.sym) - targetShares) * price,
+			perStockCap - targetShares * price,
+		);
+		if (roomValue < minTrade) continue; // this one is full; the next may have room
+		const weakest = holdings.find((view) => view.sym !== target.sym && view.expected < target.expected);
+		if (!weakest) return false;
+		const bid = ns.stock.getBidPrice(weakest.sym);
+		const [weakShares] = ns.stock.getPosition(weakest.sym);
+		const value = Math.min(roomValue, weakShares * bid);
+		if (value < minTrade) return false;
+		const edge = swapEdge({
+			heldExpected: weakest.expected, candidateExpected: target.expected, horizon: options.horizon ?? 0, value,
+			candidateSpread: spreadFraction(price, ns.stock.getBidPrice(target.sym)), commission,
+		});
+		if (edge <= 0) return false;
+		// A remainder too small to be worth its own commission goes with the rest.
+		const wanted = Math.ceil(value / bid);
+		const shares = (weakShares - wanted) * bid < minTrade ? weakShares : wanted;
+		const proceeds = sellPart(
+			ns, weakest.sym, shares,
+			`swap into ${target.sym} (${ns.format.percent(weakest.forecast)} -> ${ns.format.percent(target.forecast)})`, stats,
+		);
+		return proceeds > 0;
+	}
+	return false;
+}
+
 /** What every open position would sell for right now. */
 function portfolioValue(ns, symbols) {
 	let value = 0;
@@ -280,6 +441,34 @@ function portfolioValue(ns, symbols) {
 		value += longShares * ns.stock.getBidPrice(sym) + shortShares * (2 * shortAvg - ns.stock.getAskPrice(sym));
 	}
 	return value;
+}
+
+/** Each held long's shares, bid and expected drift, for the next tick's drift accounting. */
+export function snapshotHeld(ns, symbols, outlooks) {
+	const expected = Object.fromEntries(outlooks.map((view) => [view.sym, view.expected]));
+	const snapshot = {};
+	for (const sym of symbols) {
+		const [shares] = ns.stock.getPosition(sym);
+		if (shares > 0) snapshot[sym] = { shares, bid: ns.stock.getBidPrice(sym), expected: expected[sym] ?? 0 };
+	}
+	return snapshot;
+}
+
+/** Money made by stocks since the install, with what the holdings are worth (the game books a buy as money lost). */
+function earnedNow(ns, symbols) {
+	return ns.getMoneySources().sinceInstall.stock + portfolioValue(ns, symbols);
+}
+
+/**
+ * Cash another buyer (home RAM or cores, programs, a faction donation) is about to need: reading its note on the gate
+ * port. The trader keeps that much instead of spending it on shares, so income can reach the purchase; a buyer that
+ * needs more than one market cycle of income is not waited for. 0 when nobody is waiting.
+ */
+function buyerClaim(ns, cycleMs) {
+	return pendingClaim(readGates(ns), {
+		now: Date.now(), cash: getCash(ns), perSecond: readIncomeRate(ns).perSecond,
+		windowMs: CONFIG.claimWindowCycles * cycleMs, maxAgeMs: CONFIG.claimMaxAgeCycles * cycleMs,
+	});
 }
 
 /**
@@ -394,6 +583,33 @@ function launchPromoter(ns, host, sym, want) {
 	}
 }
 
+/** What the trader has learned about buying market access in this process. */
+export function newAccessState(startMs) {
+	return { startMs, lastResult: 0, factor: 1, fourSOff: false };
+}
+
+/**
+ * Reads what the access helper reported (data/stock-access.json) and learns from it, once per report:
+ *   "4s-poor"     the game refused although cash covered our price guess, so the real price is higher (BitNode 7 and 9
+ *                 charge 2x and 4x): double the guess, instead of starting the helper every tick;
+ *   "4s-disabled" the BitNode options turned 4S off: stop trying for 4S.
+ * Reports from before this run started are ignored.
+ */
+export function absorbAccessResult(ns, access) {
+	let result = null;
+	try { result = JSON.parse(ns.read(ACCESS_RESULT_FILE)); } catch { return; }
+	if (!result || !(result.time > access.lastResult) || result.time < access.startMs) return;
+	access.lastResult = result.time;
+	if (result.what === "4s-poor") {
+		access.factor = learnFactor(access.factor);
+		ns.print(`[stocks] the game refused the 4S purchase at ${formatMoney(ns, result.cash)}; its price here is higher than listed. ` +
+			`Trying again once cash above the reserve covers ${access.factor}x the listed price.`);
+	} else if (result.what === "4s-disabled" && !access.fourSOff) {
+		access.fourSOff = true;
+		notify(ns, "[stocks]", "4S Market Data is turned off in this BitNode's options; estimating from price history.", "info");
+	}
+}
+
 /**
  * Runs the one-shot helper once cash above the reserve covers `cost`: it buys the TIX API if
  * missing, and with `with4S` the 4S Market Data TIX API too.
@@ -408,7 +624,17 @@ function maybeBuyAccess(ns, cost, policy, with4S) {
 	}
 }
 
-function printSummary(ns, symbols, exactOn, stats, promoters) {
+/** While there is no TIX API yet there are no positions; say what the trader is waiting for so status doesn't guess. */
+function postWaiting(ns, what, cost, policy) {
+	ns.clearPort(STOCK_SUMMARY_PORT);
+	ns.writePort(STOCK_SUMMARY_PORT, JSON.stringify({
+		time: Date.now(), mode: "waiting", waitingFor: what, cost, cash: getCash(ns), reserve: policy.reserve,
+		positions: 0, value: 0,
+	}));
+}
+
+function printSummary(ns, symbols, exactOn, session, promoters, extra) {
+	const { stats, meter } = session;
 	let invested = 0;
 	let value = 0;
 	let positions = 0;
@@ -427,16 +653,31 @@ function printSummary(ns, symbols, exactOn, stats, promoters) {
 	}
 	// The game books a buy as money lost until it's sold, so add back what the holdings are worth.
 	const earned = ns.getMoneySources().sinceInstall.stock + value;
+	const figures = meter.snapshot(extra.now, stats);
 	ns.clearPort(STOCK_SUMMARY_PORT);
 	ns.writePort(STOCK_SUMMARY_PORT, JSON.stringify({
 		time: Date.now(), mode: exactOn ? "4S" : "estimating", positions, value, unrealized: value - invested,
 		realized: stats.realized, trades: stats.trades, earned,
+		// How well it is doing, since the window (mode) started: see docs/stocks.md "Measuring it".
+		measure: figures,
+		nextBoundary: extra.ticksLeft, // ticks until the market's next forecast flips (4S only), null while unknown
+		claim: extra.claim, // cash being kept for another buyer (0 when none)
+		reserve: extra.policy.reserve,
 	}));
 	ns.print(
 		`[stocks] ${exactOn ? "4S" : "estimating"} | ${positions} positions, ` +
 		`${formatMoney(ns, value)} (unrealized ${formatMoney(ns, value - invested)}) | ` +
 		`realized this run ${formatMoney(ns, stats.realized)} over ${stats.trades} sells | ` +
 		`stock profit since install ${formatMoney(ns, earned)} | cash ${formatMoney(ns, getCash(ns))}`
+	);
+	ns.print(
+		`[stocks] measure (${ns.format.time(figures.sinceMs)}): ${formatMoney(ns, figures.perHour)}/h = ` +
+		`${ns.format.percent(figures.returnPerHour, 1)}/h of working capital | invested ${ns.format.percent(figures.invested, 0)}, ` +
+		`idle ${ns.format.percent(figures.idle, 0)}, held back ${ns.format.percent(figures.heldBack, 0)} | ` +
+		`max drawdown ${formatMoney(ns, figures.maxDrawdown)} | costs ${formatMoney(ns, figures.costs)} | ` +
+		`drift ${formatMoney(ns, figures.priceGain)}` +
+		(figures.capture === null ? "" : ` vs ${formatMoney(ns, figures.expectedGain)} expected (${ns.format.percent(figures.capture, 0)})`) +
+		(extra.ticksLeft === null ? "" : ` | next flip in ${extra.ticksLeft} ticks`)
 	);
 	// So you can see whether promoting works: volatility of each promoted stock right now.
 	const promoted = Object.entries(promoters).map(
