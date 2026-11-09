@@ -28,6 +28,8 @@ import { clearGates, homeRamReady, homeCoresReady, programsReady, backdoorReady,
 //   ready:            (ns, config) => false leaves it out this time. For a mechanic's manager,
 //                     imported from its folder, so startup.js knows nothing about the mechanic.
 //   earlyIf:          (ns, config) => true starts it at the "early" stage instead of its own (later) one.
+//   first:            wins a tie among due one-shots (none has run yet, as right after a reset), so the
+//                     player starts moving before the purchases and invites get their turn.
 //   needsSF4:         needs the Singularity API (BitNode 4 or Source-File 4). Every script in
 //                     singularity/ counts as this too; without the API they are all left out.
 // Scripts listed in `startupSkip` in the config (config.js, data/config.json) are never started.
@@ -46,11 +48,11 @@ export const SCRIPTS = [
 	// player-work.js (32.5GB) fits nowhere below a 64GB home, so until then this 8.35GB pass (workers up to 12.1GB) moves the
 	// player instead: the free course to studying.hackLevel, the gang invite where a gang only needs that (gang.startInvite),
 	// then an openable port opener, then the best-paying crime for cash.
-	{ stage: "start", until: "early", script: "singularity/player-work-start.js", oneShot: true, every: 60_000, needRam: 12.2 },
+	{ stage: "start", until: "early", script: "singularity/player-work-start.js", oneShot: true, first: true, every: 60_000, needRam: 12.2 },
 	// The one script that moves the player: study to studying.hackLevel, faction work to the real rep
 	// goals, megacorp jobs in the gaps, Tian Di Hui and the wanted city group. A short pass every
 	// minute (the game keeps the work going), until it posts that everything is done.
-	{ stage: "early", script: "singularity/player-work.js", args: ["--once"], oneShot: true, every: 60_000, ready: playerWorkReady },
+	{ stage: "early", script: "singularity/player-work.js", args: ["--once"], oneShot: true, first: true, every: 60_000, ready: playerWorkReady },
 	// Without the Singularity API nothing backdoors or buys programs by itself: this tells you when to, once each.
 	{ stage: "start", script: "tools/reminders.js", oneShot: true, every: 60_000, homeOnly: true, ready: (ns) => !singularityInfo(ns).available },
 	// Mechanics, one folder each. Started only once their ready check says there is work.
@@ -100,6 +102,7 @@ const WHY_FILE = "data/startup-why.txt";
 
 export const CONFIG = {
 	passMs: 10_000,         // time between passes
+	queueMs: 1_000,         // time between passes while one-shots are queued behind a running one (the first minute of a run)
 	restartMinMs: 30_000,   // wait before restarting a script that stopped...
 	restartMaxMs: 3_600_000, // ...doubling each time it stops again soon after starting, up to this
 	longRunMs: 600_000,     // a script that ran this long before stopping gets the short wait again
@@ -174,7 +177,7 @@ export function newStartupState(sf4, restart) {
 	};
 }
 
-/** One pass: pick the stage, then start what should run and isn't. */
+/** One pass: pick the stage, then start what should run and isn't. Returns { queued }: one-shots are waiting for the running one to finish. */
 export function runPass(ns, requested, state) {
 	const config = loadConfig(ns);
 	const homeRam = ns.getServerMaxRam("home");
@@ -236,11 +239,15 @@ export function runPass(ns, requested, state) {
 	// the one that waited longest goes first, so one that is always ready can't starve the rest.
 	const now = Date.now();
 	const shotRunning = running.some((proc) => SCRIPTS.some((entry) => entry.oneShot && entry.script === proc.filename));
-	const due = shotRunning ? [] : wanted.filter((entry) => entry.oneShot &&
+	const dueAll = wanted.filter((entry) => entry.oneShot &&
+		!running.some((proc) => proc.filename === entry.script && sameArgs(proc.args, entry.args ?? [])) &&
 		now - (state.lastShot.get(shotLabel(entry)) ?? 0) >= (entry.every ?? 0) &&
 		(!entry.ready || entry.ready(ns, config)));
+	const due = shotRunning ? [] : dueAll;
 	const nextShot = due.sort((first, second) =>
-		(state.lastShot.get(shotLabel(first)) ?? 0) - (state.lastShot.get(shotLabel(second)) ?? 0))[0];
+		(state.lastShot.get(shotLabel(first)) ?? 0) - (state.lastShot.get(shotLabel(second)) ?? 0) ||
+		Number(Boolean(second.first)) - Number(Boolean(first.first)))[0];
+	let shotStarted = false;
 
 	const started = [], restarted = [], alreadyRunning = [], noRoom = [], missing = [];
 	// The first script (by priority) that could run off home but found no room: room is reserved for it.
@@ -306,6 +313,7 @@ export function runPass(ns, requested, state) {
 		}
 		if (entry.oneShot) {
 			state.lastShot.set(label, now);
+			shotStarted = true;
 			ns.print(`[startup] one-shot ${label}${host === "home" ? "" : ` [on ${host}]`}`);
 			continue;
 		}
@@ -329,6 +337,8 @@ export function runPass(ns, requested, state) {
 	report(ns, state, { stage, homeRam, noSingularity, started, restarted, alreadyRunning, noRoom, missing });
 	state.firstPass = false;
 	state.stage = stage;
+	// A one-shot is in flight and another is due behind it: the caller polls fast until the queue is through.
+	return { queued: (shotRunning || shotStarted) && dueAll.length > (shotStarted ? 1 : 0) };
 }
 
 /** Keeps WHY_FILE up to date (written only when it changes): what could not start and what room is held for it. */

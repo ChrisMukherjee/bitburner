@@ -170,3 +170,27 @@ test("without Singularity nothing in singularity/ starts, at any stage", (t) => 
 	assert.deepEqual(game.names().filter((name) => name.startsWith("singularity/")), []);
 	assert.ok(!game.names().includes("share/share-manager.js"), "needsSF4 scripts too");
 });
+
+test("the first one-shot after a reset is the player's, and the queue behind a running one-shot asks for quick passes", (t) => {
+	const { game, pass } = setup(t, { homeRam: 64, node: 4, sf4: SINGULARITY });
+	const result = pass();
+	const firstEntry = SCRIPTS.find((entry) => entry.script === runningOneShots(game)[0]);
+	assert.ok(firstEntry.first, `${firstEntry.script} is marked first`);
+	assert.equal(result.queued, true, "others are due behind it, so the next pass comes after queueMs");
+	assert.ok(CONFIG.queueMs < CONFIG.passMs);
+	// Once it has exited, the next one starts on the very next (quick) pass and the queue drains.
+	let guard = 0;
+	let last = result;
+	while (last.queued && guard++ < 30) {
+		const running = runningOneShots(game);
+		for (const name of running) game.exit(name);
+		last = pass();
+	}
+	assert.equal(last.queued, false, "nothing left behind the last one");
+});
+
+test("no quick passes when no one-shot is waiting", (t) => {
+	const { game, pass } = setup(t, { homeRam: 8, node: 4, sf4: SINGULARITY });
+	game.ns.write("data/config.json", JSON.stringify({ startupSkip: oneShots.slice(1) }), "w");
+	assert.equal(pass().queued, false);
+});

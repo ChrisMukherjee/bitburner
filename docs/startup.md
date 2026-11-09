@@ -25,6 +25,14 @@
   minute, backdoors every 2 minutes until all are done. Only one one-shot runs at a time, and the one that waited
   longest goes first, so their RAM never stacks up and one that is always ready can't starve the rest. The notes
   are cleared when startup.js starts (after each reset), because programs are lost on an aug install.
+  **A fresh run's queue is drained in seconds.** On a new run every one-shot is due at once and only one runs per
+  pass, so with 10-second passes the last of them (the player's study/crime pass) used to start after 30 to 60 seconds,
+  with the player idle meanwhile. Now `runPass` returns `queued` (a one-shot is in flight and others are due behind it)
+  and the loop sleeps `queueMs` (1 second) instead of `passMs` until the queue is through; it goes back to 10 seconds
+  when nothing is waiting, so a one-shot that cannot start for lack of room never makes it poll. Among one-shots that
+  have never run, those tagged `first` (the player-work passes) go before the purchases and invites, so the player moves
+  first. Rejected: starting several one-shots per pass (their RAM would stack, which is what the one-at-a-time rule
+  prevents) and shortening `passMs` for everything (a ps over every server every second all run long).
   Tradeoff: a one-shot buyer reads the current income each time instead of only moving up during a run, so a dip in
   income can briefly change what it keeps back.
 - **`data/startup-why.txt`** says what could not start and why (no room, missing file, room being kept free), rewritten
