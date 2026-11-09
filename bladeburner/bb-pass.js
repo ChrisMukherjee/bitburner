@@ -1,7 +1,7 @@
 // Design: docs/bladeburner.md
 import { postPass } from "/utils/pass-log.js";
 import { loadConfig } from "/utils/config.js";
-import { pickCity, nextRestShare } from "/bladeburner/picks.js";
+import { pickCity, nextRestShare, scoutTarget } from "/bladeburner/picks.js";
 import { bladeburnerState, postBladeburner, readBladeburner } from "/bladeburner/state.js";
 
 const CONTRACTS = ["Tracking", "Bounty Hunter", "Retirement"];
@@ -32,6 +32,7 @@ export async function main(ns) {
 	if (bladeburnerState(ns) !== "run") return;
 	const bb = ns.bladeburner;
 	if (!bb.inBladeburner()) return;
+	const settings = loadConfig(ns).bladeburner;
 	const [stamina, maxStamina] = bb.getStamina();
 	const ratio = maxStamina > 0 ? stamina / maxStamina : 1;
 	const current = bb.getCurrentAction(); // { type, name } or null
@@ -108,7 +109,15 @@ export async function main(ns) {
 		let chaos = 0;
 		try { chaos = bb.getCityChaos(bb.getCity()); } catch { /* no city yet */ }
 
-		if (pool.length > 0 && spread > 0.15 && safe.length === 0) {
+		// A safe action is being played but a better one is too uncertain to call: scout (Field Analysis) until the ranges settle
+		const scout = settings.fieldAnalysis ? scoutTarget(rows, MIN_CHANCE) : null;
+		if (scout) {
+			done = start(GENERAL, "Field Analysis", `${scout.name} (${Math.round(scout.low * 100)}-${Math.round(scout.high * 100)}% chance) could beat the safe action; the population estimate is too rough to tell`);
+		}
+
+		if (done) {
+			// scouting this pass
+		} else if (pool.length > 0 && spread > 0.15 && safe.length === 0) {
 			done = start(GENERAL, "Field Analysis", `estimates too fuzzy to trust (up to ${Math.round(spread * 100)} points wide) and nothing is clearly safe yet`);
 		} else if (pool.length > 0) {
 			const best = pool[0];
@@ -135,7 +144,7 @@ export async function main(ns) {
 
 	// 4. The city: population and chaos change every chance (bladeburner/picks.js), so play where they are best. Done last, because
 	// the readings above belong to the city they were taken in; the next pass reads the new one.
-	if (actions && loadConfig(ns).bladeburner.switchCity) {
+	if (actions && settings.switchCity) {
 		const move = pickCity(actions);
 		if (move && bb.switchCity(move.city)) notes.unshift(`moved to ${move.city}: about ${Math.round(move.gain * 100)}% more rank per second (needs ${Math.round(move.needed * 100)}% to beat the estimate noise)`);
 	}

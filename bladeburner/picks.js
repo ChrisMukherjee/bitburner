@@ -155,3 +155,25 @@ export function nextRestShare(previous, resting) {
 	const before = Number.isFinite(previous) ? previous : REST_DEFAULT;
 	return before + 0.02 * ((resting ? 1 : 0) - before);
 }
+
+/**
+ * The action worth scouting for: a Field Analysis tightens the population estimate of the current city, and with it the
+ * chance ranges. Worth doing when an action that isn't safe by its pessimistic chance (`low` under `minChance`) has an
+ * expected rank per second above the best safe action's and could still turn out safe (its `high` reaches `minChance`).
+ * As the estimate converges the range narrows until the action is either safe or clearly not, so the scouting stops by
+ * itself. With no safe action at all the caller already analyses.
+ * @param {{ low: number, high: number, middle: number, gain: number, secs?: number, seconds?: number, count?: number }[]} rows
+ * @param {number} minChance  the pessimistic chance an action needs to count as safe
+ */
+export function scoutTarget(rows, minChance) {
+	const live = rows.filter((row) => row.count === undefined || row.count >= 1);
+	const rate = (row, chance) => (chance * row.gain) / Math.max(1, row.secs ?? row.seconds ?? 1);
+	const safe = live.filter((row) => row.low >= minChance);
+	if (safe.length === 0) return null;
+	const bar = Math.max(...safe.map((row) => rate(row, row.middle)));
+	for (const row of live) {
+		if (row.low >= minChance) continue;
+		if (row.high >= minChance && rate(row, row.middle) > bar) return row;
+	}
+	return null;
+}

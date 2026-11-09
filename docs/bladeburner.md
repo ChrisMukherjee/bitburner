@@ -55,6 +55,12 @@ Both are computed from the live readings `bb-pass.js` posts (`actions` on the po
   played (with the cap at 1) beats the noise of its own estimates (the width of their ranges) plus 5 points, so a small
   difference never makes it hop. It moves at the end of a pass, since the readings belong to the city they were taken in.
   `bladeburner.switchCity: false` keeps the starting city.
+- **Scouting.** While a safe action is played, a better one can be too uncertain to call (ranges like 7-95% when the
+  population estimate is far off). `bb-pass.js` then runs Field Analysis (30 s, no stamina, improves the current city's
+  population estimate by a couple of percent each) when an action that isn't safe yet has a higher expected rank rate than the best safe one
+  and could still turn out safe (`scoutTarget`); as the estimate converges the action becomes safe or clearly not, and it stops.
+  Without this it only analysed when nothing was safe, so a barely safe contract could be played for hours beside a
+  far better operation. `bladeburner.fieldAnalysis: false` restores that.
 - **Not done:** Recruitment and team assignment. They need three more API calls and risk casualties for about
   `(team + 1) ^ 0.05` on operations, so the gain per RAM is small.
 

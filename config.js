@@ -363,8 +363,9 @@ export const DEFAULTS = {
 	// adaptiveSkills: skill points go where the live readings say they add the most rank per hour (success chance until it
 	// is capped, Cyber's Edge or Overclock depending on how much of the time is spent resting, Reaper, Evasive System);
 	// false = the fixed tiers (Overclock to 90 first). switchCity: play in the city whose population and chaos give the best
-	// chances, when the gain beats the noise of the estimates; false = stay in the starting city.
-	bladeburner: { route: "combat", stanekFirst: false, adaptiveSkills: true, switchCity: true },
+	// chances, when the gain beats the noise of the estimates; false = stay in the starting city. fieldAnalysis: while a safe
+	// action is played, scout (Field Analysis) when a better one is too uncertain to call; false = only when nothing is safe.
+	bladeburner: { route: "combat", stanekFirst: false, adaptiveSkills: true, switchCity: true, fieldAnalysis: true },
 
 	// Go bot (go/go-bot.js, go/go-plan.js). rotation: the order it moves on to once the focus opponent's bonus
 	// levels off. planAware: opponents in `boosts` jump the queue while the plan uses their bonus (Bladeburner running ->

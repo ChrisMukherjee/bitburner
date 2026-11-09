@@ -405,7 +405,7 @@ test("DONATE_REP is the cumulative rep at 150 favour", () => {
 });
 
 // ---- adaptive skills and city choice (bladeburner/picks.js)
-import { chanceGain, topRows, skillValues, pickSkill, cityFactor, pickCity, nextRestShare, SKILL_NAMES } from "/bladeburner/picks.js";
+import { chanceGain, topRows, skillValues, pickSkill, cityFactor, pickCity, nextRestShare, scoutTarget, SKILL_NAMES } from "/bladeburner/picks.js";
 import { main as play } from "/bladeburner/bb-pass.js";
 
 const SKILLS_AT = { hacking: 100, strength: 200, defense: 200, dexterity: 200, agility: 200, charisma: 50, intelligence: 1 };
@@ -514,7 +514,7 @@ test("nextRestShare moves slowly toward the latest pass", () => {
 });
 
 /** bb-pass.js on a player in `city` with the given population and chaos per city. */
-function pass({ city = "Sector-12", cities, files = {}, current = null, stamina = [100, 100] } = {}) {
+function pass({ city = "Sector-12", cities, files = {}, current = null, stamina = [100, 100], chances = {}, gains = {}, seconds = {} } = {}) {
 	const moved = [];
 	let here = city;
 	const ns = fakeNs({
@@ -529,9 +529,9 @@ function pass({ city = "Sector-12", cities, files = {}, current = null, stamina 
 				getCurrentAction: () => current,
 				getRank: () => 50,
 				getNextBlackOp: () => ({ name: "Operation Typhoon", rank: 2500 }),
-				getActionEstimatedSuccessChance: () => [0.38, 0.42],
-				getActionRankGain: () => 1,
-				getActionTime: () => 10_000,
+				getActionEstimatedSuccessChance: (type, name) => chances[name] ?? [0.38, 0.42],
+				getActionRankGain: (type, name) => gains[name] ?? 1,
+				getActionTime: (type, name) => (seconds[name] ?? 10) * 1000,
 				getActionCurrentLevel: () => 1,
 				getActionMaxLevel: () => 1,
 				getActionCountRemaining: () => 5,
@@ -603,4 +603,30 @@ test("fitIncomeExponent: a falling income is not reliable (negative slope)", () 
 	const fit = fitIncomeExponent([1, 1.5, 2, 3].map((mult, i) => ({ mult, income: 1e6 / (1 + i * 3) })));
 	assert.equal(fit.reliable, false);
 	assert.equal(fit.exponent, 0, "clamped at zero");
+});
+
+// ---- scouting with Field Analysis
+const srow = (name, low, high, gain, secs) => ({ name, low, high, middle: (low + high) / 2, gain, secs, count: 3 });
+
+test("scoutTarget: scouts when an unsure action's range straddles the best safe one, and not otherwise", () => {
+	const safe = srow("Tracking", 0.8, 0.9, 0.3, 10);                       // 0.0255 rank/s
+	assert.equal(scoutTarget([safe, srow("Raid", 0.07, 0.95, 55, 66)], 0.6).name, "Raid", "a 7-95% range around a far better action");
+	assert.equal(scoutTarget([safe, srow("Raid", 0.5, 0.52, 55, 66)], 0.6), null, "range narrow and under the safe bar: it is simply not safe");
+	assert.equal(scoutTarget([safe, srow("Sting", 0.05, 0.4, 0.1, 100)], 0.6), null, "even its best case is under the safe bar");
+	assert.equal(scoutTarget([safe, srow("Sting", 0.3, 0.9, 0.1, 100)], 0.6), null, "uncertain, but its expected rate is below the safe action's");
+	assert.equal(scoutTarget([srow("Raid", 0.07, 0.95, 55, 66)], 0.6), null, "nothing safe: the caller already analyses");
+	assert.equal(scoutTarget([safe, { ...srow("Raid", 0.07, 0.95, 55, 66), count: 0 }], 0.6), null, "none left to run");
+	assert.equal(scoutTarget([safe, srow("Raid", 0.65, 0.95, 55, 66)], 0.6), null, "already safe by its low estimate");
+});
+
+test("bb-pass: scouts with Field Analysis while a better action is too uncertain; the config switch turns it off", async () => {
+	const cities = [{ name: "Sector-12", pop: 1e9, chaos: 0 }];
+	const setup = { cities, chances: { Tracking: [0.8, 0.9], Raid: [0.07, 0.95] }, gains: { Tracking: 0.3, Raid: 55 }, seconds: { Tracking: 10, Raid: 66 } };
+	const on = pass(setup);
+	await play(on.ns);
+	assert.deepEqual(on.ns.called("bladeburner.startAction").at(-1), ["General", "Field Analysis"]);
+	const off = pass({ ...setup, files: { "data/config.json": JSON.stringify({ bladeburner: { fieldAnalysis: false } }) } });
+	await play(off.ns);
+	assert.deepEqual(off.ns.called("bladeburner.startAction").at(-1), ["Contracts", "Tracking"]);
+	assert.equal(loadConfig(fakeNs({})).bladeburner.fieldAnalysis, true, "on by default");
 });
