@@ -7,9 +7,10 @@ import { notify } from "/utils/notify.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
 import { joiningClosesGift } from "/utils/stanek.js";
 import { bladeburnerPlan, postBladeburner, readBladeburner, trainFloor } from "/bladeburner/state.js";
+import { SKILL_NAMES, skillValues, pickSkill } from "/bladeburner/picks.js";
 
-// Skill tiers, cheapest first within a tier: Overclock (shorter actions = more rank per hour), the success-chance
-// skills, Cyber's Edge (stamina), Hyperdrive (exp).
+// Legacy skill tiers (`bladeburner.adaptiveSkills: false`, or no live readings yet), cheapest first within a tier: Overclock
+// (shorter actions = more rank per hour), the success-chance skills, Cyber's Edge (stamina), Hyperdrive (exp).
 const TIERS = [["Overclock"], ["Blade's Intuition", "Digital Observer", "Tracer", "Cloak", "Short-Circuit"], ["Cyber's Edge"], ["Hyperdrive"]];
 const OVERCLOCK_MAX = 90;
 const HACK_FLOOR = 10;           // before this the batcher has almost nothing to hack and programs/TOR are out of reach
@@ -93,7 +94,32 @@ export async function main(ns) {
 		return setState("hold", "hold: not worth the player's time right now");
 	}
 	setState("run");
-	spendSkillPoints(bb);
+	const post = readBladeburner(ns);
+	if (!(config.bladeburner.adaptiveSkills && spendAdaptive(bb, post))) spendSkillPoints(bb);
+}
+
+/**
+ * Buys the skill with the most rank-rate gain per point, from the live readings (bladeburner/picks.js: success chance
+ * where it isn't capped yet, Overclock only while the player isn't resting for stamina, Cyber's Edge only while it is,
+ * Reaper and Evasive System through the combat stats). Waits for points when the best one costs more than is in hand.
+ * Returns false when there are no readings yet, so the caller uses the fixed tiers.
+ */
+function spendAdaptive(bb, post) {
+	if (!post.actions || !Array.isArray(post.actions.rows) || post.actions.rows.length === 0) return false;
+	const levels = {};
+	for (const name of SKILL_NAMES) levels[name] = bb.getSkillLevel(name);
+	const values = skillValues(post.actions, levels, post.restShare);
+	let points = bb.getSkillPoints();
+	for (let guard = 0; guard < 100; guard++) {
+		const costs = {};
+		for (const name of SKILL_NAMES) costs[name] = name === "Overclock" && levels[name] >= OVERCLOCK_MAX ? Infinity : bb.getSkillUpgradeCost(name, 1);
+		const pick = pickSkill(costs, values);
+		if (!pick || pick.cost > points || !bb.upgradeSkill(pick.name, 1)) break;
+		points -= pick.cost;
+		levels[pick.name]++;
+		Object.assign(values, skillValues(post.actions, levels, post.restShare));
+	}
+	return true;
 }
 
 /** Says once per BitNode why the division waits for Stanek's Gift and how to go on (kept on port 36 as `giftNotice`). */

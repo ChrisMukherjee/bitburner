@@ -403,3 +403,174 @@ test("incomeNeeded is a power of two and 1 when the plan already works", () => {
 test("DONATE_REP is the cumulative rep at 150 favour", () => {
 	assert.ok(DONATE_REP > 4e5 && DONATE_REP < 5e5);
 });
+
+// ---- adaptive skills and city choice (bladeburner/picks.js)
+import { chanceGain, topRows, skillValues, pickSkill, cityFactor, pickCity, nextRestShare, SKILL_NAMES } from "/bladeburner/picks.js";
+import { main as play } from "/bladeburner/bb-pass.js";
+
+const SKILLS_AT = { hacking: 100, strength: 200, defense: 200, dexterity: 200, agility: 200, charisma: 50, intelligence: 1 };
+const row = (type, name, chance, extra = {}) => ({ type, name, chance, lo: chance - 0.02, hi: chance + 0.02, gain: 1, secs: 10, level: 1, maxLevel: 1, count: 5, ...extra });
+const readings = (chance, extra = {}) => ({
+	lv: SKILLS_AT, city: "Sector-12",
+	rows: [row("Contracts", "Tracking", chance), row("Operations", "Investigation", chance * (chance >= 1 ? 1 : 0.9)), row("Contracts", "Bounty Hunter", chance * (chance >= 1 ? 1 : 0.8))],
+	cities: [{ name: "Sector-12", pop: 1e9, chaos: 0 }], ...extra,
+});
+
+test("chanceGain: a boost is worth nothing once the chance is capped at 1", () => {
+	assert.ok(Math.abs(chanceGain(0.5, 0.1) - 0.1) < 1e-9);
+	assert.ok(Math.abs(chanceGain(0.95, 0.1) - (1 / 0.95 - 1)) < 1e-9, "only up to the cap");
+	assert.equal(chanceGain(1, 0.5), 0);
+	assert.equal(chanceGain(0.5, 0), 0);
+	assert.equal(chanceGain(0, 0.2), 0.2);
+});
+
+test("skillValues: chance skills fade as the chance caps, and Reaper and Evasive System count", () => {
+	const low = skillValues(readings(0.5), {}, 0.5);
+	const capped = skillValues(readings(1), {}, 0.5);
+	for (const name of ["Blade's Intuition", "Tracer", "Digital Observer", "Reaper", "Evasive System"]) {
+		assert.ok(low[name] > 0, `${name} helps at 50%`);
+		assert.equal(capped[name], 0, `${name} is worth nothing at 100%`);
+	}
+	assert.ok(low["Evasive System"] < low["Tracer"] * 2 && low["Reaper"] > 0);
+	assert.ok(skillValues(readings(0.5), { Tracer: 10 }, 0.5)["Tracer"] < low["Tracer"], "each level is worth less than the one before");
+});
+
+test("skillValues: Overclock matters when the player isn't resting, Cyber's Edge when they are", () => {
+	const fresh = skillValues(readings(0.8), {}, 0.05);
+	const tired = skillValues(readings(0.8), {}, 0.9);
+	assert.ok(fresh["Overclock"] > tired["Overclock"]);
+	assert.ok(tired["Cyber's Edge"] > fresh["Cyber's Edge"]);
+	assert.ok(tired["Cyber's Edge"] > tired["Overclock"] * 10);
+});
+
+test("pickSkill: best gain per point, not the first tier; unbuyable skills are skipped", () => {
+	const values = skillValues(readings(0.5), {}, 0.5);
+	const costs = Object.fromEntries(SKILL_NAMES.map((name) => [name, 3]));
+	costs["Overclock"] = 3;
+	costs["Tracer"] = 2;
+	assert.equal(pickSkill(costs, values).name, "Tracer", "a cheap chance skill beats Overclock");
+	costs["Tracer"] = Infinity;
+	assert.notEqual(pickSkill(costs, values)?.name, "Tracer");
+	assert.equal(pickSkill(Object.fromEntries(SKILL_NAMES.map((name) => [name, Infinity])), values), null);
+	assert.equal(topRows({ rows: [{ chance: NaN }] }).length, 0, "junk rows are ignored");
+});
+
+test("bb-manage: with readings the points go to the best skill, not Overclock first", async () => {
+	const costs = { Overclock: 3, Tracer: 2, "Blade's Intuition": 3, "Digital Observer": 2, Reaper: 2, "Evasive System": 2, "Cyber's Edge": 1, Hyperdrive: 1, Cloak: 2, "Short-Circuit": 2 };
+	const w = world({ points: 6, costs, post: { actions: readings(0.5), restShare: 0.6 } });
+	await manage(w.ns);
+	assert.ok(w.bought.length > 0);
+	assert.ok(!w.bought.includes("Overclock"), `bought ${w.bought.join(", ")}`);
+	const capped = world({ points: 1, costs, post: { actions: readings(1), restShare: 0.9 } });
+	await manage(capped.ns);
+	assert.deepEqual(capped.bought, ["Cyber's Edge"], "with every chance capped and a lot of resting, stamina is the one that pays");
+});
+
+test("bb-manage: waits for points rather than buying a lesser skill ahead of the best one", async () => {
+	const costs = { Overclock: 3, Tracer: 5, "Blade's Intuition": 50, "Digital Observer": 50, Reaper: 50, "Evasive System": 50, "Cyber's Edge": 50, Hyperdrive: 50, Cloak: 50, "Short-Circuit": 50 };
+	const w = world({ points: 3, costs, overclock: 0, post: { actions: readings(0.5, { rows: [row("Contracts", "Tracking", 0.5)] }), restShare: 0.1 } });
+	await manage(w.ns);
+	assert.deepEqual(w.bought, [], "Tracer is the best buy and costs 5");
+});
+
+test("bladeburner.adaptiveSkills false keeps the fixed tiers even with readings", async () => {
+	const costs = { Overclock: 3, Tracer: 2 };
+	const w = world({ points: 4, costs, files: { "data/config.json": JSON.stringify({ bladeburner: { adaptiveSkills: false } }) }, post: { actions: readings(0.5) } });
+	await manage(w.ns);
+	assert.equal(w.bought[0], "Overclock");
+	assert.equal(loadConfig(fakeNs({})).bladeburner.adaptiveSkills, true, "on by default");
+	assert.equal(loadConfig(fakeNs({})).bladeburner.switchCity, true);
+});
+
+test("cityFactor: population to the 0.7, less chaos above 50", () => {
+	assert.equal(cityFactor({ pop: 1e9, chaos: 0 }), 1);
+	assert.ok(Math.abs(cityFactor({ pop: 2e9, chaos: 0 }) - 2 ** 0.7) < 1e-9);
+	assert.equal(cityFactor({ pop: 1e9, chaos: 40 }), 1, "no penalty up to chaos 50");
+	assert.ok(Math.abs(cityFactor({ pop: 1e9, chaos: 74 }) - 1 / 5) < 1e-9, "sqrt(1 + 24) = 5");
+	assert.equal(cityFactor({ pop: 0 }), 0);
+	assert.equal(cityFactor(undefined), 0);
+});
+
+test("pickCity: moves for a clear gain, stays for a small one, a capped chance, or noisy estimates", () => {
+	const cities = [{ name: "Sector-12", pop: 0.8e9, chaos: 0 }, { name: "Aevum", pop: 1.6e9, chaos: 0 }, { name: "Volhaven", pop: 0.9e9, chaos: 0 }];
+	const move = pickCity(readings(0.4, { cities }));
+	assert.equal(move.city, "Aevum");
+	assert.ok(move.gain > move.needed);
+	assert.equal(pickCity(readings(0.4, { cities: [cities[0], { name: "Ishima", pop: 0.85e9, chaos: 0 }] })), null, "a few percent is inside the noise");
+	assert.equal(pickCity(readings(1, { cities })), null, "already succeeds every time");
+	const noisy = readings(0.4, { cities });
+	noisy.rows = noisy.rows.map((r) => ({ ...r, lo: r.chance - 0.5, hi: r.chance + 0.5 }));
+	assert.equal(pickCity(noisy), null, "estimates too wide to trust the populations");
+	const chaotic = readings(0.4, { cities: [{ name: "Sector-12", pop: 1e9, chaos: 80 }, { name: "Aevum", pop: 1e9, chaos: 0 }] });
+	assert.equal(pickCity(chaotic).city, "Aevum", "chaos in the current city makes another one better");
+	assert.equal(pickCity({ rows: [], cities, city: "Sector-12" }), null);
+	assert.equal(pickCity({}), null);
+});
+
+test("nextRestShare moves slowly toward the latest pass", () => {
+	assert.equal(nextRestShare(undefined, false), 0.5 - 0.01);
+	assert.ok(nextRestShare(0.5, true) > 0.5 && nextRestShare(0.5, true) < 0.52);
+	assert.equal(nextRestShare(0, false), 0);
+});
+
+/** bb-pass.js on a player in `city` with the given population and chaos per city. */
+function pass({ city = "Sector-12", cities, files = {}, current = null, stamina = [100, 100] } = {}) {
+	const moved = [];
+	let here = city;
+	const ns = fakeNs({
+		files,
+		ports: { [BB_PORT]: { state: "run", stateTime: Date.now() } },
+		overrides: {
+			getScriptName: () => "bladeburner/bb-pass.js",
+			getPlayer: () => ({ skills: SKILLS_AT }),
+			bladeburner: {
+				inBladeburner: () => true,
+				getStamina: () => stamina,
+				getCurrentAction: () => current,
+				getRank: () => 50,
+				getNextBlackOp: () => ({ name: "Operation Typhoon", rank: 2500 }),
+				getActionEstimatedSuccessChance: () => [0.38, 0.42],
+				getActionRankGain: () => 1,
+				getActionTime: () => 10_000,
+				getActionCurrentLevel: () => 1,
+				getActionMaxLevel: () => 1,
+				getActionCountRemaining: () => 5,
+				getCityChaos: (name) => cities.find((c) => c.name === (name ?? here)).chaos,
+				getCityEstimatedPopulation: (name) => cities.find((c) => c.name === name).pop,
+				getCity: () => here,
+				startAction: () => true,
+				switchCity: (name) => { moved.push(name); here = name; return true; },
+			},
+		},
+	});
+	return { ns, moved };
+}
+
+test("bb-pass: plays in the better city and says so; the config switch turns it off", async () => {
+	const cities = [{ name: "Sector-12", pop: 0.8e9, chaos: 0 }, { name: "Aevum", pop: 1.8e9, chaos: 0 }];
+	const on = pass({ cities });
+	await play(on.ns);
+	assert.deepEqual(on.moved, ["Aevum"]);
+	assert.match(on.ns.portJson(BB_PORT).lines.join("\n"), /moved to Aevum/);
+	const off = pass({ cities, files: { "data/config.json": JSON.stringify({ bladeburner: { switchCity: false } }) } });
+	await play(off.ns);
+	assert.deepEqual(off.moved, []);
+});
+
+test("bb-pass: stays when the current city is already the best", async () => {
+	const cities = [{ name: "Sector-12", pop: 1.8e9, chaos: 0 }, { name: "Aevum", pop: 0.8e9, chaos: 0 }];
+	const here = pass({ cities });
+	await play(here.ns);
+	assert.deepEqual(here.moved, []);
+});
+
+test("bb-pass: posts how much of the time it spends resting", async () => {
+	const cities = [{ name: "Sector-12", pop: 1e9, chaos: 0 }];
+	const tired = pass({ cities, stamina: [20, 100], current: { type: "General", name: "Hyperbolic Regeneration Chamber" } });
+	tired.ns.ports[BB_PORT] = JSON.stringify({ state: "run", stateTime: Date.now(), restShare: 0.5 });
+	await play(tired.ns);
+	assert.ok(tired.ns.portJson(BB_PORT).restShare > 0.5, "resting pushes the share up");
+	const fresh = pass({ cities });
+	await play(fresh.ns);
+	assert.ok(fresh.ns.portJson(BB_PORT).restShare < 0.5);
+});

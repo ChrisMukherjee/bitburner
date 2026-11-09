@@ -1,5 +1,7 @@
 // Design: docs/bladeburner.md
 import { postPass } from "/utils/pass-log.js";
+import { loadConfig } from "/utils/config.js";
+import { pickCity, nextRestShare } from "/bladeburner/picks.js";
 import { bladeburnerState, postBladeburner, readBladeburner } from "/bladeburner/state.js";
 
 const CONTRACTS = ["Tracking", "Bounty Hunter", "Retirement"];
@@ -131,6 +133,13 @@ export async function main(ns) {
 		}
 	}
 
+	// 4. The city: population and chaos change every chance (bladeburner/picks.js), so play where they are best. Done last, because
+	// the readings above belong to the city they were taken in; the next pass reads the new one.
+	if (actions && loadConfig(ns).bladeburner.switchCity) {
+		const move = pickCity(actions);
+		if (move && bb.switchCity(move.city)) notes.unshift(`moved to ${move.city}: about ${Math.round(move.gain * 100)}% more rank per second (needs ${Math.round(move.needed * 100)}% to beat the estimate noise)`);
+	}
+
 	// Rank per hour, measured over this run (the samples survive on port 36 and are dropped when the rank falls: a new run)
 	const now = Date.now();
 	const samples = (readBladeburner(ns).rank ?? []).filter((sample) => now - sample.t < RANK_WINDOW_MS && sample.rank <= rank);
@@ -141,7 +150,9 @@ export async function main(ns) {
 		`next Black Op: ${next ? `${next.name} at rank ${next.rank}` : "all done"}`;
 	postPass(ns, ns.getScriptName(), [summary, ...notes.slice(0, 3)]);
 	const now2 = bb.getCurrentAction(); // what is running after this pass, for the "Doing:" line of tools/status.js
-	postBladeburner(ns, { script: ns.getScriptName(), action: now2 ? { type: now2.type, name: now2.name, time: now } : null, lines: [summary, ...notes.slice(0, 3)], rank: samples, ...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(actions ? { actions } : {}) });
+	// Share of passes spent resting for stamina: tells bb-manage.js whether Cyber's Edge or Overclock is worth the points
+	const restShare = nextRestShare(readBladeburner(ns).restShare, !!now2 && now2.name === "Hyperbolic Regeneration Chamber");
+	postBladeburner(ns, { restShare, script: ns.getScriptName(), action: now2 ? { type: now2.type, name: now2.name, time: now } : null, lines: [summary, ...notes.slice(0, 3)], rank: samples, ...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(actions ? { actions } : {}) });
 }
 
 /** Live readings the route estimate scales to other skill levels with the game's formulas. */

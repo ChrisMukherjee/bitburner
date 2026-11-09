@@ -24,7 +24,7 @@ A state older than 15 minutes counts as `off`, so a stopped manager can't hold t
   `bb-pass.js` would cancel it back 30 s later. So the gym is a step in player-work (which already owns
   study, factions and crimes), `run` makes player-work start nothing, and no second script touches the player.
 - **State on a port, not files.** The original used files copied between servers. A port works from any server,
-  so the one-shots can run wherever there is room (`bb-pass.js` is 53GB). One shared object (state, route
+  so the one-shots can run wherever there is room (`bb-pass.js` is 57GB). One shared object (state, route
   estimate, rank samples, status lines) is patched by whichever one-shot runs; startup.js runs one-shots one at
   a time, so read-modify-write is safe.
 - **One-shot passes.** The game keeps repeating the action between passes, so a pass only changes it when needed;
@@ -33,6 +33,30 @@ A state older than 15 minutes counts as `off`, so a stopped manager can't hold t
   config decides (`"combat"` by default, `"hacking"` holds Bladeburner), so the choice can be made by hand.
 - **Never "done".** player-work never reports done while the API is usable, since the manager may ask for the
   gym or the whole player later in the run.
+
+## Skill points and the city
+
+Both are computed from the live readings `bb-pass.js` posts (`actions` on the port), by the pure functions in
+[`../bladeburner/picks.js`](../bladeburner/picks.js); the numbers are the game's own (v3.0.0 skill data and
+`Action.getSuccessChance`), not a per-player table.
+
+- **Skills.** The original bought Overclock up to level 90 (about 5,900 points) before any other skill, so the
+  success-chance skills, Cyber's Edge and Hyperdrive got nothing for a long time, and Reaper and Evasive System were
+  never bought. Now each skill is valued by the rank-rate gain of its next level (additive per level, so each level is
+  worth less) and the best gain per point is bought; if it costs more than the points in hand the manager waits rather
+  than buy a lesser one. Chance skills count only where the chance is not capped at 1; Reaper and Evasive System act
+  through the combat stats each action weighs; Overclock (shorter actions) counts for the share of the time the player is
+  not resting for stamina, Cyber's Edge for the share it is (`restShare`, a moving average `bb-pass.js` keeps);
+  Hyperdrive for the chance left to gain. Rejected: a fixed order (it was the problem), and weighing by measured rank
+  per hour (too slow and noisy to steer individual purchases). Before the first readings, or with
+  `bladeburner.adaptiveSkills: false`, the old fixed tiers apply.
+- **City.** A city's population multiplies the chance by `(pop / 1e9) ^ 0.7` and chaos above 50 divides it by
+  `sqrt(1 + chaos - 50)`. `bb-pass.js` moves to the city that gives the best chance when the gain on the actions being
+  played (with the cap at 1) beats the noise of its own estimates (the width of their ranges) plus 5 points, so a small
+  difference never makes it hop. It moves at the end of a pass, since the readings belong to the city they were taken in.
+  `bladeburner.switchCity: false` keeps the starting city.
+- **Not done:** Recruitment and team assignment. They need three more API calls and risk casualties for about
+  `(team + 1) ^ 0.05` on operations, so the gain per RAM is small.
 
 ## Stanek's Gift first
 
