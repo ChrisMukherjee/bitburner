@@ -1,10 +1,12 @@
 // Design: docs/darknet.md
 import { notify } from "/utils/notify.js";
 import { loadConfig } from "/utils/config.js";
+import { decideStorm } from "darknet/storm-rule.js";
 import { candidatePasswords } from "darknet/hint-interpreter.js";
 import {
 	REPORT_PORT, CRAWLER_SCRIPT, PHISH_SCRIPT, STASIS_SCRIPT, MIGRATE_SCRIPT, MIGRATE, MIGRATE_TARGET_FILE,
 	CRAWLER_FILES, PASSWORD_FILE, STASIS_TARGET_FILE, MAP_FILE, HOME_PASSWORD_FILE, MODEL_SUMMARY_FILE,
+	STORM, STORM_TARGET_FILE,
 } from "darknet/config.js";
 
 const RESEED_INTERVAL = 10000; // ms between checks that the crawler is still alive on darkweb
@@ -19,6 +21,8 @@ const RETRY_WINDOW = 10 * 60 * 1000; // ms of crawler skips (timeouts, moved, of
 //   --recon        keep running and mapping, but don't earn
 //   --no-stasis    don't apply stasis links
 //   --no-migrate   don't push servers to move when mapping stalls (see manageMigration)
+// A STORM_SEED.exe found on an opened server is unleashed when the darknet has run dry (see manageStorm);
+// darknet.storm.enabled: false in data/config.json turns that off (the status line still says what it would do).
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
@@ -42,10 +46,13 @@ export async function main(ns) {
 	const passwords = loadJson(ns, HOME_PASSWORD_FILE);
 	// Phishing and cache money land in the "darknet" money source; we measure income from where it started.
 	const earnings = { phish: 0, caches: 0, startMoney: darknetMoney(ns), startTime: Date.now(), retries: [] };
+	earnings.storm = newStormState(map, passwords);
 	const unsolved = {};
 	const port = ns.getPortHandle(REPORT_PORT);
 	if (!ns.fileExists(STASIS_TARGET_FILE, "home")) ns.write(STASIS_TARGET_FILE, "[]", "w");
 	ns.write(MIGRATE_TARGET_FILE, "[]", "w"); // pushing restarts from "map not stalled yet" on every start
+	ns.write(STORM_TARGET_FILE, "{}", "w"); // no standing storm order
+	const stormEnabled = loadConfig(ns).darknet?.storm?.enabled !== false;
 
 	restartCrawlers(ns, map, passwords);
 	await seed(ns, passwords, earn, stasis, migrate);
@@ -61,6 +68,7 @@ export async function main(ns) {
 		writeOutputs(ns, { map, passwords, earnings, unsolved });
 		if (stasis) stasisTargets = manageStasis(ns, { map, passwords, earnings }, stasisTargets);
 		if (migrate) manageMigration(ns, { map, passwords, earnings }, Date.now());
+		if (earn) manageStorm(ns, { map, passwords, earnings, unsolved }, Date.now(), stormEnabled);
 
 		if (flags.once && port.empty()) break;
 		if (!flags.once && Date.now() - lastReseed > RESEED_INTERVAL) {
@@ -128,7 +136,7 @@ async function seed(ns, passwords, earn, stasis, migrate) {
 	ns.write(PASSWORD_FILE, JSON.stringify(passwords), "w");
 	// Free darkweb's blocked RAM here, as crawlers do for the neighbours they open, so its worker has more.
 	if (earn && ns.dnet.getBlockedRam("darkweb") > 0) await ns.dnet.memoryReallocation("darkweb");
-	if (ns.scp(CRAWLER_FILES.concat(PASSWORD_FILE, STASIS_TARGET_FILE, MIGRATE_TARGET_FILE), "darkweb", "home") &&
+	if (ns.scp(CRAWLER_FILES.concat(PASSWORD_FILE, STASIS_TARGET_FILE, MIGRATE_TARGET_FILE, STORM_TARGET_FILE), "darkweb", "home") &&
 		!runningOn(ns, CRAWLER_SCRIPT, "darkweb")) {
 		if (!ns.exec(CRAWLER_SCRIPT, "darkweb", 1, earn ? 1 : 0, stasis ? 1 : 0, migrate ? 1 : 0)) {
 			const free = ns.getServerMaxRam("darkweb") - ns.getServerUsedRam("darkweb");
@@ -223,6 +231,69 @@ export function manageMigration(ns, { map, passwords, earnings }, now) {
 	return targets;
 }
 
+/**
+ * Watch for STORM_SEED.exe and decide when to unleash it (storm-rule.js has the rule). Keeps an income history
+ * (a sample every STORM.sampleMs) and a log of discoveries (a new server or password) in earnings.storm. When the
+ * rule says yes, the order {host, at} goes to every opened server and the crawler on the seed's host runs it.
+ * With `enabled` false the rule is still evaluated, so the status line shows what it would do. Returns the decision.
+ */
+export function manageStorm(ns, { map, passwords, earnings, unsolved }, now, enabled = true) {
+	const state = earnings.storm ??= newStormState(map, passwords);
+	state.enabled = enabled;
+	const servers = Object.keys(map).length, known = Object.keys(passwords).length;
+	for (let i = state.servers; i < servers; i++) state.discoveries.push(now);
+	for (let i = state.known; i < known; i++) state.discoveries.push(now);
+	state.servers = servers;
+	state.known = known;
+	if (state.discoveries.length > 200) state.discoveries.splice(0, state.discoveries.length - 200);
+	if (state.seedHost && !map[state.seedHost]) state.seedHost = null; // that server is gone, and the file with it
+
+	// Live RAM picture of the opened servers: what is still blocked, what is usable, and what a storm could delete
+	// (servers that are neither stasis-linked nor stationary).
+	const opened = Object.keys(map).filter((host) => passwords[host] !== undefined && host !== "home");
+	const linked = ns.dnet.getStasisLinkedServers();
+	let ram = 0, blocked = 0, atRiskRam = 0;
+	for (const host of opened) {
+		const max = map[host].maxRam || 0;
+		ram += max;
+		if (!linked.includes(host) && !map[host].isStationary) atRiskRam += max;
+		try { blocked += Math.min(max, ns.dnet.getBlockedRam(host)); } catch { /* went offline */ }
+	}
+
+	if (now - state.lastSample >= STORM.sampleMs) {
+		state.lastSample = now;
+		state.samples.push({ t: now, money: darknetMoney(ns), blocked, usable: ram - blocked });
+		const oldest = now - STORM.historyMs - STORM.rateWindowMs;
+		while (state.samples.length > 2 && state.samples[0].t < oldest) state.samples.shift();
+	}
+
+	state.decision = decideStorm({
+		now, startedAt: earnings.startTime, lastStorm: state.lastStorm, seedHost: state.seedHost,
+		samples: state.samples, discoveries: state.discoveries,
+		pending: Object.keys(map).filter((host) => passwords[host] === undefined && !unsolved[host]).length,
+		blockedGb: blocked, atRiskShare: ram ? atRiskRam / ram : 1,
+	});
+	if (!state.decision.fire || !enabled) return state.decision;
+
+	state.lastStorm = now;
+	state.fired++;
+	ns.write(STORM_TARGET_FILE, JSON.stringify({ host: state.seedHost, at: now }), "w");
+	pushToOpened(ns, STORM_TARGET_FILE, map, passwords);
+	notify(ns, "[darknet]", `unleashing STORM_SEED.exe on ${state.seedHost}: ${state.decision.reason}`, "info");
+	state.seedHost = null;
+	return state.decision;
+}
+
+/** ", storm seed on host (waiting: reason)" while a seed is known, ", N storms" after any; empty before both. */
+function stormSummary(earnings) {
+	const state = earnings.storm;
+	if (!state) return "";
+	const parts = [];
+	if (state.seedHost) parts.push(`storm seed on ${state.seedHost} (${state.decision?.fire ? (state.enabled ? "firing" : "off: would fire") : `waiting: ${state.decision?.reason}`})`);
+	if (state.fired) parts.push(`${state.fired} storm${state.fired > 1 ? "s" : ""} fired`);
+	return parts.length ? `, ${parts.join(", ")}` : "";
+}
+
 /** Fold a worker's report into the push history. A moved server is credited; one that did not move counts a fail. */
 export function noteMigration(earnings, message) {
 	const state = earnings.migrate;
@@ -230,6 +301,22 @@ export function noteMigration(earnings, message) {
 	const tried = state.tried[message.host] ??= { fails: 0, last: 0 };
 	tried.last = message.at;
 	if (message.moved) { tried.fails = 0; state.moved++; } else { tried.fails++; state.empty++; }
+}
+
+/** The manager's storm bookkeeping. The servers and passwords already known at the start are not discoveries. */
+export function newStormState(map, passwords) {
+	return {
+		samples: [], discoveries: [], seedHost: null, lastStorm: 0, lastSample: 0, fired: 0, enabled: true,
+		servers: Object.keys(map).length, known: Object.keys(passwords).length, decision: null,
+	};
+}
+
+/** A crawler found STORM_SEED.exe on its server, or saw it leave. */
+export function noteSeed(earnings, message) {
+	const state = earnings.storm;
+	if (!state) return;
+	if (message.present) state.seedHost = message.host;
+	else if (state.seedHost === message.host) state.seedHost = null;
 }
 
 /** Darknet servers can vanish; drop any that no longer exist so counts and stasis targets stay real. */
@@ -259,6 +346,7 @@ function drain(ns, port, state) {
 			state.earnings.stasisNote = `${message.kind} ${message.host} ${message.success ? "ok" : "failed"}`;
 		}
 		else if (message.kind === "migrate") noteMigration(state.earnings, message);
+		else if (message.kind === "storm-seed") noteSeed(state.earnings, message);
 		else if (message.kind === "stasis-start") state.earnings.stasisNote = `${message.mode}ing ${message.host} (~20s)`;
 		else if (message.kind === "stasis-skip") {
 			state.earnings.stasisNote = `${message.host} too small to ${message.mode} (${message.free.toFixed(1)}/${message.need.toFixed(1)} GB free)`;
@@ -332,7 +420,7 @@ function printSummary(ns, { map, passwords, earnings }, toTerminal = false) {
 		`${earnings.phish} phishes, ${earnings.caches} caches, ` +
 		`$${ns.format.number(earned)} earned ($${ns.format.number(perSecond)}/s), ` +
 		`${linked}/${ns.dnet.getStasisLinkLimit()} stasis-linked` +
-		(earnings.stasisNote ? ` (last: ${earnings.stasisNote})` : "") + migrateSummary(earnings) + retrySummary(earnings) + ".";
+		(earnings.stasisNote ? ` (last: ${earnings.stasisNote})` : "") + migrateSummary(earnings) + stormSummary(earnings) + retrySummary(earnings) + ".";
 	ns.print(line);
 	if (toTerminal) {
 		ns.tprint(`INFO darknet: ${total} servers, ${stillUnsolved} unsolved, $${ns.format.number(earned)} earned ` +

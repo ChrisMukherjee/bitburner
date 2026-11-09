@@ -5,10 +5,11 @@ import { readLogs } from "darknet/heartbleed.js";
 import { login } from "darknet/auth.js";
 import {
 	REPORT_PORT, CRAWLER_SCRIPT, PHISH_SCRIPT, STASIS_SCRIPT, MIGRATE_SCRIPT, MIGRATE, MIGRATE_TARGET_FILE,
-	CRAWLER_FILES, PASSWORD_FILE, STASIS_TARGET_FILE,
+	CRAWLER_FILES, PASSWORD_FILE, STASIS_TARGET_FILE, STORM_PROGRAM, STORM_TARGET_FILE,
 } from "darknet/config.js";
 
 const MAX_REUSED_PASSWORDS = 10; // other servers' passwords tried on a server whose hint gave nothing
+const STORM_ORDER_MS = 2 * 60 * 1000; // a storm order older than this is stale (an old order must not fire a later seed)
 const RESPREAD_INTERVAL = 60 * 1000; // ms between re-checks of our neighbours for new servers
 
 // Runs on a darknet server the manager (or another crawler) authenticated and exec'd us onto.
@@ -26,7 +27,7 @@ export async function main(ns) {
 	const passwords = loadPasswords(ns);
 	// opened: neighbours we hold a session on, whose blocked RAM we keep freeing. failed: neighbours whose
 	// hint we couldn't solve, not retried until the next restart.
-	const crawl = { self, port, earn, stasis, migrate, passwords, opened: [], failed: new Set(), pushed: new Map() };
+	const crawl = { self, port, earn, stasis, migrate, passwords, opened: [], failed: new Set(), pushed: new Map(), seedSeen: false, stormAt: 0 };
 	report(ns, port, { kind: "server", host: self, details: safeDetails(ns, self), maxRam: ns.getServerMaxRam(self) });
 
 	await spread(ns, crawl);
@@ -85,7 +86,7 @@ async function spread(ns, { self, port, earn, stasis, migrate, passwords, opened
 
 		// Copy fresh files every time, so a restarted crawler always runs the current code. preventDuplicates
 		// makes exec a no-op when a crawler already runs there, so the crawler no longer needs its own 1 GB running-check.
-		if (!ns.scp(CRAWLER_FILES.concat(PASSWORD_FILE, STASIS_TARGET_FILE, MIGRATE_TARGET_FILE), neighbour, self)) continue;
+		if (!ns.scp(CRAWLER_FILES.concat(PASSWORD_FILE, STASIS_TARGET_FILE, MIGRATE_TARGET_FILE, STORM_TARGET_FILE), neighbour, self)) continue;
 		const launch = () => ns.exec(CRAWLER_SCRIPT, neighbour, { threads: 1, preventDuplicates: true },
 			earn ? 1 : 0, stasis ? 1 : 0, migrate ? 1 : 0);
 		if (launch()) continue;
@@ -162,6 +163,7 @@ async function earnOn(ns, crawl) {
 		launchPhish(ns, self); // our own RAM may have been freed by our parent
 		if (stasis) await syncStasis(ns, self, port);
 		if (migrate) syncMigrate(ns, crawl);
+		syncStorm(ns, crawl);
 		for (const file of ns.ls(self, ".cache")) {
 			const cache = ns.dnet.openCache(file, true);
 			report(ns, port, { kind: "cache", host: self, file, success: cache.success });
@@ -237,6 +239,26 @@ export function syncMigrate(ns, { self, pushed }) {
 	const threads = Math.floor((ns.getServerMaxRam(self) - ns.getServerUsedRam(self)) / ns.getScriptRam(MIGRATE_SCRIPT, self));
 	if (threads > 0) ns.exec(MIGRATE_SCRIPT, self, threads, target);
 	else launchPhish(ns, self); // too little room for a push: keep phishing
+}
+
+/**
+ * STORM_SEED.exe sits on one darknet server at a time (the game drops it when a server's blocked RAM is freed).
+ * Report it to the manager when it appears here or goes, and unleash it when the manager's order names this server
+ * (the order carries a timestamp, so each order is acted on once). The manager decides when; see storm-rule.js.
+ * @param {NS} ns
+ */
+export function syncStorm(ns, crawl) {
+	const present = ns.fileExists(STORM_PROGRAM);
+	if (present !== crawl.seedSeen) {
+		crawl.seedSeen = present;
+		report(ns, crawl.port, { kind: "storm-seed", host: crawl.self, present });
+	}
+	if (!present) return;
+	const order = readList(ns, STORM_TARGET_FILE);
+	if (order.host !== crawl.self || !order.at || order.at <= crawl.stormAt || Date.now() - order.at > STORM_ORDER_MS) return;
+	crawl.stormAt = order.at;
+	report(ns, crawl.port, { kind: "storm", host: crawl.self });
+	ns.dnet.unleashStormSeed();
 }
 
 function readList(ns, file) {

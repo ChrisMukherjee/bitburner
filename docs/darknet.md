@@ -37,6 +37,27 @@ Passwords come from [`hint-interpreter.js`](../darknet/hint-interpreter.js) and
   ordinary crawling has run dry; rejected: always pushing (it would cost phishing RAM and shuffle servers that are fine
   where they are). Not done: working out which servers sit next to a gap (the API doesn't say), so targets are picked by
   how long since they were last pushed.
+- **Unleash STORM_SEED.exe when the darknet has run dry (on by default; `darknet.storm.enabled: false` turns it off).**
+  The game puts one STORM_SEED.exe on a server at a time (15% chance whenever a server's blocked RAM is freed, at most every
+  30 minutes). Running it, through `ns.dnet.unleashStormSeed()` on the server that holds it, deletes about 60% of the
+  servers that are not stasis-linked or stationary, restarts the rest and generates many new ones. It earns nothing by itself;
+  it re-rolls a map that has nothing left to offer. Crawlers report a seed when they see it ([`crawler.js`](../darknet/crawler.js)
+  `syncStorm`); [`storm-rule.js`](../darknet/storm-rule.js) decides when, as a break-even comparison from live data
+  rather than fixed thresholds. The manager samples income, blocked and usable RAM every 30 seconds. It waits if: no seed is
+  known or the last storm was under 30 minutes ago (the game's own spawn rule); there is under 30 minutes of history;
+  a server is still being cracked; blocked RAM is shrinking fast enough to clear within the hour (measured freeing rate,
+  so income is still rising); or servers are still turning up (no discovery for 4x the usual gap, never under 10 minutes). Then
+  it compares gain and loss. Possible income is the higher of this run's best 10-minute income and income per usable GB
+  now times the peak usable RAM seen (the map may have shrunk). Gain is the missing income for an hour minus the time the map took
+  to fill (measured from the discovery log). Loss is 60% of the income of the servers a storm can delete (not stasis-linked,
+  not stationary, weighted by RAM) over half that fill time. Noisy income (coefficient of variation of one-minute rates)
+  raises the bar: gain must beat loss by (1 + 2 x noise). Nothing depends on an income level, so a small or young darknet
+  works the same, and it does not fire before it has history. Stasis-linked servers survive a storm, so linking the best servers
+  limits the loss. The manager sends an order `{host, at}` in `darknet/storm-target.txt` to every opened server; only the
+  crawler on that host acts, and orders older than 2 minutes are ignored. The status line shows a known seed and why it
+  is waiting. Rejected: opt-in (the break-even check already refuses when a storm would not pay), fixed income or
+  blocked-RAM thresholds, and firing as soon as a seed appears (it throws away working servers). Not done: reading the
+  game's exact post-storm server count, which the API does not expose.
 - **Never backdoor darknet servers.** Backdoors don't slow server movement. They only let `exec` skip the
   direct-connection check, while each one past two makes any login randomly time out more often and adds
   random restarts that kill our scripts.

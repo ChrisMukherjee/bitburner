@@ -288,6 +288,12 @@ export const DEFAULTS = {
 	// terminal gets a short one every terminalMinutes (0 = never), or at once when a stasis link fails.
 	darknetLog: { logMinutes: 5, terminalMinutes: 30 },
 
+	// darknet/dnet-manager.js. storm.enabled: a STORM_SEED.exe found on an opened server is unleashed once the darknet has
+	// run dry (no new servers for a long time, income well under this run's own best, nothing left to crack; the rule and
+	// its ratios are in darknet/storm-rule.js and darknet/config.js). A storm deletes most servers that are not stasis-linked
+	// and restarts the rest. false = never unleash; the status line still says what it would do.
+	darknet: { storm: { enabled: true } },
+
 	// Mechanics a BitNode makes worthless (startup.js; needs the BitNode multipliers, so BitNode 5 or Source-File 5; without
 	// them nothing is held back). A script is not started while a multiplier listed for it is below minMultiplier.
 	// `force` lists scripts to start anyway (paths as in startupSkip), and enabled: false turns the whole check off,

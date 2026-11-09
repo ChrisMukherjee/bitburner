@@ -22,6 +22,30 @@ export const MIGRATE = {
 	cooldownMs: 15 * 60 * 1000, // the manager leaves a server alone this long after it was pushed
 	giveUpAfter: 4, // pushes in a row that did not move a server before it is left alone until the map grows
 };
+/** Program in the darknet that scrambles the whole network when run (ns.dnet.unleashStormSeed). */
+export const STORM_PROGRAM = "STORM_SEED.exe";
+/** The manager's order to unleash the seed: { host, at }. Only the crawler on `host` acts on it. */
+export const STORM_TARGET_FILE = "darknet/storm-target.txt";
+/**
+ * Storm rule inputs (see storm-rule.js). The decision itself is a break-even comparison from live data; these are the
+ * game's own rules (a new seed spawns at most every 30 minutes, a storm deletes about 60% of movable servers) and
+ * measurement windows, so nothing here depends on how much a player earns.
+ */
+export const STORM = {
+	cooldownMs: 30 * 60 * 1000, // after a storm we fired
+	minHistoryMs: 30 * 60 * 1000, // income history needed before judging at all
+	minSamples: 20,
+	historyMs: 3 * 60 * 60 * 1000, // how far back "best income" looks
+	rateWindowMs: 10 * 60 * 1000, // averaging window for "current" and "best" income
+	stallFloorMs: 10 * 60 * 1000, // no discovery for at least this long
+	stallGapFactor: 4, // ... and for this many times the usual gap between discoveries
+	gapSamples: 30, // recent gaps used for the usual gap
+	rampMinMs: 5 * 60 * 1000, // bounds on the estimated time to refill the map
+	rampMaxMs: 60 * 60 * 1000,
+	horizonMs: 60 * 60 * 1000, // how long an income recovery is counted
+	deleteShare: 0.6, // the game deletes about this share of movable servers
+	sampleMs: 30 * 1000, // manager samples income this often
+};
 /** Every file a crawler needs on the server it runs on. */
 export const CRAWLER_FILES = [
 	"darknet/crawler.js", "darknet/hint-interpreter.js", "darknet/config.js",
