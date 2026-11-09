@@ -284,6 +284,10 @@ export const DEFAULTS = {
 	// manager; a huge number (1e9) keeps the old order.
 	programs: { darknetFirstHomeRam: null },
 
+	// How often darknet/dnet-manager.js reports. The script log gets the full status line every logMinutes; the
+	// terminal gets a short one every terminalMinutes (0 = never), or at once when a stasis link fails.
+	darknetLog: { logMinutes: 5, terminalMinutes: 30 },
+
 	// Mechanics a BitNode makes worthless (startup.js; needs the BitNode multipliers, so BitNode 5 or Source-File 5; without
 	// them nothing is held back). A script is not started while a multiplier listed for it is below minMultiplier.
 	// `force` lists scripts to start anyway (paths as in startupSkip), and enabled: false turns the whole check off,

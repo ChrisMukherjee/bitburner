@@ -10,9 +10,11 @@ not from this repo, so check them in game.
 
 1. **BitNode 1 once** (you start there). Destroying it gives Source-File 1.
 2. **BitNode 4 up to Source-File 4.3.** This is the gate for automation. Do it before anything else that costs time.
-3. **BitNode 5** (Formulas.exe, BitNode multipliers, Intelligence) and **BitNode 2** (gangs), in either order.
+3. **BitNode 5** (Formulas.exe, BitNode multipliers, Intelligence), then **BitNode 2** (gangs). Either order works, but
+   BN5 first is slightly better: Intelligence only gains XP once you own SF5, so every run after it counts, and the
+   multipliers steer the later choices.
 4. **BitNode 6** (Bladeburner).
-5. **BitNode 1 up to Source-File 1.3** (a bigger starting home).
+5. **BitNode 1 up to Source-File 1.3** (a bigger bonus to every multiplier).
 6. **BitNode 7** (optional: a Bladeburner bonus only).
 
 That is the default `bitnodePlan`. Replace it in `data/config.json` if your goals differ.
@@ -66,18 +68,22 @@ training goes through `player-work.js`, which needs SF4. The `bladeburner` prese
 swaps the augment weights for combat; `bladeburner.route` picks between playing it and holding it.
 
 Source-File 6 is enough, so the default plan does BitNode 6 early and puts BitNode 7 last, as an optional extra. What
-SF7 adds on top of SF6 is a bonus to Bladeburner multipliers **(game rule, check the BitNode screen)**, which no script
-here reads; BitNode 7 also has weak hacking, so it costs a full run for a small gain. Do it if you stay on the
-Bladeburner route and want the bonus, or for its challenge achievement, which forbids Bladeburner
+SF7 adds on top of SF6 is a bonus to Bladeburner multipliers (8%, 12% and 14% by level), which no script here reads,
+and at level 3 The Blade's Simulacrum on joining Bladeburner, so Bladeburner runs alongside other work. With SF6 alone
+that augmentation costs $150b from the Bladeburners faction **(game rule, from the game source, bitburner-src v3.0.0
+`src/BitNode/BitNode.tsx` and `src/Augmentation/Augmentations.ts`)**. The plan's one BitNode 7 run gives only the 8%
+bonus, and BitNode 7 has weak hacking, so it costs a full run for a small gain. Do it if you stay on the Bladeburner
+route and want the bonus, or for its challenge achievement, which forbids Bladeburner
 ([`../achievements/README.md`](../achievements/README.md)).
 
-## Source-File 1: a bigger starting home
+## Source-File 1: a bonus to every multiplier
 
-**(game rule)** Source-File 1 raises the home RAM you start each run with (32GB at level 1, 64GB at level 2, 128GB at
-level 3, as far as the game's description says) and gives a small bonus to all stat multipliers. Those are the exact
-numbers to double-check in game; the repo itself only relies on home RAM being larger at the start. [`../startup.js`](../startup.js)
-picks its stage from home RAM (under 64GB it runs the lean `start` stage), so a bigger start gets every run to the full
-automation sooner. That is why level 3 is last: it makes each later run faster rather than unlocking anything new.
+**(game rule, from the game source, bitburner-src v3.0.0 `src/Prestige.ts` and `src/BitNode/BitNode.tsx`)** Any level
+of Source-File 1 starts every later BitNode with 32GB of home RAM instead of 8GB; levels 2 and 3 add no RAM. What the
+levels raise is a bonus to all multipliers: 16% at level 1, 24% at level 2 and 28% at level 3. The only bigger start is
+Source-File 9 level 2, which gives 128GB. [`../startup.js`](../startup.js) picks its stage from home RAM (under 64GB it
+runs the lean `start` stage), so with Source-File 1 every run still begins in that stage until home is upgraded. That
+is why levels 2 and 3 come late in the plan: they make each later run somewhat faster but unlock nothing new.
 
 ## Not covered by scripts yet
 
@@ -107,10 +113,11 @@ lists replace the default. Lower tier numbers go first. Settings that should dif
 ## Why this order
 
 - SF4 first because it is what makes the scripts hands off, and the level matters (the RAM multiplier above).
-- SF5 and SF2 next because they change what the scripts do in every later run, not just the one that earned them.
+- SF5 and SF2 next, SF5 first (Intelligence XP and the multipliers start paying a run earlier; BitNode 2 is the cheapest place to start a gang either way), because they change what the scripts do in every later run, not just the one that earned them.
 - Bladeburner after, because it is a different way to play a BitNode rather than something every run uses. Only
   BitNode 6 is in the main order; SF7 duplicates what SF6 unlocks, so BitNode 7 comes last.
-- SF1 last because it speeds runs up and unlocks nothing; each level costs a full BitNode 1 clear.
+- SF1.2 and 1.3 near the end because they only raise the multiplier bonus (16% to 24%, then 28%) and unlock nothing;
+  each level costs a full BitNode 1 clear.
 
 Rejected: a fixed route in code. The right order depends on how far a save already is, so the plan is a list in the
 config that skips what you own, and the suggestion is advice unless you turn on `bitnodeRouteAuto`.

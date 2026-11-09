@@ -58,7 +58,8 @@ export async function main(ns) {
     }
   }
 
-  ns.tprint(`Contract scan finished. Checked ${contracts.length} contracts, successfully solved ${solvedCount}.`);
+  // Log only: solves and failures already toast (failures also print a terminal line), so a summary would repeat them.
+  ns.print(`Contract scan finished. Checked ${contracts.length} contracts, successfully solved ${solvedCount}.`);
 }
 
 /** How to reach the contract and solve it by hand from the terminal. */
