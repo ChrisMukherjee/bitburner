@@ -5,6 +5,7 @@ import { postIncomeMix } from "/utils/income-mix.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";
 import { recordIncomeSample, buildIncomeModel, earnedOver, timeToEarn, incomeMultAt } from "/utils/income-curve.js";
 import { homeUpgradeBeatsNeuroFlux } from "/singularity/ready.js";
+import { BASE_PRICE_STEP, augPriceStep } from "/utils/aug-price.js";
 // Design: docs/aug-reset.md
 const NEUROFLUX = "NeuroFlux Governor";
 const RED_PILL = "The Red Pill";
@@ -13,7 +14,7 @@ const DAEMON = "w0r1d_d43m0n"; // appears once The Red Pill is installed; destro
 const PLAN_FILE = "data/aug-plan.json";
 const BUYER = "singularity/workers/aug-buyer.js"; // does the buying, so this script stays small
 const STOCK_SUMMARY_PORT = 26;   // stock-trader.js posts the value of its positions here
-const PRICE_MULT = 1.9;          // every purchase multiplies the price of the rest
+let PRICE_MULT = BASE_PRICE_STEP; // every purchase multiplies the price of the rest: 1.9, less with Source-File 11 (set by setAugConfig)
 const NEUROFLUX_LEVEL_MULT = 1.14; // each NeuroFlux level costs this much more money and rep
 const DONATE_MONEY_PER_REP = 1e6;  // donations: $1m per rep point, before rep multipliers
 // Moments ahead (minutes) the reset rule compares with resetting now, up to resetRule.horizonHours.
@@ -25,17 +26,21 @@ const FORECAST_MINUTES = [10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 
 let AUG_CONFIG = null;
 let RESET_RULE = null;
 
-/** Sets the augments config (and its resetRule) the functions below use. main calls it; tests call it too. */
-export function setAugConfig(augConfig) {
+/**
+ * Sets the augments config (and its resetRule) the functions below use, and this run's price step (1.9, less with
+ * Source-File 11: utils/aug-price.js). main calls it; tests call it too.
+ */
+export function setAugConfig(augConfig, priceStep = BASE_PRICE_STEP) {
 	AUG_CONFIG = augConfig;
 	RESET_RULE = augConfig.resetRule;
+	PRICE_MULT = priceStep;
 }
 
 /**
  * Buys the augments worth having (by default: ones that help hacking, hacknet, darknet or
  * rep gain, plus The Red Pill, Neuroreceptor Management Implant and CashRoot; money stats such as hacknet
  * money only while their source earns a real part of this run's money, see `augments.incomeMix`) that you have the rep
- * for, most expensive first (each purchase raises the price of the rest by 1.9x, so the
+ * for, most expensive first (each purchase raises the price of the rest by 1.9x, less with Source-File 11, so the
  * big ones go first), then spends what's left on NeuroFlux Governor levels. By default
  * combat, charisma, crime and Bladeburner augments are skipped, since they'd only make the
  * useful ones dearer; `augments.wantStats` in the config changes that (see config.js).
@@ -70,7 +75,7 @@ export function setAugConfig(augConfig) {
 export async function main(ns) {
 	ns.disableLog("ALL");
 	postIncomeMix(ns); // first: loadConfig weighs the money stats by where this run's money comes from (port 38)
-	setAugConfig(loadConfig(ns).augments);
+	setAugConfig(loadConfig(ns).augments, augPriceStep(ns.getResetInfo().ownedSF));
 	const flags = ns.flags([["dry", false], ["all", false], ["no-neuroflux", false], ["reserve", 0], ["plan", false]]);
 	const cash = () => ns.getServerMoneyAvailable("home") - flags.reserve;
 	const money = (amount) => "$" + ns.format.number(amount);
@@ -211,7 +216,7 @@ export async function main(ns) {
 
 	ns.write(PLAN_FILE, JSON.stringify({
 		time: rates.snapshotTime, rep: rates.snapshot, perSecond: rates.perSecond, checkedAt: Date.now(),
-		queued, affordable: fitNow.augs, cost: fitNow.cost, stocks, decision,
+		queued, affordable: fitNow.augs, cost: fitNow.cost, stocks, decision, priceStep: PRICE_MULT,
 		// Useful augments whose faction rep is still short (for singularity/donate-rep.js, augments.donations).
 		unlockable: upcoming.map((entry) => ({ aug: entry.aug, faction: entry.faction, repNeeded: entry.repNeeded, missing: entry.missing, price: entry.price, value: entry.value })), resetSince, daedalusSeenAt, bitnode: bitnodeGoal(ns, factions),
 		incomeHistory, incomeModel, hackExp,
@@ -246,7 +251,7 @@ export async function main(ns) {
  * Long-run progress grows by the value gained per hour, so for each moment ahead
  * (FORECAST_MINUTES, from the income curve and rep rates) it works out value / (run age + overhead)
  * and resets when no later moment beats now by more than waitMargin. Waiting pays less and
- * less over a run because each purchase makes the rest 1.9x dearer, so there is always a
+ * less over a run because each purchase makes the rest 1.9x dearer (less with Source-File 11), so there is always a
  * best moment, and the slow start of every run is already inside the run age.
  *
  * On top of that: The Red Pill (resetRule.keyAugs) resets at once, and the Daedalus rule
@@ -400,7 +405,7 @@ export function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neu
 	const valueOf = new Map(unlocked.map((entry) => [entry.aug, entry.value]));
 	let value = fit.augs.reduce((sum, aug) => sum + (valueOf.get(aug) ?? 0), 0);
 
-	// NeuroFlux levels from the leftover cash (each level 1.14x dearer in money and rep, plus the 1.9x markup).
+	// NeuroFlux levels from the leftover cash (each level 1.14x dearer in money and rep, plus the price step).
 	// Counted at every moment, even when a home upgrade would get the cash at reset time (the buyer's rule):
 	// skipping it once the forecast cash passes the next home upgrade's price made every later moment look
 	// worse than now, so the rule reset early for a level or two of NeuroFlux (docs/aug-reset.md).
@@ -528,7 +533,7 @@ function round(number) {
 	return Math.round(number * 1000) / 1000;
 }
 
-/** Most expensive first, each later one 1.9x dearer; skips ones that don't fit (like a real run). */
+/** Most expensive first, each later one dearer by the price step (1.9, less with Source-File 11); skips ones that don't fit (like a real run). */
 export function whatFits(plan, cash) {
 	const augs = [];
 	let cost = 0;

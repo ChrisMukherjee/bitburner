@@ -6,7 +6,7 @@
 // reproduces what was measured. Ported unchanged from the other player's node-eta.js (renamed identifiers only: the
 // static RAM check charges names like `rm`, `hack` and `share`).
 
-const AUG_STEP = 1.9;                       // price multiplier per augmentation bought in one run (before Source-File 11)
+const AUG_STEP = 1.9;                       // price multiplier per augmentation bought in one run, without Source-File 11 (cfg.augStep)
 const GYM_EXP_PER_SECOND = 5;               // per stat, Powerhouse Gym, BitNode 4 (measured)
 const skillAt = (exp, mult) => Math.max(1, mult * (32 * Math.log(exp + 534.5) - 200));   // game formula
 const expFor = (level, mult) => Math.max(0, Math.exp((level / mult + 200) / 32) - 534.5);
@@ -105,11 +105,12 @@ function predictRankPerHour(acts, lv, hours = 1, minChance = 0.4) {
  *
  * cfg: { augs: [{ name, price, rep, f: [factions], h, e, cs[4] }], nf, mult: {hacking, hackExp, combat[4], combatExp}, income, expRate, installed,
  *        runHours, overheadHours, rep: { facMult, bn, timeShare }, scenario: {income, exp}, maxRuns, bb: { acts, rank, lv, duty, gymHours } | null,
- *        hackRoute: { required, daedalusAugs, daedalusMoney, daedalusHack, rpRep, rpPrice, rpHeld, startStage } }
+ *        hackRoute: { required, daedalusAugs, daedalusMoney, daedalusHack, rpRep, rpPrice, rpHeld, startStage },
+ *        augStep: the price step per augmentation bought (AUG_STEP when left out; less with Source-File 11, utils/aug-price.js) }
  */
 const DONATE_REP = 25000 * (Math.pow(1.02, 150) - 1);
 function projectRoute(goal, cfg) {
-    const maxRuns = cfg.maxRuns ?? 60, T = cfg.runHours, over = cfg.overheadHours ?? 0.25;
+    const maxRuns = cfg.maxRuns ?? 60, T = cfg.runHours, over = cfg.overheadHours ?? 0.25, step = cfg.augStep ?? AUG_STEP;
     const m = { hacking: cfg.mult.hacking, hackExp: cfg.mult.hackExp, combat: [...cfg.mult.combat] };
     const mult0 = { ...m };
     const repMult = (cfg.rep?.facMult ?? 1) * (cfg.rep?.bn ?? 1), repShare = cfg.rep?.timeShare ?? 0.7;
@@ -151,17 +152,17 @@ function projectRoute(goal, cfg) {
             return { a, f, deficit, donate, ok: deficit === 0 || donate, extra: donate ? deficit * 1e6 / repMult : 0 };
         }).filter(c => c.ok).sort((x, y) => value(y.a) / (y.a.price + y.extra) - value(x.a) / (x.a.price + x.extra));
         for (const c of cands) {
-            const p = c.a.price * Math.pow(AUG_STEP, n) + c.extra;
+            const p = c.a.price * Math.pow(step, n) + c.extra;
             if (spent + p > budget) continue;
             spent += p; n++; c.a.taken = true; bought.push(c.a.name);
             if (c.deficit > 0) Rf[c.f] = c.a.rep;
             m.hacking *= Math.max(1, c.a.h); m.hackExp *= Math.max(1, c.a.e);
             for (let i = 0; i < 4; i++) m.combat[i] *= Math.max(1, c.a.cs[i]);
         }
-        // NeuroFlux Governor: every level multiplies all skills a little (compounding), costs x1.14 more per level (price and rep), and counts in the x1.9 step
+        // NeuroFlux Governor: every level multiplies all skills a little (compounding), costs x1.14 more per level (price and rep), and counts in the price step
         if (cfg.nf) {
             for (let guard = 0; guard < 400; guard++) {
-                const p = cfg.nf.price * Math.pow(1.14, nfLevel) * Math.pow(AUG_STEP, n), r = cfg.nf.rep * Math.pow(1.14, nfLevel);
+                const p = cfg.nf.price * Math.pow(1.14, nfLevel) * Math.pow(step, n), r = cfg.nf.rep * Math.pow(1.14, nfLevel);
                 if (spent + p > budget || r > allMax()) break;
                 spent += p; n++; nfLevel++; bought.push("NeuroFlux Governor");
                 m.hacking *= Math.max(1, cfg.nf.h); m.hackExp *= Math.max(1, cfg.nf.e);

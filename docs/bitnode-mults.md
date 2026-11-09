@@ -28,7 +28,7 @@ multipliers also cancel when ranking targets, because every target is scaled the
    (`GangSoftcap`). The player's overrides win: `mechanicGates.force` lists scripts to start anyway and
    `enabled: false` turns it off (`set-config set mechanicGates.enabled false`). Coding contracts are not gated: they
    also pay faction and company rep, not only money.
-3. **Route suggestion, done:** with `bitnodeRoute` empty, `bitnodePlan` (a generic order of Source-Files worth having, in
+3. **Route suggestion, done:** with `bitnodeRoute` empty, `bitnodePlan` (the order in [`bitnode-order.md`](bitnode-order.md), in
    tiers, in the config) is walked against the Source-Files the game says are owned: the first tier with a level not
    owned yet, and inside it the BitNode whose multipliers (`easeScore` in
    [`utils/bitnode-route.js`](../utils/bitnode-route.js): hack money, server money, hacking level, faction rep, minus
@@ -44,10 +44,11 @@ multipliers also cancel when ranking targets, because every target is scaled the
    batcher started (the wait timed out), startup.js stops it on its next pass and says so once. In that case the stock trader moves from the late to the
    early stage (`earlyIf` in startup.js), since the market is then the income; its ~26GB still needs a 64GB home.
    An influence-only grow/hack worker for the stock servers is not built; design it from a real BitNode 8 run.
-5. **Reset rule:** `PRICE_MULT` 1.9 and the NeuroFlux 1.14 are game constants, not BitNode multipliers
-   (Source-File 11 changes the 1.9). Augment cost and rep multipliers are already in the live prices.
-6. **`bitnodes` in `config.js`:** empty today. A per-BitNode value that only encodes a multiplier effect should be
-   derived from the multiplier, as the two above are.
+5. **Reset rule:** the price step (1.9, less with Source-File 11: [`../utils/aug-price.js`](../utils/aug-price.js)) and the
+   NeuroFlux 1.14 are game constants, not BitNode multipliers. Augment cost and rep multipliers are already in the live prices.
+6. **`bitnodes` in `config.js`:** one entry today, BitNode 13 turning on `bladeburner.stanekFirst`
+   ([`bladeburner.md`](bladeburner.md)): a choice about the BitNode's mechanic, not a multiplier effect. A per-BitNode
+   value that only encodes a multiplier effect should be derived from the multiplier, as the two above are.
 
 ## Tradeoffs and rejected ideas
 

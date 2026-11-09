@@ -1,6 +1,7 @@
 // Checks across the whole repo that catch the slips a rename or a new script tends to cause:
-// an import or script path that points nowhere, a script missing from its folder README, an alias
-// with a relative path, and tools/status.js reading startup.js's list differently from startup.js.
+// an import or script path that points nowhere, a helper's copy list missing one of its imports, a script
+// missing from its folder README, an alias with a relative path, and tools/status.js reading startup.js's
+// list differently from startup.js.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -48,6 +49,38 @@ test("script paths written in code (run, exec, copy lists) exist", () => {
 			if (!exists(name.replace(/^\//, ""))) missing.push(`${file}: ${name}`);
 		}
 	}
+	assert.deepEqual(missing, []);
+});
+
+/** The files a script imports, directly or through other imports, as repo-relative paths. */
+function importClosure(file, seen = new Set()) {
+	for (const [, specifier] of read(file).matchAll(/(?:from\s+|import\s*\(\s*)["']([^"']+\.js)["']/g)) {
+		const dependency = specifier.startsWith(".") ? path.posix.join(path.posix.dirname(file), specifier) : specifier.replace(/^\//, "");
+		if (seen.has(dependency)) continue;
+		seen.add(dependency);
+		importClosure(dependency, seen);
+	}
+	return seen;
+}
+
+test("a helper's copy list (xHelper with xImports) names every file the helper imports", () => {
+	// startHelper copies only the listed files to the server it picks, and the helper can't start there without them.
+	const missing = [];
+	let pairs = 0;
+	for (const file of scripts) {
+		const code = read(file);
+		for (const [, name, helper] of code.matchAll(/(\w+)Helper:\s*["']([^"']+\.js)["']/g)) {
+			const list = code.match(new RegExp(`${name}Imports:\\s*\\[([^\\]]*)\\]`));
+			if (!list) {
+				missing.push(`${file}: ${name}Helper has no ${name}Imports list`);
+				continue;
+			}
+			pairs++;
+			const listed = new Set([...list[1].matchAll(/["']([^"']+)["']/g)].map(([, entry]) => entry.replace(/^\//, "")));
+			for (const dependency of importClosure(helper)) if (!listed.has(dependency)) missing.push(`${file}: ${name}Imports lacks ${dependency}`);
+		}
+	}
+	assert.ok(pairs >= 3, "found the copy lists in singularity/player-work.js");
 	assert.deepEqual(missing, []);
 });
 

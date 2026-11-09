@@ -14,7 +14,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`aug-reset.md`](aug-reset.md): when to buy and install augments (value per hour of run).
 - [`player-work.md`](player-work.md): one script owns the player; start stage stand-in, short passes, focus, gang invite, gym.
 - [`player-work-goals.md`](player-work-goals.md): real rep goals, which city factions to join, the goals and plan helpers.
-- [`bitnode-order.md`](bitnode-order.md): not a design note; a guide to which BitNodes and Source-Files to do first, what each unlocks, how to set the route.
+- [`bitnode-order.md`](bitnode-order.md): not a design note; a guide to the order of every BitNode for a new save (the default `bitnodePlan`), what each Source-File gives and unlocks here, how to set the route.
 - [`NETSCRIPT.md`](NETSCRIPT.md): not a design note; the coding rules and port list to follow when writing scripts.
 - [`typecheck.md`](typecheck.md): `// @ts-check` plus JSDoc against the game's typings, opt in per file, nothing synced to the game.
 - [`testing.md`](testing.md): Node's built-in test runner on the game scripts as they are, a fake `ns`, regression tests for fixed bugs.

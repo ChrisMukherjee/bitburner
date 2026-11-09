@@ -87,7 +87,7 @@ export const DEFAULTS = {
 		},
 		// Donations (singularity/donate-rep.js). Key augments (resetRule.keyAugs) always get theirs once a seller has the
 		// favor. anyFaction: also buy the missing rep for other wanted augments at joined factions with that favor, but only
-		// from cash beyond what this reset's planned purchases cost, times `safety` (augment prices rise 1.9x per purchase).
+		// from cash beyond what this reset's planned purchases cost, times `safety` (augment prices rise 1.9x per purchase, less with SF11).
 		// On by default; `donate-rep.js --dry` shows what it would do, anyFaction: false turns it off (docs/aug-reset.md).
 		donations: { anyFaction: true, safety: 1.25 },
 		// Spend what's left on NeuroFlux Governor after the rest (buy-augs --no-neuroflux turns it off once).
@@ -351,7 +351,10 @@ export const DEFAULTS = {
 	// Bladeburner (bladeburner/). route: "combat" plays Bladeburner (gym, then actions) and leaves the player to it;
 	// "hacking" holds it so faction and company work get all the player's time. A route estimate posted on
 	// port 36 (plan.route) wins over this. Black Ops done = the BitNode can end without w0r1d_d43m0n.
-	bladeburner: { route: "combat" },
+	// stanekFirst: with Source-File 7.3, joining the division installs The Blade's Simulacrum, which closes Stanek's Gift
+	// for the rest of the BitNode; true makes bb-manage.js wait to join while the Gift is still open, until you accept it
+	// or the first augmentation install closes it. Off here, on in BitNode 13 (see `bitnodes`), where the Gift is the point.
+	bladeburner: { route: "combat", stanekFirst: false },
 
 	// Go bot (go/go-bot.js, go/go-plan.js). rotation: the order it moves on to once the focus opponent's bonus
 	// levels off. planAware: opponents in `boosts` jump the queue while the plan uses their bonus (Bladeburner running ->
@@ -383,19 +386,33 @@ export const DEFAULTS = {
 	bitnodeRoute: [],
 	// With bitnodeRoute empty: false only suggests the next BitNode (tools/status.js, the "ready" notice) and waits for
 	// you; true lets auto-destroy.js follow the suggestion by itself. Your own bitnodeRoute always wins.
-	// The suggestion walks bitnodePlan, a generic order of Source-Files worth having: the first tier with a level you
-	// don't own yet. Within a tier the BitNode the game's multipliers make easiest goes first (known with Source-File 5,
-	// otherwise the listed order). Replace the list to change the plan.
+	// The suggestion walks bitnodePlan, the order docs/bitnode-order.md explains (every Source-File, from a new save to
+	// BitNode 12): the first tier with a level you don't own yet. Within a tier the BitNode the game's multipliers make
+	// easiest goes first (known with Source-File 5, otherwise the listed order). Replace the list to change the plan.
 	bitnodeRouteAuto: false,
 	bitnodePlan: [
 		{ bitNode: 1, level: 1, tier: 1 },
-		{ bitNode: 4, level: 3, tier: 2 },
-		{ bitNode: 5, level: 1, tier: 3 },
-		{ bitNode: 2, level: 1, tier: 3 },
-		{ bitNode: 6, level: 1, tier: 4 },
+		{ bitNode: 1, level: 2, tier: 2 }, // before BitNode 4, which is harsh with only Source-File 1
+		{ bitNode: 4, level: 3, tier: 3 }, // Singularity RAM outside BitNode 4: 16x at level 1, 4x at 2, 1x at 3
+		{ bitNode: 5, level: 1, tier: 4 }, // Intelligence only gains XP once you own Source-File 5
 		{ bitNode: 1, level: 3, tier: 5 },
-		// Optional extra: Source-File 6 already unlocks Bladeburner everywhere, so SF7 only adds a Bladeburner bonus.
-		{ bitNode: 7, level: 1, tier: 6 },
+		{ bitNode: 2, level: 1, tier: 6 }, // gangs
+		{ bitNode: 6, level: 1, tier: 7 }, // Bladeburner: its Black Ops end BitNodes 10, 9 and 13 without hacking
+		{ bitNode: 10, level: 3, tier: 8 }, // sleeves; The Covenant sells more only inside BitNode 10
+		{ bitNode: 7, level: 3, tier: 9 }, // The Blade's Simulacrum free at level 3
+		{ bitNode: 3, level: 3, tier: 10 }, // corporations; the full API free at level 3
+		{ bitNode: 9, level: 3, tier: 11 }, // hacknet servers; a 128GB home start from level 2
+		// Levels that only raise multipliers, in whichever order the multipliers make easiest.
+		{ bitNode: 5, level: 3, tier: 12 },
+		{ bitNode: 2, level: 3, tier: 12 },
+		{ bitNode: 6, level: 3, tier: 12 },
+		{ bitNode: 14, level: 3, tier: 13 }, // IPvGO
+		{ bitNode: 15, level: 3, tier: 14 }, // darknet
+		{ bitNode: 8, level: 3, tier: 15 }, // stock market
+		{ bitNode: 13, level: 3, tier: 16 }, // Stanek's Gift
+		{ bitNode: 11, level: 3, tier: 17 }, // cheaper augmentation batches, which help in BitNode 12
+		// BitNode 12 has no top level. 50 is its challenge achievement; raise it to keep going.
+		{ bitNode: 12, level: 50, tier: 18 },
 	],
 
 	// Per-BitNode overrides, keyed by BitNode number: laid over the settings above only while
@@ -403,7 +420,9 @@ export const DEFAULTS = {
 	// (like a preset) can have its own `bitnodes` section. This is where BitNode tuning goes,
 	// never `if (bitNode === N)` in a script. For example:
 	//   "2": { augments: { wantStats: ["hacking", "rep", "combat", "crime"] } },
-	bitnodes: {},
+	bitnodes: {
+		13: { bladeburner: { stanekFirst: true } }, // keep Stanek's Gift open (see `bladeburner` above)
+	},
 
 	// Challenge achievements to go for: names from CHALLENGES below, e.g. ["bn1"]. Set it with
 	// `run /tools/set-config.js challenge bn1` (and `challenge clear` to stop).

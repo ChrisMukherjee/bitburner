@@ -9,7 +9,7 @@ const STOCK_SUMMARY_PORT = 26; // stock-trader.js posts its positions' value her
 /**
  * One-shot: buys the augments that buy-augs.js listed in data/aug-plan.json (`buyList`, every
  * augment it wants that a joined faction has the rep for), most expensive first at today's
- * prices (each purchase makes the rest 1.9x dearer), then NeuroFlux Governor levels from the
+ * prices (each purchase makes the rest 1.9x dearer, less with Source-File 11), then NeuroFlux Governor levels from the
  * faction the plan names, while cash lasts and no home RAM or cores upgrade is affordable (that goes first). A purchase that fails (money or a missing
  * prerequisite) is tried again after the next one succeeds.
  *

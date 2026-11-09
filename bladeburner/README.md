@@ -6,7 +6,7 @@ Requires column: see the [requirement tags](../README.md#requirements). The Blad
 
 | Script | What it does | Flags | Requires | RAM |
 | --- | --- | --- | --- | --- |
-| [`bb-manage.js`](bb-manage.js) | One short pass every 3 minutes: decides the state (`off`, `boot`, `train`, `run`, `hold`) and posts it on port 36, joins the division, spends skill points | none | SF6/7 | 26.2GB, for a moment |
+| [`bb-manage.js`](bb-manage.js) | One short pass every 3 minutes: decides the state (`off`, `boot`, `train`, `run`, `hold`) and posts it on port 36, joins the division, spends skill points. With `bladeburner.stanekFirst` (on in BitNode 13) it doesn't join while that would close Stanek's Gift (Source-File 7.3, see [`utils/stanek.js`](../utils/stanek.js)) | none | SF6/7 | 26.2GB, for a moment |
 | [`node-eta.js`](node-eta.js) | One short pass every 5 minutes: simulates the hacking and Bladeburner routes reset by reset and posts the verdict (`route`, `hold`) on port 36; report in `data/node-eta.txt`. Needs the Singularity API too | none | SF6/7, SF4 | 30GB (390GB at SF4.1, 102GB at SF4.2), for a moment |
 | [`route-model.js`](route-model.js) | Library: the pure route models (Bladeburner rank, augmentation shopping, Daedalus and The Red Pill) | import only | none | 0GB |
 | [`bb-pass.js`](bb-pass.js) | One short pass every 30 s while the state is `run`: stamina first, then the next Black Op when safe, otherwise the Contract or Operation with the best rank per second; posts its reasoning as the `status` lines, rank samples and live readings | none | SF6/7 | 53.1GB, for a moment |

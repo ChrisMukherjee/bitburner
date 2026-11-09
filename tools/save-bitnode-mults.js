@@ -25,7 +25,7 @@ export async function main(ns) {
 	if (!mults) return;
 	// The other BitNodes too, for the route suggestion (utils/bitnode-route.js). Same 4GB call, so no extra RAM.
 	const others = {};
-	for (let bitNode = 1; bitNode <= 14; bitNode++) {
+	for (let bitNode = 1; bitNode <= 15; bitNode++) {
 		try { others[bitNode] = ns.getBitNodeMultipliers(bitNode); } catch { /* skip that one */ }
 	}
 	ns.write(MULTS_FILE, JSON.stringify({ node, time: Date.now(), mults, others }), "w");

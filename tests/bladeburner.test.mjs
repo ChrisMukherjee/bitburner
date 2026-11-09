@@ -1,9 +1,11 @@
-// Bladeburner: shared port state (bladeburner/state.js), ready checks, the bb-manage.js state machine and
-// skill spending, and the pure route model (bladeburner/route-model.js).
+// Bladeburner: shared port state (bladeburner/state.js), ready checks, the bb-manage.js state machine,
+// skill spending and the wait for Stanek's Gift (utils/stanek.js), and the pure route model (bladeburner/route-model.js).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeNs } from "./support/fake-ns.mjs";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
+import { GIFT, giftOpen, joiningClosesGift } from "/utils/stanek.js";
+import { loadConfig } from "/utils/config.js";
 import {
 	BB_PORT, readBladeburner, postBladeburner, bladeburnerState, bladeburnerPlan, trainFloor, blackOpsDone, COMBAT_FLOOR,
 } from "/bladeburner/state.js";
@@ -87,16 +89,23 @@ test("ready checks: the manager starts with the API, bb-pass.js plays only in st
 // ---- bb-manage.js
 const STRONG = { hacking: 100, strength: 150, defense: 150, dexterity: 150, agility: 150 };
 
-/** A Bladeburner player. `skills` buys: name -> cost; `points` skill points; levels: Overclock level. */
-function world({ node = 6, sf = [], skills = STRONG, money = 0, income = 0, ageMs = 5 * 3600_000, post = null,
-	inDivision = true, joins = true, costs = {}, points = 0, overclock = 1 } = {}) {
+/**
+ * A Bladeburner player. `sf`: Source-Files at level 1 (6) or [number, level] ([7, 3]); `augs`: installed augmentations;
+ * `files`: data/config.json, data/bitnode.txt...; `costs`: skill name -> cost; `points` skill points; `overclock`: its level.
+ */
+function world({ node = 6, sf = [], augs = [], files = {}, skills = STRONG, money = 0, income = 0, ageMs = 5 * 3600_000, post = null,
+	inDivision = true, joins = true, costs = {}, points = 0, overclock = 1, nodeStart = 1000 } = {}) {
 	const bought = [];
 	let current = "Training";
 	const ns = fakeNs({
+		files,
 		ports: post ? { [BB_PORT]: post } : {},
 		overrides: {
 			getScriptName: () => "bladeburner/bb-manage.js",
-			getResetInfo: () => ({ currentNode: node, ownedSF: new Map(sf.map((n) => [n, 1])), lastAugReset: Date.now() - ageMs }),
+			getResetInfo: () => ({
+				currentNode: node, ownedSF: new Map(sf.map((entry) => (Array.isArray(entry) ? entry : [entry, 1]))),
+				ownedAugs: new Map(augs.map((aug) => [aug, 1])), lastAugReset: Date.now() - ageMs, lastNodeReset: nodeStart,
+			}),
 			getPlayer: () => ({ skills, money }),
 			getTotalScriptIncome: () => [income, 0],
 			bladeburner: {
@@ -205,6 +214,84 @@ test("bb-manage: Overclock stops at level 90", async () => {
 	assert.equal(w.bought[0], "Blade's Intuition");
 });
 
+// ---- Stanek's Gift (utils/stanek.js) and the join
+const info = ({ node = 13, sf = [], augs = [] } = {}) => ({ currentNode: node, ownedSF: new Map(sf), ownedAugs: new Map(augs.map((aug) => [aug, 1])) });
+
+test("the Gift is open with the church (BitNode 13 or Source-File 13) while only NeuroFlux Governor is installed", () => {
+	assert.equal(giftOpen(info()), true);
+	assert.equal(giftOpen(info({ augs: ["NeuroFlux Governor"] })), true);
+	assert.equal(giftOpen(info({ node: 6, sf: [[13, 1]] })), true);
+	assert.equal(giftOpen(info({ node: 6 })), false, "no church");
+	assert.equal(giftOpen(info({ augs: [GIFT] })), false, "already accepted");
+	assert.equal(giftOpen(info({ augs: ["NeuroFlux Governor", "Synaptic Enhancement Implant"] })), false, "another augmentation closed it");
+	assert.equal(giftOpen({ currentNode: 13, ownedSF: new Map() }), true, "no ownedAugs: nothing installed");
+});
+
+test("joining closes the Gift only with Source-File 7 at level 3 (The Blade's Simulacrum)", () => {
+	assert.equal(joiningClosesGift(info({ sf: [[7, 3]] })), true);
+	assert.equal(joiningClosesGift(info({ sf: [[7, 2], [6, 3]] })), false);
+	assert.equal(joiningClosesGift(info({ sf: [[7, 3]], augs: [GIFT] })), false);
+	assert.equal(joiningClosesGift(info({ node: 6, sf: [[7, 3]] })), false);
+});
+
+test("bladeburner.stanekFirst is on by default in BitNode 13 only", () => {
+	assert.equal(loadConfig(fakeNs({ files: { "data/bitnode.txt": "13" } })).bladeburner.stanekFirst, true);
+	assert.equal(loadConfig(fakeNs({ files: { "data/bitnode.txt": "6" } })).bladeburner.stanekFirst, false);
+	assert.equal(loadConfig(fakeNs()).bladeburner.stanekFirst, false);
+});
+
+const IN_13 = { "data/bitnode.txt": "13" };
+const config = (bladeburner) => JSON.stringify({ bladeburner });
+
+test("regression: in BitNode 13 with Source-File 7.3 the division waits for Stanek's Gift (joining used to close it)", async () => {
+	const w = world({ node: 13, sf: [[7, 3]], inDivision: false, files: IN_13, skills: { ...STRONG, agility: 50 } });
+	await manage(w.ns);
+	assert.equal(w.state(), "hold", "not train either: an install would reset the gym's work");
+	assert.equal(w.ns.called("bladeburner.joinBladeburnerDivision").length, 0);
+	assert.match(w.ns.portJson(BB_PORT).lines[0], /Stanek's Gift/);
+	assert.equal(w.ns.terminal.length, 1);
+	assert.match(w.ns.terminal[0], /Church of the Machine God.*stanekFirst false/);
+	await manage(w.ns);
+	assert.equal(w.ns.terminal.length, 1, "the notice comes once per BitNode");
+	assert.equal(w.state(), "hold");
+});
+
+test("the notice comes again in the next BitNode", async () => {
+	const w = world({ node: 13, sf: [[7, 3]], inDivision: false, files: IN_13, post: { giftNotice: 999 }, nodeStart: 1000 });
+	await manage(w.ns);
+	assert.equal(w.ns.terminal.length, 1);
+	assert.equal(w.ns.portJson(BB_PORT).giftNotice, 1000);
+});
+
+test("bb-manage joins once the Gift is accepted or closed, and when nothing is at stake", async () => {
+	const joined = async (options, why) => {
+		const w = world({ node: 13, sf: [[7, 3]], inDivision: false, files: IN_13, ...options });
+		await manage(w.ns);
+		assert.equal(w.state(), "run", why);
+		assert.equal(w.ns.called("bladeburner.joinBladeburnerDivision").length, 1, why);
+		assert.deepEqual(w.ns.terminal, [], `${why}: no notice`);
+	};
+	await joined({ augs: [GIFT] }, "the Gift is accepted");
+	await joined({ augs: ["Synaptic Enhancement Implant"] }, "an installed augmentation closed the Gift");
+	await joined({ sf: [[7, 2]] }, "Source-File 7 below level 3 gives no Simulacrum");
+	await joined({ files: { ...IN_13, "data/config.json": config({ stanekFirst: false }) } }, "stanekFirst turned off");
+	await joined({ node: 6, files: { "data/bitnode.txt": "6", "data/config.json": config({ stanekFirst: true }) } }, "no church outside BitNode 13 without Source-File 13");
+});
+
+test("stanekFirst set everywhere: with Source-File 13 the wait applies in any BitNode", async () => {
+	const w = world({ node: 6, sf: [[7, 3], [13, 1]], inDivision: false, files: { "data/bitnode.txt": "6", "data/config.json": config({ stanekFirst: true }) } });
+	await manage(w.ns);
+	assert.equal(w.state(), "hold");
+	assert.equal(w.ns.called("bladeburner.joinBladeburnerDivision").length, 0);
+});
+
+test("already in the division: nothing left to wait for", async () => {
+	const w = world({ node: 13, sf: [[7, 3]], inDivision: true, files: IN_13 });
+	await manage(w.ns);
+	assert.equal(w.state(), "run");
+	assert.deepEqual(w.ns.terminal, []);
+});
+
 // ---- route model
 test("skillAt and expFor are inverses, and a multiplier scales the level", () => {
 	for (const level of [10, 100, 500, 2000]) {
@@ -298,6 +385,14 @@ test("projectRoute does not modify the live action model", () => {
 	const before = cfg.bb.acts.map((x) => x.count);
 	projectRoute("combat", cfg);
 	assert.deepEqual(cfg.bb.acts.map((x) => x.count), before);
+});
+
+test("projectRoute buys each run's augments at cfg.augStep, 1.9 when left out (less with Source-File 11)", () => {
+	// Budget per run: 1e6/s x 10h x 3600 x 0.5 = 1.8e10. B goes first (same value, cheaper); then A costs 8e9 x the step.
+	const augs = [{ name: "A", price: 8e9 }, { name: "B", price: 3.5e9 }]
+		.map((aug) => ({ ...aug, rep: 0, f: ["F"], h: 1, e: 1, cs: [1.1, 1.1, 1.1, 1.1] }));
+	assert.deepEqual(projectRoute("combat", combatConfig({ augs, maxRuns: 1 })).log[0].names, ["B"], "3.5e9 + 8e9 x 1.9 = 1.87e10 is over");
+	assert.deepEqual(projectRoute("combat", combatConfig({ augs, maxRuns: 1, augStep: 1.767 })).log[0].names, ["B", "A"], "3.5e9 + 8e9 x 1.767 = 1.76e10 fits");
 });
 
 test("incomeNeeded is a power of two and 1 when the plan already works", () => {

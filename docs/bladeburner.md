@@ -14,7 +14,7 @@ set of scripts that had run in game.
 | `boot` | start of a run: hacking 10 and income first (never longer than an hour into a run) | normal player-work |
 | `train` | a combat stat is below 100 (the join requirement), e.g. after an install reset the stats | the gym, via player-work |
 | `run` | stats ready, division joined | `bb-pass.js`; player-work starts nothing |
-| `hold` | joined, but the route estimate says hacking is faster or Bladeburner isn't worth the time now | normal player-work |
+| `hold` | joined, but the route estimate says hacking is faster or Bladeburner isn't worth the time now; or not joined, waiting for Stanek's Gift (below) | normal player-work |
 
 A state older than 15 minutes counts as `off`, so a stopped manager can't hold the player for ever.
 
@@ -33,6 +33,28 @@ A state older than 15 minutes counts as `off`, so a stopped manager can't hold t
   config decides (`"combat"` by default, `"hacking"` holds Bladeburner), so the choice can be made by hand.
 - **Never "done".** player-work never reports done while the API is usable, since the manager may ask for the
   gym or the whole player later in the run.
+
+## Stanek's Gift first
+
+With Source-File 7 at level 3, joining the division installs The Blade's Simulacrum at once. Stanek's Gift can only be
+accepted while every augmentation installed or bought is NeuroFlux Governor, so that join closes the Gift for the rest of
+the BitNode. The game warns about this when you join by hand; `joinBladeburnerDivision()` doesn't (bitburner-src v3.0.0,
+`src/CotMG/Helper.tsx`, `src/PersonObjects/Player/PlayerObjectBladeburnerMethods.ts`).
+
+- **Decision.** With `bladeburner.stanekFirst` on, `bb-manage.js` doesn't join while the Gift is still open
+  ([`../utils/stanek.js`](../utils/stanek.js): the church is there in BitNode 13 or with Source-File 13, and nothing but
+  NeuroFlux Governor is installed). The state is `hold`, the gym waits too (the install that would close the Gift resets
+  what it trained), and one notice per BitNode says how to go on: accept the Gift at the Church of the Machine God in
+  Chongqing, or set `stanekFirst` to false. Once the Gift or any other augmentation is installed, the next pass joins.
+- **Default.** On in BitNode 13 only (`bitnodes` in [`../config.js`](../config.js)), where the Gift is the point of the
+  BitNode. Elsewhere the Simulacrum, which lets Bladeburner actions run alongside other work, is worth more than a Gift
+  that no script here charges.
+- **Tradeoffs.** It sees installed augmentations only (`getResetInfo().ownedAugs`; bought ones need the Singularity API),
+  so after a purchase it waits on until the install. That is usually at once: the reset buys and installs together. An
+  unattended first run of BitNode 13 with Source-File 7.3 plays no Bladeburner.
+- **Rejected:** accepting the Gift automatically (Genesis alone multiplies nearly every stat by 0.9 until fragments are
+  charged, and there are no Stanek scripts yet); waiting in every BitNode with Source-File 13 (each BitNode 12 run would
+  lose its first run of Bladeburner for a Gift nobody charges).
 
 ## Ending the BitNode
 

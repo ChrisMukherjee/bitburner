@@ -117,7 +117,7 @@ export async function main(ns) {
 
     const L = [];
     L.push(`${new Date().toLocaleTimeString()}  augmentation dataset, BitNode ${node}; cash ${usd(cash)}, income ${usd(income)}/s, karma ${karma.toFixed(0)}`);
-    L.push(`How augments are ranked: value = sum of weight x ln(multiplier) over the stat groups the config wants (${augCfg.wantStats.join(", ")}); the planner buys the most expensive affordable ones first because each purchase makes the rest x1.9 dearer, then NeuroFlux. It only sees JOINED factions with enough rep.`);
+    L.push(`How augments are ranked: value = sum of weight x ln(multiplier) over the stat groups the config wants (${augCfg.wantStats.join(", ")}); the planner buys the most expensive affordable ones first because each purchase makes the rest x1.9 dearer (less with Source-File 11), then NeuroFlux. It only sees JOINED factions with enough rep.`);
     L.push(`Rep rates below are the game's formula for your skills (best of hacking/field/security work, x${repMult.toFixed(2)} rep multiplier, favour included); not measured.`);
     L.push("");
     L.push("FACTIONS (joined first; wanted = augs with value on this route not yet owned)");

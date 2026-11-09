@@ -17,7 +17,7 @@ happens.
 
 - **Money:** cash + stocks + what income earns over the horizon (along buy-augs' income curve, see
   [`aug-reset.md`](aug-reset.md); flat until it has one) must cover the picked set bought most expensive first, each
-  purchase making the rest 1.9x dearer (as buy-augs does).
+  purchase making the rest dearer by the price step (1.9, less with Source-File 11; as buy-augs does).
 - **Time:** the rep still missing, summed over factions (they're worked one at a time), at the measured rep
   rate (from `data/aug-plan.json`; factions not worked yet get the best rate seen). Skipped until a rate
   is measured.

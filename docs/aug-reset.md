@@ -63,9 +63,17 @@ roughly how much faster the next run goes. Long-run progress grows by the value 
 hour of play, so that's what the rule maximises. This is the marginal value theorem from
 foraging: leave the patch once the next bit of waiting earns slower than the average so far.
 
-**Waiting pays less and less.** Every purchase makes the rest 1.9x dearer, so k augments cost
-about p(1.9^k - 1)/0.9 and, with steady income, the batch grows only with the log of run
+**Waiting pays less and less.** Every purchase makes the rest dearer by the price step s, so k augments
+cost about p(s^k - 1)/(s - 1) and, with steady income, the batch grows only with the log of run
 time. Rep unlocks are lumpy on top. So each run has a best moment, and it moves.
+
+**The price step.** s is 1.9, and 0.96, 0.94 or 0.93 of that (1.824, 1.786, 1.767) with Source-File 11
+at level 1, 2 or 3; NeuroFlux Governor levels pay it too. The game counts the active Source-File level only, so
+BitNode 11 gives no discount until it has been destroyed once (bitburner-src v3.0.0,
+`src/Augmentation/AugmentationHelpers.ts`). [`utils/aug-price.js`](../utils/aug-price.js) is the one place that
+knows this (0GB, from `getResetInfo().ownedSF`). buy-augs, faction-goals and the Bladeburner route estimate read it
+there, and buy-augs writes it into the plan as `priceStep` for donate-rep. The game's own prices already include
+the step for the augments bought but not installed, so only purchases still planned add to it.
 
 **Rebuild time is already counted.** Run age is measured from the last reset, so the slow
 start of a run is inside it; `overheadMinutes` covers the fixed cost of a reset.
@@ -211,7 +219,7 @@ which the planner already pays for), the count is all that stands between the ru
 and any augment counts the same:
 
 - buy-augs picks the cheapest augments any joined faction has the rep for, useful or not, that fit
-  the cash with the 1.9x markup (bought most expensive first as usual), plus `daedalusPushSpare` (2)
+  the cash at the price step (bought most expensive first as usual), plus `daedalusPushSpare` (2)
   in case a purchase fails on a prerequisite the planner can't see;
 - as soon as they cover the missing count (after the bought-but-not-installed ones) it resets,
   buying that list instead of the usual plan (NeuroFlux still gets what's left);
@@ -261,7 +269,7 @@ too late, many short runs with a low rate mean too early. It only records; nothi
 - Other factions with 150 favor can sell rep too, and `augments.donations.anyFaction` (on by default, `false` turns it off) uses them.
   It spends real money, so it is guarded: donate-rep.js donates for one wanted augment at a time (the
   best value per dollar of donation plus price) only when home cash covers this reset's planned purchases, the
-  donation and the augment at its raised price, times `safety` (1.25). The planner publishes the candidates as
+  donation and the augment at its price after those purchases, times `safety` (1.25). The planner publishes the candidates as
   `unlockable` in `data/aug-plan.json`. The augment is bought at the next reset like any unlocked one.
   `run /singularity/donate-rep.js --dry` shows what it would do.
 

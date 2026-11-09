@@ -92,7 +92,7 @@ With Source-File 5, [`startup.js`](startup.js) also does not start the batcher w
 
 ### Planning your BitNode route and settings
 
-New to the repo? Read [`docs/bitnode-order.md`](docs/bitnode-order.md) first: which BitNodes and Source-Files to do in which order (Source-File 4 first, then 5 and 2, then Bladeburner) and what each unlocks here.
+New to the repo? Read [`docs/bitnode-order.md`](docs/bitnode-order.md) first: the order to do every BitNode in, from a new save to BitNode 12 (BitNode 1 twice, Source-File 4 to level 3, then 5, 1.3, gangs, Bladeburner, sleeves and on), what each Source-File gives and what the scripts do with it. It is the default `bitnodePlan`.
 
 Do this once, in the game, to tailor the scripts to your save:
 

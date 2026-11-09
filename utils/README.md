@@ -6,6 +6,7 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | --- | --- | --- | --- |
 | [`config.js`](config.js) | `loadConfig`: defaults, per-BitNode section and `data/config.json` merged. Design: [`docs/config.md`](../docs/config.md) | none | 0GB |
 | [`aug-filter.js`](aug-filter.js) | `wantedBoosts`: the one "worth buying" rule for augments; `augValue` for the reset rule, with money stats weighed by the income mix. Design: [`docs/config.md`](../docs/config.md) | none | 0GB |
+| [`aug-price.js`](aug-price.js) | `augPriceStep`: how much dearer each augment bought makes the rest (1.9, less with Source-File 11); pass `getResetInfo().ownedSF`. Design: [`docs/aug-reset.md`](../docs/aug-reset.md) | none | 0GB |
 | [`bitnode-route.js`](bitnode-route.js) | Next BitNode: `routeStep` (your `bitnodeRoute`, else the `bitnodePlan` suggestion, easiest multipliers first with Source-File 5). Design: [`docs/bitnode-mults.md`](../docs/bitnode-mults.md) | SF5 (opt) | 1GB |
 | [`bitnode-mults.js`](bitnode-mults.js) | `bitnodeMults(ns).get(name)`: the BitNode multipliers saved this run, 1 each when unknown (no Source-File 5). Design: [`docs/bitnode-mults.md`](../docs/bitnode-mults.md) | SF5 (opt) | 0GB |
 | [`sf5.js`](sf5.js) | Whether this run can read the BitNode multipliers (BitNode 5 or Source-File 5), and the ready check for startup.js | none | 1GB |
@@ -15,6 +16,7 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`gang.js`](gang.js) | What this run can do with gangs; the one place with per-BitNode gang rules | none | 1GB |
 | [`pass-log.js`](pass-log.js) | `postPass`: a one-shot keeps the lines of its last pass on port 37 for the debug report. Design: [`docs/debug-report.md`](../docs/debug-report.md) | none | 0GB |
 | [`bladeburner.js`](bladeburner.js) | Whether this run can use the Bladeburner API (BitNode 6/7 or Source-File 6/7) | none | 1GB |
+| [`stanek.js`](stanek.js) | Stanek's Gift: `giftOpen` (still acceptable, from the installed augments) and `joiningClosesGift` (joining Bladeburner with Source-File 7.3 would close it); pass `getResetInfo()`. Design: [`docs/bladeburner.md`](../docs/bladeburner.md) | none | 0GB |
 | [`get-all-servers.js`](get-all-servers.js) | Every reachable server | none | 0.2GB |
 | [`find-path.js`](find-path.js) | Route from home to a server | none | 0.2GB |
 | [`nuke-all.js`](nuke-all.js) | Roots every server it can | none | 0.75GB |

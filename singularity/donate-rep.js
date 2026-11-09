@@ -3,12 +3,12 @@
 import { loadConfig } from "/utils/config.js";
 import { notify } from "/utils/notify.js";
 import { postGate } from "/singularity/ready.js";
+import { BASE_PRICE_STEP } from "/utils/aug-price.js";
 const GATE_KEY = "donate";
 const MONEY_PER_REP = 1e6; // the game's donation rate before the rep multiplier
 const MARGIN = 1.01;       // a little extra, in case a BitNode multiplier shrinks donations
 const PLAN_FILE = "data/aug-plan.json";
 const PLAN_MAX_AGE_MS = 30 * 60_000; // an older plan says nothing about what this reset will buy
-const PRICE_MULT = 1.9;    // each augment bought makes the rest this much dearer
 const TOP_UPS = 3;         // donate again (at the rate just seen) if the first one fell short
 
 /**
@@ -103,7 +103,7 @@ function perDollarNow(player) {
  * (times `safety`), so a donation never takes money from augments that were affordable. Picks the most
  * augment value per dollar of donation + price. Returns { aug, faction, missing, amount, required }.
  */
-function otherDonation(ns, settings, player, threshold, owned, perDollar) {
+export function otherDonation(ns, settings, player, threshold, owned, perDollar) {
 	if (!settings?.anyFaction) return null;
 	let plan = null;
 	try {
@@ -112,7 +112,11 @@ function otherDonation(ns, settings, player, threshold, owned, perDollar) {
 		return null;
 	}
 	if (!plan || Date.now() - (plan.checkedAt ?? 0) > PLAN_MAX_AGE_MS || !Array.isArray(plan.unlockable)) return null;
-	const planned = (plan.affordable?.length ?? 0) + (plan.queued?.length ?? 0);
+	// This augment's price after the planned purchases. The game's price already counts the augments bought but not
+	// installed, so only the planned ones raise it further, each by the run's price step (buy-augs.js writes it: 1.9,
+	// less with Source-File 11; an older plan without it means 1.9).
+	const planned = plan.affordable?.length ?? 0;
+	const priceStep = plan.priceStep ?? BASE_PRICE_STEP;
 	const planCost = plan.cost ?? 0;
 	let best = null;
 	for (const entry of plan.unlockable) {
@@ -121,7 +125,7 @@ function otherDonation(ns, settings, player, threshold, owned, perDollar) {
 		const missing = entry.repNeeded - ns.singularity.getFactionRep(entry.faction);
 		if (missing <= 0) continue;
 		const amount = Math.ceil((missing / perDollar) * MARGIN);
-		const price = ns.singularity.getAugmentationPrice(entry.aug) * PRICE_MULT ** planned;
+		const price = ns.singularity.getAugmentationPrice(entry.aug) * priceStep ** planned;
 		const required = (planCost + amount + price) * (settings.safety ?? 1.25);
 		const score = (entry.value ?? 0) / (amount + price);
 		if (!best || score > best.score) best = { aug: entry.aug, faction: entry.faction, missing, amount, required, score };

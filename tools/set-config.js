@@ -54,8 +54,8 @@ export async function main(ns) {
 				const [bitNode, given] = item.split(":").map(Number);
 				// A bare number means "one more level of it": the level you will own once this BitNode ends, plus one.
 				const level = given ?? nextLevel(ns, bitNode);
-				if (!Number.isInteger(bitNode) || bitNode < 1 || bitNode > 14 || !Number.isInteger(level) || level < 1) {
-					ns.tprint(`ERROR "${item}" isn't bitNode:level (BitNode 1-14, level 1 or more), e.g. 4:3 or 5. Nothing changed.`);
+				if (!Number.isInteger(bitNode) || bitNode < 1 || bitNode > 15 || !Number.isInteger(level) || level < 1) {
+					ns.tprint(`ERROR "${item}" isn't bitNode:level (BitNode 1-15, level 1 or more), e.g. 4:3 or 5. Nothing changed.`);
 					return;
 				}
 				steps.push({ bitNode, level });

@@ -43,7 +43,7 @@ const CONFIG = {
 	refreshMs: 10 * 60_000,    // re-read goals and city plan this often (catches augments bought meanwhile)
 	travelCost: 200e3,
 	goalsHelper: "singularity/workers/faction-goals.js",
-	goalsImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js", "utils/income.js", "utils/income-curve.js"],
+	goalsImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js", "utils/income.js", "utils/income-curve.js", "utils/aug-price.js"],
 	planHelper: "singularity/workers/city-plan.js",
 	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	gangHelper: "gang/workers/invite.js",

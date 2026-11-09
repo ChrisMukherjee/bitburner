@@ -5,7 +5,8 @@ import { readIncomeRate } from "/utils/income.js";
 import { postPass } from "/utils/pass-log.js";
 import { notify } from "/utils/notify.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
-import { bladeburnerPlan, postBladeburner, trainFloor } from "/bladeburner/state.js";
+import { joiningClosesGift } from "/utils/stanek.js";
+import { bladeburnerPlan, postBladeburner, readBladeburner, trainFloor } from "/bladeburner/state.js";
 
 // Skill tiers, cheapest first within a tier: Overclock (shorter actions = more rank per hour), the success-chance
 // skills, Cyber's Edge (stamina), Hyperdrive (exp).
@@ -22,9 +23,10 @@ const BOOT_MAX_MS = 3600_000;    // never hold Bladeburner longer than an hour i
  *   boot   start of a run: first get hacking to 10 and income flowing, Bladeburner waits
  *   train  a combat stat is below the floor: player-work.js trains it in the gym (also after an install resets the stats)
  *   run    stats are ready: bladeburner/bb-pass.js plays and player-work.js leaves the player alone
- *   hold   division joined but no actions (the route estimate says hacking, or Bladeburner isn't worth the time now)
- * All decided from live state each pass (Source-Files, hacking level, income, stats, run age); the only input
- * from outside is the route estimate on the same port (`plan`), when one is written.
+ *   hold   no actions: the route estimate says hacking, Bladeburner isn't worth the time now, or the division waits
+ *          for Stanek's Gift (`bladeburner.stanekFirst`, see below)
+ * All decided from live state each pass (Source-Files, augmentations, hacking level, income, stats, run age); the
+ * only input from outside is the route estimate on the same port (`plan`), when one is written.
  * Ported from the other player's bb-manage.js, which has run in game.
  */
 /** @param {NS} ns */
@@ -46,17 +48,27 @@ export async function main(ns) {
 	const clearAction = () => { if (bb.inBladeburner() && bb.getCurrentAction()) bb.stopBladeburnerAction(); };
 
 	const skills = ns.getPlayer().skills;
+	const config = loadConfig(ns);
+	const info = ns.getResetInfo();
 	const plan = bladeburnerPlan(ns);
 	// On the hacking route Bladeburner takes none of the player's time (no gym, no actions), so faction and
 	// company work and the hacking augments get all of it. No plan yet = `bladeburner.route` from the config.
-	const route = plan?.route ?? loadConfig(ns).bladeburner.route;
+	const route = plan?.route ?? config.bladeburner.route;
 	if (route === "hacking") {
 		clearAction();
 		return setState("hold", `hold: the route is hacking (${plan?.route ? "estimate" : "config"})`);
 	}
 
+	// Stanek's Gift first (`bladeburner.stanekFirst`, on by default in BitNode 13): with Source-File 7.3, joining installs
+	// The Blade's Simulacrum, which closes the Gift for the rest of the BitNode. So while the Gift is still open, the division
+	// waits (and the gym too: an install would reset the stats) until the Gift is accepted or an install closes it.
+	if (config.bladeburner.stanekFirst && !bb.inBladeburner() && joiningClosesGift(info)) {
+		giftNotice(ns, info.lastNodeReset);
+		return setState("hold", "hold: Stanek's Gift first (joining now would close it; see the notice)");
+	}
+
 	// Start of a run: hacking and income first (they pay for everything else), unless the run is already an hour old
-	const young = Date.now() - ns.getResetInfo().lastAugReset < BOOT_MAX_MS;
+	const young = Date.now() - info.lastAugReset < BOOT_MAX_MS;
 	const booted = skills.hacking >= HACK_FLOOR && (readIncomeRate(ns).perSecond > 0 || ns.getPlayer().money >= CASH_FLOOR);
 	if (young && !booted) {
 		clearAction();
@@ -82,6 +94,16 @@ export async function main(ns) {
 	}
 	setState("run");
 	spendSkillPoints(bb);
+}
+
+/** Says once per BitNode why the division waits for Stanek's Gift and how to go on (kept on port 36 as `giftNotice`). */
+function giftNotice(ns, nodeStart) {
+	if (readBladeburner(ns).giftNotice === nodeStart) return;
+	notify(ns, "[bladeburner]", "Bladeburner waits for Stanek's Gift: joining with Source-File 7.3 installs The Blade's " +
+		"Simulacrum, which closes the Gift for this BitNode. Accept the Gift at the Church of the Machine God in Chongqing " +
+		"before buying any augmentation, or join now with `run /tools/set-config.js set bladeburner.stanekFirst false`. " +
+		"Otherwise the division is joined after the first augmentation install.", "warning", true);
+	postBladeburner(ns, { giftNotice: nodeStart });
 }
 
 /** Buys skills tier by tier, cheapest first; waits for points rather than skipping ahead to a lesser tier. */

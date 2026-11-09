@@ -30,7 +30,7 @@ depends on progress is a setting, and scripts don't hardcode new ones.
   `data/config.json`, because `ns.read` reads the server the script runs on.
 - **One "worth buying" rule.** `wantedBoosts` decides for buying augs, faction rep goals and city plans
   alike. It used to be copied in two places and drifted.
-- **The BitNode route is the player's own.** `bitnodeRoute` is `[]` in `config.js`, since which Source-Files to chase is each player's plan; it goes in `data/config.json`. With it empty, a generic `bitnodePlan` is walked against the owned Source-Files and only *suggests* the next BitNode (`bitnodeRouteAuto: true` follows it by itself); see [`bitnode-mults.md`](bitnode-mults.md). Entries already owned are skipped, so a full plan can be listed. Step-by-step use is in the root README ("Planning your BitNode route and settings").
+- **The BitNode route is the player's own.** `bitnodeRoute` is `[]` in `config.js`, since which Source-Files to chase is each player's plan; it goes in `data/config.json`. With it empty, a generic `bitnodePlan` (the full order in [`bitnode-order.md`](bitnode-order.md)) is walked against the owned Source-Files and only *suggests* the next BitNode (`bitnodeRouteAuto: true` follows it by itself); see [`bitnode-mults.md`](bitnode-mults.md). Entries already owned are skipped, so a full plan can be listed. Step-by-step use is in the root README ("Planning your BitNode route and settings").
 - **Read at start only.** Restart a script after changing settings.
 - **Detected, not configured:** the BitNode multipliers (with Source-File 5) gate mechanics a BitNode makes worthless (`mechanicGates`) and rank the route suggestion; the player's settings win.  whether the Singularity API is usable (and its RAM multiplier) comes from
   the game. Rep and price multipliers are already in the game's own numbers.
@@ -42,5 +42,6 @@ ones, for a Bladeburner route). `loadConfig` also adjusts the augment weights by
 Bladeburner is the route (state boot, train or run on port 36, or hold while the route estimate says combat): combat and
 Bladeburner augments count and hacking ones do not, as the preset does, so the preset is only needed to force it. It also
 weighs the money stats by where this run's money comes from (`augments.incomeMix`, "Income mix" in
-[`aug-reset.md`](aug-reset.md)), so hacknet or a gang paying more needs no setting either. `bitnodes` in `config.js` is still empty:
-entries get added as each BitNode is played (a `"2"` entry for the gang run is the likely first).
+[`aug-reset.md`](aug-reset.md)), so hacknet or a gang paying more needs no setting either. `bitnodes` in `config.js` has one
+entry so far, `"13"` turning on `bladeburner.stanekFirst` ([`bladeburner.md`](bladeburner.md)); others get added as each
+BitNode is played.

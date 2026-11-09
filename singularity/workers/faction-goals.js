@@ -4,11 +4,11 @@ import { loadConfig } from "/utils/config.js";
 import { wantedBoosts, augValue } from "/utils/aug-filter.js";
 import { readIncomeRate } from "/utils/income.js";
 import { earnedOver } from "/utils/income-curve.js";
+import { augPriceStep } from "/utils/aug-price.js";
 // Port player-work.js reads the goals from (20 darknet, 21 stock influence, 22 batcher income).
 export const GOALS_PORT = 23;
 const STOCK_SUMMARY_PORT = 26; // stock-trader.js posts the value of its positions here
 const NEUROFLUX = "NeuroFlux Governor";
-const PRICE_MULT = 1.9;        // every purchase multiplies the price of the rest
 const FOCUS_AUG = "Neuroreceptor Management Implant"; // removes the penalty for unfocused work
 
 // "Worth it" is the shared rule in utils/aug-filter.js (same as buy-augs.js and
@@ -18,8 +18,8 @@ const FOCUS_AUG = "Neuroreceptor Management Implant"; // removes the penalty for
  * Works out the rep goal of each faction, counting only the augments this run can actually
  * get: the ones worth buying (not owned, not queued) that fit
  *   - the money: cash + stocks + what income earns over resetRule.horizonHours (along the
- *     income curve from buy-augs.js, utils/income-curve.js; flat without one), with the 1.9x markup of
- *     buying them most expensive first, as buy-augs.js does; and
+ *     income curve from buy-augs.js, utils/income-curve.js; flat without one), with the price step
+ *     (1.9x, less with Source-File 11) of buying them most expensive first, as buy-augs.js does; and
  *   - the time: the rep still missing, faction by faction (player-work works one at a time),
  *     at the measured rep rate, within the same horizon. Skipped while no rate is measured.
  * Augments are taken best value per dollar first (augValue, the reset rule's value), each
@@ -90,7 +90,9 @@ export async function main(ns) {
 
 	// Budget: money by the end of the horizon, and work time at the measured rep rate.
 	const income = Math.max(0, readIncomeRate(ns).perSecond);
-	const lastReset = ns.getResetInfo().lastAugReset;
+	const resetInfo = ns.getResetInfo();
+	const lastReset = resetInfo.lastAugReset;
+	const priceStep = augPriceStep(resetInfo.ownedSF); // every purchase multiplies the price of the rest
 	const curve = incomeModel && incomeModel.time >= lastReset ? incomeModel : null;
 	const budget = ns.getServerMoneyAvailable("home") + stockValue(ns) + earnedOver(income, curve, horizonS);
 	const fresh = ratesTime >= lastReset;
@@ -101,7 +103,7 @@ export async function main(ns) {
 	const timeChecked = fallbackRate > 0;
 
 	const moneyFor = (augs) => [...augs].map((aug) => info.get(aug).price).sort((first, second) => second - first)
-		.reduce((sum, price, index) => sum + price * Math.pow(PRICE_MULT, index), 0);
+		.reduce((sum, price, index) => sum + price * Math.pow(priceStep, index), 0);
 	const secondsFor = (augs) => {
 		const top = new Map();
 		for (const aug of augs) {
