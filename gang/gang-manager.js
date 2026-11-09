@@ -105,7 +105,7 @@ async function waitForGang(ns, settings) {
 }
 
 /** Recruits as long as respect allows (the first few are free). */
-function recruit(ns) {
+export function recruit(ns) {
 	for (let tries = 0; tries < 12; tries++) {
 		const gang = ns.gang.getGangInformation();
 		if (!(gang.respect >= gang.respectForNextRecruit)) return; // Infinity once full
@@ -119,13 +119,13 @@ function recruit(ns) {
 }
 
 /** The stat that matters for this gang: hacking for a hacking gang, the combat average otherwise. */
-function mainStat(member, isHacking) {
+export function mainStat(member, isHacking) {
 	if (isHacking) return member["hack"];
 	return COMBAT_STATS.reduce((sum, stat) => sum + member[stat], 0) / COMBAT_STATS.length;
 }
 
 /** Same for an ascension result (multiplier gains). */
-function mainGain(result, isHacking) {
+export function mainGain(result, isHacking) {
 	if (isHacking) return result["hack"];
 	return COMBAT_STATS.reduce((sum, stat) => sum + result[stat], 0) / COMBAT_STATS.length;
 }
@@ -135,7 +135,7 @@ function mainGain(result, isHacking) {
  * the member's stats and non-augment equipment and takes away the respect they earned, so it is
  * skipped while that respect is more than gang.ascendMaxRespectShare of the gang's.
  */
-function ascend(ns, settings, isHacking) {
+export function ascend(ns, settings, isHacking) {
 	const gang = ns.gang.getGangInformation();
 	for (const name of ns.gang.getMemberNames()) {
 		const result = ns.gang.getAscensionResult(name); // undefined until they have enough exp
@@ -154,14 +154,14 @@ function ascend(ns, settings, isHacking) {
  * How much a member's stats are worth on a task: the game's own weight formula, so no trial
  * assignment is needed. 0 or less means the task is too hard for them yet.
  */
-function skillWeight(task, member) {
+export function skillWeight(task, member) {
 	const sum = task.hackWeight * member["hack"] + task.strWeight * member.str + task.defWeight * member.def +
 		task.dexWeight * member.dex + task.agiWeight * member.agi + task.chaWeight * member.cha;
 	return sum / 100 - 4 * task.difficulty;
 }
 
 /** Territory scaling of a task's payout: the more land the gang owns, the more land-dependent tasks pay. */
-function landMult(task, field, territory) {
+export function landMult(task, field, territory) {
 	const exponent = task.territory[field];
 	return exponent <= 0 ? 1 : Math.max(0.005, Math.pow(territory * 100, exponent) / 100);
 }
@@ -171,7 +171,7 @@ function landMult(task, field, territory) {
  * respect/money x territory scaling), the same maths as the game, within one tick.
  * Formula and cleaner count follow a version that has run in game.
  */
-function assignTasks(ns, settings, isHacking, state, noWar) {
+export function assignTasks(ns, settings, isHacking, state, noWar) {
 	const gang = ns.gang.getGangInformation();
 	const names = ns.gang.getMemberNames();
 	const full = !(gang.respectForNextRecruit < Infinity);
@@ -253,7 +253,7 @@ function assignTasks(ns, settings, isHacking, state, noWar) {
 }
 
 /** Other gangs that still hold territory. */
-function othersWithTerritory(ns, ownFaction) {
+export function othersWithTerritory(ns, ownFaction) {
 	return Object.entries(ns.gang.getAllGangInformation())
 		.filter(([name, other]) => name !== ownFaction && other.territory > 0);
 }
@@ -263,7 +263,7 @@ function othersWithTerritory(ns, ownFaction) {
  * off below gang.disengageAt (or when nobody holds any). Win chance = our power / (ours + theirs),
  * the game's own formula, so getChanceToWinClash (4GB) isn't needed.
  */
-function setWarfare(ns, settings, state, noWar) {
+export function setWarfare(ns, settings, state, noWar) {
 	const gang = ns.gang.getGangInformation();
 	const others = othersWithTerritory(ns, gang.faction);
 	const chances = others.map(([, other]) => gang.power / Math.max(1e-9, gang.power + other.power));
@@ -283,7 +283,7 @@ function setWarfare(ns, settings, state, noWar) {
  * Augmentations first, since they survive ascension; then cheapest first. Only items that raise
  * a stat the gang uses (combat stats or hacking, plus charisma).
  */
-function buyEquipment(ns, settings, isHacking, state, policy) {
+export function buyEquipment(ns, settings, isHacking, state, policy) {
 	if (!state.equipment) state.equipment = readEquipment(ns);
 	if (!state.equipment) return;
 	const useful = new Set(isHacking ? ["hack", "cha"] : [...COMBAT_STATS, "cha"]);

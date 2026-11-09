@@ -140,7 +140,7 @@ export async function main(ns) {
 }
 
 /** Appends this tick's relative price change for each stock. Unchanged prices are skipped, they say nothing. */
-function recordTick(ns, symbols, history, lastPrice) {
+export function recordTick(ns, symbols, history, lastPrice) {
 	const keep = CONFIG.estimated.longWindow;
 	for (const sym of symbols) {
 		const price = midPrice(ns, sym);
@@ -161,7 +161,7 @@ function midPrice(ns, sym) {
 }
 
 /** Share of the last `span` moves that went up. (Not "window": the RAM check charges that word 25GB.) */
-function upShare(moves, span) {
+export function upShare(moves, span) {
 	const recent = moves.slice(-span);
 	return recent.filter((move) => move > 0).length / recent.length;
 }
@@ -202,7 +202,7 @@ function thresholds(view) {
 }
 
 /** Sells a long once the outlook turns down. */
-function sellIfTurned(ns, view, stats) {
+export function sellIfTurned(ns, view, stats) {
 	if (!view.ready) return; // still warming up after a restart: hold what we have
 	const [longShares] = ns.stock.getPosition(view.sym);
 	const limits = thresholds(view);
@@ -214,7 +214,7 @@ function sellIfTurned(ns, view, stats) {
 }
 
 /** Sells every long share of a stock. Returns the cash it brought in. */
-function sellAll(ns, sym, reason, stats) {
+export function sellAll(ns, sym, reason, stats) {
 	const [longShares, longAvg] = ns.stock.getPosition(sym);
 	let proceeds = 0;
 	if (longShares > 0) {
@@ -287,7 +287,7 @@ function portfolioValue(ns, symbols) {
  * long push the price up. Every other hack/grow leaves the market alone, so hacking a company
  * we're long on can't hurt us. (The hack list stays for the worker format; it's empty without shorts.)
  */
-function postInfluence(ns, symbols) {
+export function postInfluence(ns, symbols) {
 	const influence = { grow: [], hack: [] };
 	for (const sym of symbols) {
 		const host = SYMBOL_SERVERS[sym];

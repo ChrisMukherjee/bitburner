@@ -40,9 +40,12 @@ milliseconds, and a fixed bug stays fixed when a test pins it.
   [`../tests/support/fake-world.mjs`](../tests/support/fake-world.mjs): servers with RAM, a process table, files copied
   to servers, with the clock mocked (`t.mock.timers`) for waits. It checks what starts where and in what order, not the
   real RAM costs (every script is 2GB unless a test says otherwise).
-- Not covered yet: the batcher's main loop (target choice over time, launch timing against a real clock), the Go bot,
-  darknet solvers, the gang and Bladeburner managers, stock trading, player-work beyond the gym. These are mostly long
+- Not covered yet: the batcher's main loop (target choice over time, launch timing against a real clock), the Go bot's
+  `main` loop (its plan order and move search are tested), the gang and stock traders' `main` loops (their per-pass
+  decisions are tested), `bladeburner/bb-pass.js` and `node-eta.js`, player-work beyond the gym. These are mostly long
   `main` functions; split a piece into a function a test can call when a bug shows up there.
+- The Go search is random and time-boxed, so its tests use boards where one move is clearly right and check the move,
+  not the win-chance figure.
 - RAM is not checked by the tests. The offline port of the game's RAM check needs the game's source and npm packages, so
   it stays a separate tool.
 
@@ -50,6 +53,8 @@ milliseconds, and a fixed bug stays fixed when a test pins it.
 modules (the tests would check a copy, not the synced script); end-to-end runs against the game (the Remote API can't
 drive scripts or read their state).
 
-**Current state:** about 110 tests across the reset rule and the reset itself (sell, buy, install), home-upgrade hold,
+**Current state:** about 220 tests across the reset rule and the reset itself (sell, buy, install), home-upgrade hold,
 Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without Formulas.exe, RAM pool,
-startup.js stages and one-shots, gym and study choice, income curve, augment filter, BitNode route, and repo checks.
+startup.js stages and one-shots, gym and study choice, income curve, augment filter, BitNode route, Go plan order and move search,
+the gang manager's per-pass decisions, the stock trader's sell and buy rules, the Bladeburner state machine and route model,
+and repo checks.
