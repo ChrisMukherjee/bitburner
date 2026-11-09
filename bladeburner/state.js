@@ -5,7 +5,10 @@
 //   state, stateTime   bb-manage.js: "off", "boot", "train", "run" or "hold" (see docs/bladeburner.md)
 //   plan               the route estimate (route "combat"|"hacking", hold, time; trainTarget is read but nobody writes it yet), written by node-eta.js
 //   eta                node-eta.js: its hacking exp samples of this run
-//   rank, actions      bb-pass.js: rank samples of the last hour, and the live action readings the estimate uses
+//   rank, actions      bb-pass.js: rank samples of the last hour, and the live action readings the estimate uses (rows, cities, and the next Black Op: blackOp)
+//   perf, perfLog      bb-pass.js: the efficiency report (measured vs ceiling, limiter, idle, banked counts) and its hourly log (docs/bladeburner.md, "Measuring")
+//   restShare, idleShare, penaltyShare   bb-pass.js: moving shares of passes resting, finding the player idle, and under 50 % stamina
+//   skillLevels        bb-manage.js: Reaper, Evasive System and Cyber's Edge levels, for bb-pass.js's stamina model
 //   action             bb-pass.js: { type, name, time } of the running action (null when none), shown on status' "Doing:" line
 //   blackOps         bb-pass.js: { done, time }, done when getNextBlackOp() found none (auto-destroy.js ends the BitNode)
 //   giftNotice         bb-manage.js: lastNodeReset of the BitNode whose Stanek's Gift notice it has shown (once per BitNode)

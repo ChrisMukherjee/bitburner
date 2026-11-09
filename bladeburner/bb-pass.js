@@ -1,7 +1,8 @@
 // Design: docs/bladeburner.md
 import { postPass } from "/utils/pass-log.js";
 import { loadConfig } from "/utils/config.js";
-import { pickCity, nextRestShare, scoutTarget } from "/bladeburner/picks.js";
+import { pickCity, nextRestShare, scoutTarget, BLACKOP_CHANCE } from "/bladeburner/picks.js";
+import { idealRankRate, staminaRegen, measuredRate, hoursToRank, nextShare } from "/bladeburner/ideal.js";
 import { bladeburnerState, postBladeburner, readBladeburner } from "/bladeburner/state.js";
 
 const CONTRACTS = ["Tracking", "Bounty Hunter", "Retirement"];
@@ -9,7 +10,9 @@ const OPERATIONS = ["Investigation", "Undercover Operation", "Sting Operation", 
 const CITIES = ["Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven"];
 const MIN_CHANCE = 0.6;        // Contracts/Operations at or above this (lower estimate) are safe to run
 const FALLBACK_CHANCE = 0.4;   // when nothing is that safe, the best one with at least this (middle estimate) beats idling
-const BLACKOP_CHANCE = 0.8;    // a failed Black Op costs rank and health: wait for a safe chance
+const FINAL_RANK = 400_000;    // Operation Daedalus, the last Black Op, needs this rank
+const PERF_LOG_MS = 3600_000;  // one line of the efficiency log per hour
+const PERF_LOG_MAX = 48;
 const REST_BELOW = 0.55;
 const REST_UNTIL = 0.9;
 const GENERAL = "General";
@@ -38,6 +41,11 @@ export async function main(ns) {
 	const current = bb.getCurrentAction(); // { type, name } or null
 	const rank = bb.getRank();
 	const notes = [];
+	const before = readBladeburner(ns);
+	// An action the game stopped (its count ran out, or stamina hit 0) leaves the player idle until this pass: idle time to measure
+	const idle = current === null;
+	let blackOp = null; // the next Black Op's reading, for bb-manage.js's skill choice
+	let banked = NaN;   // counts waiting on the safe actions: many = the clock is the limit, none = the supply of counts is
 
 	const start = (type, name, why) => {
 		if (current && current.type === type && current.name === name) {
@@ -64,6 +72,7 @@ export async function main(ns) {
 	if (!done) {
 		next = bb.getNextBlackOp();
 		blackOpsDone = next === null;
+		if (next) blackOp = blackOpReading(bb, next);
 		if (next && rank >= next.rank) {
 			const [low, high] = bb.getActionEstimatedSuccessChance("Black Operations", next.name);
 			if (high - low > 0.1) done = start(GENERAL, "Field Analysis", `Black Op estimate too fuzzy (${Math.round(low * 100)}-${Math.round(high * 100)}%)`);
@@ -85,7 +94,7 @@ export async function main(ns) {
 					const middle = (low + high) / 2;
 					let level = 1;
 					let maxLevel = 1;
-					let count = 0;
+					let count = 1; // the game's own refusal (startAction) covers a failed read
 					try {
 						level = bb.getActionCurrentLevel(type, name);
 						maxLevel = bb.getActionMaxLevel(type, name);
@@ -98,14 +107,16 @@ export async function main(ns) {
 			}
 		}
 		rows.sort((first, second) => second.score - first.score);
-		actions = readings(ns, bb, rows, [stamina, maxStamina]);
+		actions = readings(ns, bb, rows, [stamina, maxStamina], rank, blackOp);
 		for (const row of rows.slice(0, 4)) {
 			notes.push(`  ${row.name}: ${Math.round(row.low * 100)}-${Math.round(row.high * 100)}% chance, ${row.gain.toFixed(2)} rank in ${row.seconds.toFixed(0)} s => ${row.score.toFixed(3)} rank/s`);
 		}
-		const safe = rows.filter((row) => row.low >= MIN_CHANCE); // safe by the pessimistic estimate
-		const okay = rows.filter((row) => row.middle >= FALLBACK_CHANCE); // acceptable by the middle estimate
+		const live = rows.filter((row) => row.count >= 1); // an action with no count left can't be started: don't plan on it
+		const safe = live.filter((row) => row.low >= MIN_CHANCE); // safe by the pessimistic estimate
+		banked = safe.reduce((sum, row) => sum + Math.floor(row.count), 0);
+		const okay = live.filter((row) => row.middle >= FALLBACK_CHANCE); // acceptable by the middle estimate
 		const pool = safe.length > 0 ? safe : okay;
-		const spread = Math.max(0, ...rows.map((row) => row.high - row.low));
+		const spread = Math.max(0, ...live.map((row) => row.high - row.low));
 		let chaos = 0;
 		try { chaos = bb.getCityChaos(bb.getCity()); } catch { /* no city yet */ }
 
@@ -151,27 +162,81 @@ export async function main(ns) {
 
 	// Rank per hour, measured over this run (the samples survive on port 36 and are dropped when the rank falls: a new run)
 	const now = Date.now();
-	const samples = (readBladeburner(ns).rank ?? []).filter((sample) => now - sample.t < RANK_WINDOW_MS && sample.rank <= rank);
+	const samples = (before.rank ?? []).filter((sample) => now - sample.t < RANK_WINDOW_MS && sample.rank <= rank);
 	samples.push({ t: now, rank });
-	const span = now - samples[0].t;
-	const perHour = span > 120_000 ? (rank - samples[0].rank) / (span / 3600_000) : NaN;
+	const perHour = measuredRate(samples);
+	const idleShare = nextShare(before.idleShare, idle);
+	const penaltyShare = nextShare(before.penaltyShare, ratio < 0.5);
 	const summary = `rank ${Math.floor(rank)}${Number.isFinite(perHour) ? ` (${Math.round(perHour)}/h)` : ""}; stamina ${Math.round(ratio * 100)}%; ` +
 		`next Black Op: ${next ? `${next.name} at rank ${next.rank}` : "all done"}`;
-	postPass(ns, ns.getScriptName(), [summary, ...notes.slice(0, 3)]);
+	// Measured against the most the game's formulas allow (bladeburner/ideal.js), so a slow run says why
+	const perf = actions ? efficiencyReport(ns, before, actions, { maxStamina, perHour, rank, banked, idleShare, penaltyShare, now }) : null;
+	const fresh = before.perf && now - before.perf.t < 600_000 ? before.perf : null; // keep the last figures through a rest or Black Op pass
+	const lines = [summary, ...((perf ?? fresh)?.line ? [(perf ?? fresh).line] : []), ...notes.slice(0, 3)];
+	postPass(ns, ns.getScriptName(), lines);
 	const now2 = bb.getCurrentAction(); // what is running after this pass, for the "Doing:" line of tools/status.js
 	// Share of passes spent resting for stamina: tells bb-manage.js whether Cyber's Edge or Overclock is worth the points
-	const restShare = nextRestShare(readBladeburner(ns).restShare, !!now2 && now2.name === "Hyperbolic Regeneration Chamber");
-	postBladeburner(ns, { restShare, script: ns.getScriptName(), action: now2 ? { type: now2.type, name: now2.name, time: now } : null, lines: [summary, ...notes.slice(0, 3)], rank: samples, ...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(actions ? { actions } : {}) });
+	const restShare = nextRestShare(before.restShare, !!now2 && now2.name === "Hyperbolic Regeneration Chamber");
+	const log = perf ? perfLog(before.perfLog, perf, rank, now) : undefined;
+	postBladeburner(ns, {
+		restShare, idleShare, penaltyShare, script: ns.getScriptName(), action: now2 ? { type: now2.type, name: now2.name, time: now } : null, lines, rank: samples,
+		...(perf ? { perf, perfLog: log } : {}),
+		...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(actions ? { actions } : {}),
+	});
+}
+
+/** The next Black Op's chance (low estimate) and reward, or null when the game won't say. */
+function blackOpReading(bb, next) {
+	try {
+		const [low, high] = bb.getActionEstimatedSuccessChance("Black Operations", next.name);
+		return {
+			name: next.name, rank: next.rank, chance: low, high,
+			gain: bb.getActionRankGain("Black Operations", next.name), secs: bb.getActionTime("Black Operations", next.name) / 1000,
+		};
+	} catch { return null; }
+}
+
+/**
+ * The efficiency report: measured rank per hour against the ceiling of bladeburner/ideal.js, what limits the ceiling, and the
+ * signs of waste (idle passes, passes under 50 % stamina where every chance is cut, counts banked while the clock is the limit).
+ */
+function efficiencyReport(ns, before, actions, measured) {
+	const levels = before.skillLevels ?? {};
+	const player = ns.getPlayer();
+	const agility = (player.skills?.agility ?? 1) * (1 + 0.02 * (levels["Reaper"] ?? 0)) * (1 + 0.04 * (levels["Evasive System"] ?? 0));
+	const regen = staminaRegen(measured.maxStamina, agility, (1 + 0.02 * (levels["Cyber's Edge"] ?? 0)) * (player.mults?.bladeburner_stamina_gain ?? 1));
+	const ideal = idealRankRate(actions.rows.map((row) => ({ name: row.name, chance: row.chance, gain: row.gain, secs: row.secs, level: row.level })), measured.maxStamina, regen);
+	if (!(ideal.perHour > 0)) return null;
+	const efficiency = measured.perHour / ideal.perHour;
+	const eta = hoursToRank(measured.rank, FINAL_RANK, measured.perHour);
+	const pct = (value) => `${Math.round(value * 100)}%`;
+	const line = `efficiency: ${Number.isFinite(measured.perHour) ? `${Math.round(measured.perHour)} rank/h of at most ${Math.round(ideal.perHour)} (${pct(efficiency)})` : `at most ${Math.round(ideal.perHour)} rank/h`}, ` +
+		`limited by ${ideal.limiter}; idle ${pct(measured.idleShare)}, stamina under 50% ${pct(measured.penaltyShare)}; ${Number.isFinite(measured.banked) ? measured.banked : "?"} safe counts banked` +
+		(Number.isFinite(eta) && measured.rank < FINAL_RANK ? `; rank ${FINAL_RANK / 1000}k in ~${eta < 10 ? eta.toFixed(1) : Math.round(eta)} h at this rate` : "");
+	return {
+		t: measured.now, perHour: Number.isFinite(measured.perHour) ? measured.perHour : null, ceiling: ideal.perHour, efficiency: Number.isFinite(efficiency) ? efficiency : null,
+		limiter: ideal.limiter, idle: measured.idleShare, penalty: measured.penaltyShare, banked: Number.isFinite(measured.banked) ? measured.banked : null,
+		etaHours: Number.isFinite(eta) ? eta : null, regen, best: ideal.byAction.slice(0, 3), line,
+	};
+}
+
+/** The hourly efficiency log kept on port 36 (`perfLog`): one entry per hour, the last PERF_LOG_MAX of them. */
+function perfLog(previous, perf, rank, now) {
+	const log = Array.isArray(previous) ? previous.slice() : [];
+	if (log.length === 0 || now - log[log.length - 1].t >= PERF_LOG_MS) {
+		log.push({ t: now, rank: Math.floor(rank), perHour: perf.perHour, ceiling: perf.ceiling, limiter: perf.limiter, idle: perf.idle, banked: perf.banked });
+	}
+	return log.slice(-PERF_LOG_MAX);
 }
 
 /** Live readings the route estimate scales to other skill levels with the game's formulas. */
-function readings(ns, bb, rows, stamina) {
+function readings(ns, bb, rows, stamina, rank, blackOp) {
 	const cities = [];
 	for (const city of CITIES) {
 		try { cities.push({ name: city, pop: bb.getCityEstimatedPopulation(city), chaos: bb.getCityChaos(city) }); } catch { /* not unlocked */ }
 	}
 	return {
-		t: Date.now(), lv: { ...ns.getPlayer().skills }, city: bb.getCity(), stamina, cities,
+		t: Date.now(), lv: { ...ns.getPlayer().skills }, city: bb.getCity(), stamina, cities, rank, ...(blackOp ? { blackOp } : {}),
 		rows: rows.map((row) => ({
 			type: row.type, name: row.name, chance: row.middle, lo: row.low, hi: row.high,
 			gain: row.gain, secs: row.seconds, level: row.level, maxLevel: row.maxLevel, count: row.count,

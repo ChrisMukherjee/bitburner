@@ -514,12 +514,12 @@ test("nextRestShare moves slowly toward the latest pass", () => {
 });
 
 /** bb-pass.js on a player in `city` with the given population and chaos per city. */
-function pass({ city = "Sector-12", cities, files = {}, current = null, stamina = [100, 100], chances = {}, gains = {}, seconds = {} } = {}) {
+function pass({ city = "Sector-12", cities, files = {}, current = null, stamina = [100, 100], chances = {}, gains = {}, seconds = {}, counts = {}, post = {}, rank = 50 } = {}) {
 	const moved = [];
 	let here = city;
 	const ns = fakeNs({
 		files,
-		ports: { [BB_PORT]: { state: "run", stateTime: Date.now() } },
+		ports: { [BB_PORT]: { state: "run", stateTime: Date.now(), ...post } },
 		overrides: {
 			getScriptName: () => "bladeburner/bb-pass.js",
 			getPlayer: () => ({ skills: SKILLS_AT }),
@@ -527,14 +527,14 @@ function pass({ city = "Sector-12", cities, files = {}, current = null, stamina 
 				inBladeburner: () => true,
 				getStamina: () => stamina,
 				getCurrentAction: () => current,
-				getRank: () => 50,
+				getRank: () => rank,
 				getNextBlackOp: () => ({ name: "Operation Typhoon", rank: 2500 }),
 				getActionEstimatedSuccessChance: (type, name) => chances[name] ?? [0.38, 0.42],
 				getActionRankGain: (type, name) => gains[name] ?? 1,
 				getActionTime: (type, name) => (seconds[name] ?? 10) * 1000,
 				getActionCurrentLevel: () => 1,
 				getActionMaxLevel: () => 1,
-				getActionCountRemaining: () => 5,
+				getActionCountRemaining: (type, name) => counts[name] ?? 5,
 				getCityChaos: (name) => cities.find((c) => c.name === (name ?? here)).chaos,
 				getCityEstimatedPopulation: (name) => cities.find((c) => c.name === name).pop,
 				getCity: () => here,

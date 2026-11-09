@@ -25,7 +25,7 @@ A state older than 15 minutes counts as `off`, so a stopped manager can't hold t
   study, factions and crimes), `run` makes player-work start nothing, and no second script touches the player.
 - **State on a port, not files.** The original used files copied between servers. A port works from any server,
   so the one-shots can run wherever there is room (`bb-pass.js` is 57GB). One shared object (state, route
-  estimate, rank samples, status lines) is patched by whichever one-shot runs; startup.js runs one-shots one at
+  estimate, rank samples, efficiency figures, status lines) is patched by whichever one-shot runs; startup.js runs one-shots one at
   a time, so read-modify-write is safe.
 - **One-shot passes.** The game keeps repeating the action between passes, so a pass only changes it when needed;
   no 53GB script waits idle.
@@ -50,6 +50,17 @@ Both are computed from the live readings `bb-pass.js` posts (`actions` on the po
   Hyperdrive for the chance left to gain. Rejected: a fixed order (it was the problem), and weighing by measured rank
   per hour (too slow and noisy to steer individual purchases). Before the first readings, or with
   `bladeburner.adaptiveSkills: false`, the old fixed tiers apply.
+- **Black Ops.** The Contracts and Operations being played are often capped at 100 % long before the Black Ops are safe: the
+  Black Ops have difficulty 2,000 (Typhoon) up to 80,000 (Daedalus), against 125-1,500 for a Contract or Operation, and all
+  21 are needed to end the BitNode. Valuing skills only by the actions played would stop buying chance skills exactly when the
+  last Black Ops need them. So `bb-pass.js` posts the next Black Op (`actions.blackOp`: name, required rank, low chance) and
+  [`skillValues`](picks.js) blends its chance gain into every skill's value with `blackOpWeight`: 0 when the Black Op is
+  already safe (low estimate 80 % or more), the share of the required rank already held (0..1) otherwise, so it takes over
+  as the rank gate approaches and fully once the rank is there and only the chance is missing. Only the skills that apply to a
+  Black Op count (Blade's Intuition, Digital Observer, Cloak for stealth ones, Short-Circuit for the killing ones, Reaper and
+  Evasive System through the Black Op's own stat weights; Tracer, Overclock and Cyber's Edge are worth nothing to its
+  chance). The Black Op ignores the city's population and chaos, so the city choice is untouched. Kill switch:
+  `bladeburner.blackOpSkills: false` (only the Contracts and Operations count).
 - **City.** A city's population multiplies the chance by `(pop / 1e9) ^ 0.7` and chaos above 50 divides it by
   `sqrt(1 + chaos - 50)`. `bb-pass.js` moves to the city that gives the best chance when the gain on the actions being
   played (with the cap at 1) beats the noise of its own estimates (the width of their ranges) plus 5 points, so a small
@@ -61,8 +72,77 @@ Both are computed from the live readings `bb-pass.js` posts (`actions` on the po
   and could still turn out safe (`scoutTarget`); as the estimate converges the action becomes safe or clearly not, and it stops.
   Without this it only analysed when nothing was safe, so a barely safe contract could be played for hours beside a
   far better operation. `bladeburner.fieldAnalysis: false` restores that.
-- **Not done:** Recruitment and team assignment. They need three more API calls and risk casualties for about
-  `(team + 1) ^ 0.05` on operations, so the gain per RAM is small.
+- **Not done:** Recruitment and team assignment (see "Mechanics and what the scripts do with them" for the numbers).
+
+## Mechanics and what the scripts do with them
+
+Read from the v3.0.0 source (`src/Bladeburner/`), checked against what `bb-manage.js` and `bb-pass.js` call. "Impact" is how
+much play is left on the table.
+
+| Mechanic (v3.0.0) | Handled by | Status / impact |
+| --- | --- | --- |
+| Contracts and Operations: chance, rank gain, time, level, count | `bb-pass.js` reads all of them each pass, plays the best chance x gain / seconds among the safe ones | Handled. Actions with no count left are no longer planned on (the game stops them and the player idled until the next pass) |
+| Action count: -1 per attempt (win or lose), grows by the table's average per 480 s, no cap | Read per action; `route-model.js` models it | Handled for choosing; it is the **late-game limit** (see "Measuring"): about 0.05 counts a second across all nine actions |
+| Action level (`autoLevel` on: level = max level, which rises with successes) | Read (`level`, `maxLevel`); the game's default keeps the highest level | Not steered. `setActionLevel` could trade reward for chance, but reward grows faster than difficulty, so the default is right whenever the chance holds. Open: the 60 % safety gate can exclude an action whose autolevel difficulty pushed it just under; a lower level would be safe |
+| Success chance: stats^decay, skills, stamina below 50 %, population^0.7, chaos above 50, team | `picks.js` (skills, city), stamina rest below 55 % | Handled except the team (below) |
+| Stamina: cost per action, regeneration, Hyperbolic Regeneration Chamber | Rest below 55 % until 90 %; `ideal.js` models the budget | Handled; now measured |
+| City: population, chaos, communities (Raid needs one), random events | `pickCity` moves for a clear gain; Diplomacy only when nothing is safe and chaos is above 10 | Handled. Communities and the pop loss from Raid (-1 % per win) are not modelled; a Raid with no community shows 0 % and is skipped |
+| Black Ops: 21 in order, rank gates, difficulty 2,000-80,000, no city effect, 1.5x time | Played when the low chance is 80 % or more; skills now weigh their chance | Fixed this pass (skills). Open: the 80 % gate is fixed, see below |
+| Skills: 12; chance, stat, time, stamina, exp, money, estimate | 10 of 12 (Hands of Midas and Datamancer ignored on purpose) | Handled |
+| Field Analysis (no stamina, +0.1 rank, sharpens the population estimate) | Used to scout and as a fallback | Handled |
+| Training (30 s, combat exp, +stamina bonus), Diplomacy (chaos), Hyperbolic Regeneration Chamber | Fallbacks and rests | Handled |
+| Recruitment (team size) and `setTeamSize` per action | Not used | **Gap.** A team multiplies the chance of Operations and Black Ops by `(team + 1) ^ 0.05` (20 members: x1.16, 100: x1.26) and recruiting is free of stamina; success is about 100 % while `charisma ^ 0.45 > team size`. Casualties: an Operation or Black Op loses up to half the assigned team per win and up to all of it per loss, so the team has to be rebuilt |
+| Incite Violence (new in v3: +3 minutes of count growth for every action; chaos +10 and more in every city) | Not used | Correctly ignored: chaos only falls by about 0.36 an hour (Diplomacy takes about 1.5 % of it per minute), and above 50 it divides every chance by `sqrt(1 + chaos - 50)` |
+| Sleeves: support (team members that survive), Infiltrate Synthoids (counts) | No sleeve scripts yet | Out of scope here; counts are the late-game limit, so infiltrating sleeves are the lever to add with the sleeves folder |
+| Bonus time (`getBonusTime`), `nextUpdate`, automate console | Not used | Not relevant to a one-shot pass design |
+| Rank, skill points (1 per 3 rank), Bladeburners faction (rank 25), rank to rep | Skill points spent by `bb-manage.js`; the faction is joined elsewhere | Handled |
+| Stanek's Gift vs The Blade's Simulacrum | `bladeburner.stanekFirst` | Handled (above) |
+
+Open items, in the order they would pay off: (1) a team for the Black Ops (recruit while counts are the limit, assign the whole
+team to the next Black Op); (2) a Black Op gate from the expected cost of failing against the cost of waiting, instead of a flat
+80 % (a loss takes rank, health and a 1.5x long action; at 40 % a Black Op has a positive expected rank, but a failure costs a
+team and a long action); (3) lowering an action's level when that alone makes it safe.
+
+## Measuring how well it plays
+
+`bb-pass.js` posts an efficiency figure with every pass that reads the actions, from [`ideal.js`](../bladeburner/ideal.js), and
+the status block shows it as one line under the rank line:
+
+`efficiency: 1840 rank/h of at most 2900 (63%), limited by count; idle 12%, stamina under 50% 3%; 8 safe counts banked; rank 400k in ~97 h at this rate`
+
+- **rank/h measured** is the rank gained over the last hour of samples (`rank` on port 36); **at most** is the ceiling below.
+- **The ceiling** is the best any play could do right now, from the live readings and the game's formulas: maximise
+  `sum(chance x gain x attempts/s)` over the nine Contracts and Operations subject to (a) one action at a time, (b) stamina,
+  where an attempt costs `0.285 x (d^0.28 + d/650)`, regeneration is `(0.0085 + max/70000) x agility^0.17` (with Reaper, Evasive
+  System, Cyber's Edge and the player's stamina multiplier) and resting adds 1 % of the maximum a minute, and (c) counts, which
+  grow by the table's average per 480 s. It is a small linear program solved through its dual (a nested ternary search on a convex
+  function), so no solver is needed. Failures, Black Ops and the 0.1 rank of a Field Analysis are not in it.
+- **limited by** says which resource, if lifted alone, would raise the ceiling most: `count` (the supply of counts: the usual
+  late-game answer), `time` (long actions) or `stamina` (short, cheap actions).
+- **idle** is the share of passes that found no action running (the game stops one when its count runs out, a Black Op ends, or
+  stamina hits 0), **stamina under 50 %** the share of passes below the level where every chance is cut, **banked** the counts
+  waiting on safe actions.
+
+What a good run looks like, and what to do about a bad one:
+
+| You see | Meaning | Look at |
+| --- | --- | --- |
+| Efficiency 85-100 %, limited by count | Playing at the game's limit; only more counts (sleeves, levels), chance or a team can add | Nothing to fix in the scripts |
+| Efficiency low, banked counts high | The clock is the limit but the player isn't using it: idle or resting too much | `idle`, `restShare`, the 30 s pass cadence against very short actions |
+| Efficiency low, idle high, banked near 0 | Counts ran out and the player waits for the next pass | A faster pass while counts are scarce |
+| Stamina under 50 % above a few percent | Rest threshold too low for the action length | `REST_BELOW` in `bb-pass.js`, Cyber's Edge |
+| Black Op "waits: only N %" for hours | Chance, not rank, is the gate | Chance skills (now steered by the Black Op), the team, stat gains |
+
+Rank per hour while a Black Op is being attempted includes its jumps (+50 up to +40,000), so read the trend over a few hours.
+Besides the line, port 36 keeps `perf` (the latest figures, regeneration, the three best actions by rank per count) and
+`perfLog` (one entry an hour, the last 48: rank, measured, ceiling, limiter, idle, banked). `run /tools/debug-report.js` shows
+the efficiency line under the last pass of `bb-pass.js`, and `--full` prints port 36 with `perf` and `perfLog`. Time to the end of the BitNode is the larger of the time to rank 400,000 at the measured rate
+and the time the Black Op chances need; the line gives the first, `data/node-eta.txt` the route comparison.
+
+Sanity numbers from the formulas, for judging a report: counts grow at about 0.05 a second over all nine actions, and a count is
+spent per attempt win or lose, so the count-bound ceiling is roughly `sum(regen x chance x gain)`: about 1,700 rank an hour at action levels of 1
+(Raid alone is 0.24 a second), and several times that once the high-reward actions (Raid 1.10, Assassination 1.14 a level) have levelled
+up. Levels need successes (about `L^2 / 2` for level L), so they are the slow compounding term in a count-bound run.
 
 ## Stanek's Gift first
 

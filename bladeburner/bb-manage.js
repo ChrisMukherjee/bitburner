@@ -13,6 +13,8 @@ import { SKILL_NAMES, skillValues, pickSkill } from "/bladeburner/picks.js";
 // (shorter actions = more rank per hour), the success-chance skills, Cyber's Edge (stamina), Hyperdrive (exp).
 const TIERS = [["Overclock"], ["Blade's Intuition", "Digital Observer", "Tracer", "Cloak", "Short-Circuit"], ["Cyber's Edge"], ["Hyperdrive"]];
 const OVERCLOCK_MAX = 90;
+/** @type {("Reaper" | "Evasive System" | "Cyber's Edge")[]} */
+const STAMINA_SKILLS = ["Reaper", "Evasive System", "Cyber's Edge"];
 const HACK_FLOOR = 10;           // before this the batcher has almost nothing to hack and programs/TOR are out of reach
 const CASH_FLOOR = 5e6;          // or this much cash on hand
 const BOOT_MAX_MS = 3600_000;    // never hold Bladeburner longer than an hour into a run: if the start is stuck, training is not the cause
@@ -95,7 +97,11 @@ export async function main(ns) {
 	}
 	setState("run");
 	const post = readBladeburner(ns);
-	if (!(config.bladeburner.adaptiveSkills && spendAdaptive(bb, post))) spendSkillPoints(bb);
+	// The next Black Op's chance steers the points too (bladeburner.blackOpSkills); without it only the Contracts and Operations count
+	const readings = config.bladeburner.blackOpSkills || !post.actions ? post : { ...post, actions: { ...post.actions, blackOp: undefined } };
+	if (!(config.bladeburner.adaptiveSkills && spendAdaptive(bb, readings))) spendSkillPoints(bb);
+	// The skill levels bb-pass.js needs for its stamina model (Reaper and Evasive System act on agility, Cyber's Edge on regeneration)
+	postBladeburner(ns, { skillLevels: Object.fromEntries(STAMINA_SKILLS.map((name) => [name, bb.getSkillLevel(name)])) });
 }
 
 /**

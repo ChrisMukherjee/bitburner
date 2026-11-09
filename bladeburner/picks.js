@@ -30,6 +30,36 @@ const CHANCE_SKILLS = {
 const STAT_SKILLS = { "Reaper": { pct: 2, stats: [1, 2, 3, 4] }, "Evasive System": { pct: 4, stats: [3, 4] } };
 const STAT_KEYS = ["hacking", "strength", "defense", "dexterity", "agility", "charisma", "intelligence"];
 
+/** A Black Op is attempted only when its low estimate reaches this (a failure costs rank, health and a long action). */
+export const BLACKOP_CHANCE = 0.8;
+// The Black Ops (game source, BlackOperations data): [name, base difficulty, stat weights in STAT_KEYS order, stealth, kill].
+// Their stat decays are the same for all (hacking 0.6, combat 0.8, intelligence 0.75), they ignore the city's population and
+// chaos, and the Operation skills (Digital Observer) and the team size apply to them like to Operations.
+const BLACK_OP_DECAYS = [0.6, 0.8, 0.8, 0.8, 0.8, 0, 0.75];
+const BLACK_OPS = [
+	["Operation Typhoon", 2000, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 0, 1],
+	["Operation Zero", 2500, [0.2, 0.15, 0.15, 0.2, 0.2, 0, 0.1], 1, 0],
+	["Operation X", 3000, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 0, 1],
+	["Operation Titan", 4000, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 0, 1],
+	["Operation Ares", 5000, [0, 0.25, 0.25, 0.25, 0.25, 0, 0], 0, 1],
+	["Operation Archangel", 7500, [0, 0.2, 0.2, 0.3, 0.3, 0, 0], 0, 1],
+	["Operation Juggernaut", 10e3, [0, 0.25, 0.25, 0.25, 0.25, 0, 0], 0, 1],
+	["Operation Red Dragon", 12.5e3, [0.05, 0.2, 0.2, 0.25, 0.25, 0, 0.05], 0, 1],
+	["Operation K", 15e3, [0.05, 0.2, 0.2, 0.25, 0.25, 0, 0.05], 0, 1],
+	["Operation Deckard", 20e3, [0, 0.24, 0.24, 0.24, 0.24, 0, 0.04], 0, 1],
+	["Operation Tyrell", 25e3, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 0, 1],
+	["Operation Wallace", 30e3, [0, 0.24, 0.24, 0.24, 0.24, 0, 0.04], 0, 1],
+	["Operation Shoulder of Orion", 35e3, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 1, 0],
+	["Operation Hyron", 40e3, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 0, 1],
+	["Operation Morpheus", 45e3, [0.05, 0.15, 0.15, 0.3, 0.3, 0, 0.05], 1, 0],
+	["Operation Ion Storm", 50e3, [0, 0.24, 0.24, 0.24, 0.24, 0, 0.04], 0, 1],
+	["Operation Annihilus", 55e3, [0, 0.24, 0.24, 0.24, 0.24, 0, 0.04], 0, 1],
+	["Operation Ultron", 60e3, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 0, 1],
+	["Operation Centurion", 70e3, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 0, 0],
+	["Operation Vindictus", 75e3, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 0, 0],
+	["Operation Daedalus", 80e3, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 0, 0],
+].map(([name, base, w, stealth, lethal]) => ({ name, base, w, dc: BLACK_OP_DECAYS, stealth: !!stealth, lethal: !!lethal }));
+
 /** Every skill the adaptive order can buy. Hands of Midas (money) and Datamancer (estimate accuracy) never help rank. */
 export const SKILL_NAMES = [...Object.keys(CHANCE_SKILLS), ...Object.keys(STAT_SKILLS), "Overclock", "Cyber's Edge", "Hyperdrive"];
 
@@ -54,7 +84,7 @@ export function topRows(actions, count = TOP_ROWS) {
 
 /** Share of the competence of an action that `stats` carry, weighed by how each term grows (weight x level^decay x decay). */
 function statShare(row, lv, stats) {
-	const action = ACTIONS.find((candidate) => candidate.name === row.name);
+	const action = ACTIONS.find((candidate) => candidate.name === row.name) ?? BLACK_OPS.find((candidate) => candidate.name === row.name);
 	if (!action || !lv) return 0;
 	let total = 0;
 	let part = 0;
@@ -75,7 +105,8 @@ function statShare(row, lv, stats) {
  *   Overclock           shorter actions help only while the player isn't resting for stamina (1 - restShare)
  *   Cyber's Edge        more stamina helps only while the player is resting for it (restShare)
  *   Hyperdrive          exp raises the stats and so the chance, where there is chance left to gain
- * @param {any} actions  the `actions` object bb-pass.js posts (rows, lv)
+ * Black Ops: when the next one is short of the safe chance, its chance (not the city's) steers the points too, see blackOpWeight.
+ * @param {any} actions  the `actions` object bb-pass.js posts (rows, lv, and rank + blackOp for the next Black Op)
  * @param {Record<string, number>} levels  current level of each skill
  * @param {number} [restShare]  share of passes spent resting for stamina (0..1)
  * @returns {Record<string, number>} skill name -> gain per level
@@ -97,6 +128,42 @@ export function skillValues(actions, levels = {}, restShare = REST_DEFAULT) {
 	out["Overclock"] = next(1, "Overclock", -1) * (1 - rest);
 	out["Cyber's Edge"] = next(2, "Cyber's Edge") * rest;
 	out["Hyperdrive"] = next(10, "Hyperdrive") * EXP_TO_CHANCE * (1 - best);
+	const weight = blackOpWeight(actions?.blackOp, actions?.rank);
+	if (weight <= 0) return out;
+	const gate = blackOpValues(actions.blackOp, actions?.lv, levels, next);
+	for (const name of Object.keys(out)) out[name] = (1 - weight) * out[name] + weight * (gate[name] ?? 0);
+	return out;
+}
+
+/**
+ * How much the next Black Op's chance should steer the skill points (0..1). The contracts and operations being played rarely
+ * need more chance, but the Black Ops (difficulty 2,000 up to 80,000, all of them required to end the BitNode) sit far
+ * below it: the last ones are only reachable with many levels of the chance skills. The weight grows with the rank already
+ * held toward the Black Op's rank requirement and is 1 once the rank is there and the chance is what is missing; it is 0
+ * when the Black Op is already safe to attempt or nothing is known about it.
+ * @param {{ chance?: number, rank?: number } | undefined} blackOp  the reading bb-pass.js posts (low estimate, required rank)
+ * @param {number | undefined} rank  the player's Bladeburner rank
+ */
+export function blackOpWeight(blackOp, rank) {
+	if (!blackOp || !Number.isFinite(blackOp.chance) || blackOp.chance >= BLACKOP_CHANCE) return 0;
+	const needed = Number(blackOp.rank);
+	if (!(needed > 0) || !Number.isFinite(rank)) return 1;
+	return Math.min(1, Math.max(0, rank / needed));
+}
+
+/** Gain of the next level of each skill for the next Black Op's chance (which city factors do not touch). */
+function blackOpValues(blackOp, lv, levels, next) {
+	const info = BLACK_OPS.find((candidate) => candidate.name === blackOp.name);
+	const chance = Math.max(0, Number(blackOp.chance) || 0);
+	const row = { name: blackOp.name };
+	/** @type {Record<string, number>} */
+	const out = {};
+	const applies = { "Blade's Intuition": true, "Digital Observer": true, "Tracer": false, "Cloak": !!info?.stealth, "Short-Circuit": !!info?.lethal };
+	for (const [name, skill] of Object.entries(CHANCE_SKILLS)) out[name] = applies[name] ? chanceGain(chance, next(skill.pct, name)) : 0;
+	for (const [name, skill] of Object.entries(STAT_SKILLS)) out[name] = chanceGain(chance, next(skill.pct, name) * statShare(row, lv, skill.stats));
+	out["Hyperdrive"] = next(10, "Hyperdrive") * EXP_TO_CHANCE * (1 - chance);
+	out["Overclock"] = 0;
+	out["Cyber's Edge"] = 0;
 	return out;
 }
 
