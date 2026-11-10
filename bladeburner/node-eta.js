@@ -8,6 +8,7 @@ import { readBladeburner, postBladeburner } from "/bladeburner/state.js";
 import * as RM from "/bladeburner/route-model.js";
 import { augPriceStep } from "/utils/aug-price.js";
 import { staminaRegen } from "/bladeburner/ideal.js";
+import { loadConfig } from "/utils/config.js";
 
 // Every faction that sells augmentations (names from the game), to build the pool of augs the simulation can buy
 const ALL_FACTIONS = ["CyberSec", "NiteSec", "The Black Hand", "BitRunners", "Daedalus", "The Covenant", "Illuminati", "ECorp", "MegaCorp",
@@ -119,9 +120,16 @@ function estimate(ns) {
 	// (Illuminati's hacking 1500 and combat 1200, say). Without them the hacking route bought augs it could never reach.
 	/** @type {Record<string, any>} */
 	const gates = {};
+	// Favor and this run's rep per faction: an install restarts rep at 0 and keeps the favor it turns into (route-model.js)
+	/** @type {Record<string, number>} */
+	const favor = {};
+	/** @type {Record<string, number>} */
+	const repNow = {};
 	for (const faction of new Set([...player.factions, ...ALL_FACTIONS])) {
 		let list = [];
 		try { list = sing.getAugmentationsFromFaction(faction); } catch { continue; }
+		try { favor[faction] = sing.getFactionFavor(faction); } catch { /* unknown faction: no favor */ }
+		if (player.factions.includes(faction)) repNow[faction] = sing.getFactionRep(faction);
 		if (!player.factions.includes(faction)) {
 			try { gates[faction] = RM.inviteGate(sing.getFactionInviteRequirements(faction)); } catch { /* no gate: assumed open */ }
 		}
@@ -177,7 +185,10 @@ function estimate(ns) {
 			: "Confidence: low, income growth with the multiplier is not measured yet (needs 3 runs with different multipliers), so the verdict uses the flat-income scenario");
 	const fmtHours = (result) => !result ? "unknown" : result.reached && result.hours <= 400 ? `${result.hours.toFixed(0)} h (${result.runs} runs)`
 		: result.reached ? `over 400 h (${result.hours.toFixed(0)} h modelled: too uncertain to call an estimate)` : "not reached within 60 runs";
-	const repConfig = { facMult: player.mults.faction_rep || 1, bn: BN_FACTION_REP[node] ?? 1, timeShare: 0.7 };
+	// persistence.routeRepResets (config.js): false = the old model, rep kept across installs
+	const repResets = loadConfig(ns).persistence?.routeRepResets !== false;
+	const repConfig = { facMult: player.mults.faction_rep || 1, bn: BN_FACTION_REP[node] ?? 1, timeShare: 0.7, favor, now: repNow,
+		donateFavor: ns.getFavorToDonate(), resetOnInstall: repResets };
 	const combatNow = effective.combat;
 	const combatLevel = Math.min(...COMBAT_STATS.map((key) => player.skills[key] || 1));
 	const blackOpsDone = !!shared.blackOps?.done;
@@ -270,7 +281,7 @@ function estimate(ns) {
 		needBlade = Math.min(...GYM_CHOICES.map((gym) => RM.incomeNeeded("combat", { augs: augList, nf: neuroFlux, mult: { hacking: hackMult, hackExp: 1, combat: combatNow, combatExp: player.mults.strength_exp || 1 }, income, expRate: rate || 1, installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, gates, combatLevel, maxRuns: 60, bb: { acts, rank: rankNow, lv: skillsNow, duty, gymHours: gym, skills, stamina } })));
 	}
 
-	lines.push(`--- Assumptions: aug multipliers multiply and stay installed through every reset; skill level = mult x (32 ln(exp+534.5) - 200) with exp restarting at each install; ${RUN_HOURS} h per run + 0.25 h reset overhead; about half of income x run is spendable; each aug bought in a run costs x${Number(augStep.toFixed(3))} more; pool of ${augList.length} hacking/combat augs; a faction not joined yet sells only once a run reaches its invite's hacking, combat and installed-aug levels (${Object.keys(gates).length} gated; its other conditions are assumed met)`);
+	lines.push(`--- Assumptions: aug multipliers multiply and stay installed through every reset; skill level = mult x (32 ln(exp+534.5) - 200) with exp restarting at each install; ${RUN_HOURS} h per run + 0.25 h reset overhead; about half of income x run is spendable; each aug bought in a run costs x${Number(augStep.toFixed(3))} more; pool of ${augList.length} hacking/combat augs; a faction not joined yet sells only once a run reaches its invite's hacking, combat and installed-aug levels (${Object.keys(gates).length} gated; its other conditions are assumed met); ${repResets ? "faction rep restarts at 0 at every install and becomes favor (rep x (1 + favor/100) later, donations from the favor line), so an aug's rep must be earned within one run, and Daedalus invites again each run" : "faction rep kept across installs (persistence.routeRepResets off)"}`);
 	lines.push("--- Route simulation (reset by reset)");
 	if (hackSim) {
 		for (const { scenario, result } of hackSim) {

@@ -12,6 +12,7 @@ const OPERATIONS = ["Investigation", "Undercover Operation", "Sting Operation", 
 const CITIES = ["Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven"];
 const MIN_CHANCE = 0.6;        // Contracts/Operations at or above this (lower estimate) are safe to run
 const FALLBACK_CHANCE = 0.4;   // when nothing is that safe, the best one with at least this (middle estimate) beats idling
+const SCOUT_SHARE_MAX = 0.2;   // scouting while a safe action waits takes at most this share of the passes (moving share)
 const FINAL_RANK = 400_000;    // Operation Daedalus, the last Black Op, needs this rank
 const PERF_LOG_MS = 3600_000;  // one line of the efficiency log per hour
 const PERF_LOG_MAX = 48;
@@ -72,6 +73,7 @@ export async function main(ns) {
 	const perHour = measuredRate(samples);
 
 	let done = false;
+	let scouting = false; // Field Analysis chosen this pass to settle a better action's range (step 5), for the scouting share
 	// 1. Stamina: low stamina makes every action fail more, so rest first
 	const resting = current && current.name === "Hyperbolic Regeneration Chamber";
 	if (ratio < REST_BELOW || (resting && ratio < REST_UNTIL)) {
@@ -157,7 +159,10 @@ export async function main(ns) {
 		try { chaos = bb.getCityChaos(bb.getCity()); } catch { /* no city yet */ }
 
 		// A safe action is being played but a better one is too uncertain to call: scout (Field Analysis) until the ranges settle
-		const scout = settings.fieldAnalysis ? scoutTarget(rows, MIN_CHANCE) : null;
+		// At most SCOUT_SHARE_MAX of the time: Field Analysis narrows the range only a little each time (more slowly with low stats), and
+		// without a cap it could take all the time while the safe counts pile up unplayed (a real BitNode 6 start: 8 % efficiency)
+		const scout = settings.fieldAnalysis && !((before.scoutShare ?? 0) >= SCOUT_SHARE_MAX) ? scoutTarget(rows, MIN_CHANCE) : null;
+		scouting = !!scout;
 		if (scout) {
 			done = start(GENERAL, "Field Analysis", `${scout.name} (${Math.round(scout.low * 100)}-${Math.round(scout.high * 100)}% chance) could beat the safe action; the population estimate is too rough to tell`);
 		}
@@ -197,6 +202,7 @@ export async function main(ns) {
 	}
 
 	const idleShare = nextShare(before.idleShare, idle);
+	const scoutShare = nextShare(before.scoutShare, scouting);
 	const penaltyShare = nextShare(before.penaltyShare, ratio < 0.5);
 	const summary = `rank ${Math.floor(rank)}${Number.isFinite(perHour) ? ` (${Math.round(perHour)}/h)` : ""}; stamina ${Math.round(ratio * 100)}%; ` +
 		`next Black Op: ${next ? `${next.name} at rank ${next.rank}` : "all done"}`;
@@ -210,7 +216,7 @@ export async function main(ns) {
 	const restShare = nextRestShare(before.restShare, !!now2 && now2.name === "Hyperbolic Regeneration Chamber");
 	const log = perf ? perfLog(before.perfLog, perf, rank, now) : undefined;
 	postBladeburner(ns, {
-		restShare, idleShare, penaltyShare, script: ns.getScriptName(), action: now2 ? { type: now2.type, name: now2.name, time: now } : null, lines, rank: samples,
+		restShare, idleShare, penaltyShare, scoutShare, script: ns.getScriptName(), action: now2 ? { type: now2.type, name: now2.name, time: now } : null, lines, rank: samples,
 		...(perf ? { perf, perfLog: log } : {}),
 		...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(progress ? { progress } : {}), ...(actions ? { actions } : {}),
 		freeShare, ...(next ? { blackOpTrend: trend } : {}), ...(teamPlan ? { teamPlan } : {}),

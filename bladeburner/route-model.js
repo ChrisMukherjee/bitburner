@@ -199,11 +199,15 @@ function predictRankPerHour(acts, lv, hours = 1, minChance = 0.4, stamina = unde
  * Scenarios differ only in how income and exp rate grow with the hacking multiplier (low: not at all; high: income x mult, exp x sqrt(mult)).
  *
  * Faction rep (v3.0.1 formulas): hacking work gives 5 cycles/s x (hacking level / 975) x faction_rep mult x BitNode rep mult per second, so it
- * grows with the level reached in the run. Rep persists across installs per faction. An augmentation needs rep with a faction that sells it. Once a
- * faction's favour is 150 (cumulative rep 25000 x (1.02^150 - 1), about 450k) rep can also be bought: $1e6 per rep / (faction_rep x BitNode mult).
+ * grows with the level reached in the run. Rep does NOT persist: every install turns a faction's rep into favor (repToFavor of the
+ * cumulative rep) and restarts it at 0, so an augmentation needs its rep inside one run, at a faction that sells it, earned
+ * (1 + favor/100) times faster. Once a faction's favour is 150 (cumulative rep 25000 x (1.02^150 - 1), about 450k) rep can
+ * also be bought: $1e6 per rep / (faction_rep x BitNode mult). Daedalus membership ends at each install too, so each run in
+ * stage 1 first earns the invite again. rep: { facMult, bn, timeShare, favor: { faction: favor now }, now: { faction: rep this
+ * run }, donateFavor (getFavorToDonate), resetOnInstall (false = the old model, rep kept across installs) }.
  *
  * cfg: { augs: [{ name, price, rep, f: [factions], h, e, cs[4] }], nf, mult: {hacking, hackExp, combat[4], combatExp}, income, expRate, installed,
- *        runHours, overheadHours, rep: { facMult, bn, timeShare }, scenario: {income, exp}, maxRuns, bb: { acts, rank, lv, duty, gymHours, skills: skillStart(...), stamina: { max, regen } } | null,
+ *        runHours, overheadHours, rep: { facMult, bn, timeShare, favor, now, donateFavor, resetOnInstall }, scenario: {income, exp}, maxRuns, bb: { acts, rank, lv, duty, gymHours, skills: skillStart(...), stamina: { max, regen } } | null,
  *        hackRoute: { required, daedalusAugs, daedalusMoney, daedalusHack, rpRep, rpPrice, rpHeld, startStage },
  *        augStep: the price step per augmentation bought (AUG_STEP when left out; less with Source-File 11, utils/aug-price.js),
  *        gates: { faction: inviteGate(...) } for the factions not joined yet (their augs count only once a run meets the gate),
@@ -240,19 +244,33 @@ function gateOpen(alts, levels) {
 }
 
 const DONATE_REP = 25000 * (Math.pow(1.02, 150) - 1);
+/** Total rep that gives this much favor, and back (the game's formulas, v3.0.0 src/Faction/formulas/favor.ts). */
+const favorToRep = (favor) => 25000 * (Math.pow(1.02, favor) - 1);
+const repToFavor = (rep) => Math.log(rep / 25000 + 1) / Math.log(1.02);
+/** Hours a run needs to reach a hacking level at an exp rate (per second) and level multiplier. */
+const hoursToLevel = (rate, mult, level) => rate > 0 ? expFor(level, mult) / rate / 3600 : Infinity;
 function projectRoute(goal, cfg) {
     const maxRuns = cfg.maxRuns ?? 60, T = cfg.runHours, over = cfg.overheadHours ?? 0.25, step = cfg.augStep ?? AUG_STEP;
     const m = { hacking: cfg.mult.hacking, hackExp: cfg.mult.hackExp, combat: [...cfg.mult.combat] };
     const mult0 = { ...m };
     const repMult = (cfg.rep?.facMult ?? 1) * (cfg.rep?.bn ?? 1), repShare = cfg.rep?.timeShare ?? 0.7;
     const pool = cfg.augs.map(a => ({ ...a, f: a.f && a.f.length ? a.f : ["?"] }));
-    const Rf = {};                                   // faction -> cumulative rep (persists across installs)
+    // Faction rep as the game keeps it (v3.0.0 Faction.prestigeAugmentation): rep restarts at 0 at every install and turns into
+    // favor, which persists and speeds rep up by (1 + favor/100) the next runs; at donateFavor (150) rep can be bought with money.
+    // An aug needs the rep inside one run. cfg.rep.resetOnInstall === false restores the old model (rep kept across installs).
+    const keepRep = cfg.rep?.resetOnInstall === false, donateFavor = cfg.rep?.donateFavor ?? 150;
+    const Rf = { ...(cfg.rep?.now ?? {}) };          // faction -> rep this run (the first modelled run starts with today's)
+    const fav = { ...(cfg.rep?.favor ?? {}) };      // faction -> favor (persists; grows at each install)
+    const favor = (f) => fav[f] ?? 0, speed = (f) => keepRep ? 1 : 1 + favor(f) / 100;
+    const canDonate = (f) => keepRep ? R(f) >= DONATE_REP : favor(f) >= donateFavor;
     // Factions the player can join (cfg.gates: invite gates of the factions not joined yet, see inviteGate); once open, open for good
     const gates = cfg.gates ?? {}, opened = new Set();
     const open = (f) => !gates[f] || opened.has(f);
     const sellers = (a) => a.f.filter(open);
     const R = (f) => Rf[f] ?? 0, maxR = (a) => Math.max(0, ...sellers(a).map(R)), allMax = () => Math.max(0, ...Object.values(Rf));
-    const topSeller = (a) => sellers(a).reduce((x, y) => R(y) > R(x) ? y : x, sellers(a)[0]);
+    // The seller closest to the aug's rep in work time (its favor speeds the work up)
+    const workLeft = (a, f) => Math.max(0, a.rep - R(f)) / speed(f);
+    const topSeller = (a) => sellers(a).reduce((x, y) => workLeft(a, y) < workLeft(a, x) ? y : x, sellers(a)[0]);
     let hours = 0, installed = cfg.installed ?? 0, state = { rank: cfg.bb?.rank ?? 0, skills: cfg.bb?.skills ? { ...cfg.bb.skills } : undefined, stamina: cfg.bb?.stamina }, acts = cfg.bb ? bladeburnerClone(cfg.bb.acts) : null;
     let nfLevel = 0;
     let stage = cfg.hackRoute?.startStage ?? 0;           // hacking: 0 = before Daedalus, 1 = Red Pill rep/price, 2 = Red Pill installed
@@ -269,26 +287,34 @@ function projectRoute(goal, cfg) {
         for (const f of Object.keys(gates)) if (!opened.has(f) && gateOpen(gates[f], { hacking: levelAt(T), combat: combatLevel, installed })) opened.add(f);
         // Rep earned this run: hacking work at the level reached a quarter of the way into the run
         const repRun = 5 * (levelAt(T * 0.25) / 975) * repMult * T * 3600 * repShare;
-        let repLeft = repRun;
-        if (goal === "hacking" && stage === 1) { Rf.Daedalus = R("Daedalus") + repRun; repLeft = 0; }
+        let repLeft = repRun;                          // in favor-0 units: a faction gets it x speed(f)
+        if (goal === "hacking" && stage === 1) {
+            // Daedalus membership ends at every install too: after the run that is already in, the invite (hacking level and money
+            // in hand) comes first, and only the rest of the run earns Daedalus rep
+            const H = cfg.hackRoute, joinedNow = !keepRep && k === 1 && (H.startStage ?? 0) >= 1;
+            const wait = keepRep || joinedNow ? 0 : Math.max(hoursToLevel(rate, m.hacking, H.daedalusHack), H.daedalusMoney / (income * 0.8) / 3600);
+            Rf.Daedalus = R("Daedalus") + repRun * Math.max(0, 1 - wait / T) * speed("Daedalus"); repLeft = 0;
+        }
         for (let guard = 0; guard < 80 && repLeft > 1; guard++) {
-            let best = null;
+            let best = null, fits = false;
             for (const a of pool) {
                 if (a.taken || value(a) <= 0.002 || sellers(a).length === 0 || maxR(a) >= a.rep) continue;
-                const f = topSeller(a), deficit = a.rep - R(f);
-                const sc = value(a) / deficit;
-                if (!best || sc > best.sc) best = { a, f, deficit, sc };
+                const f = topSeller(a), work = workLeft(a, f);
+                if (!keepRep && canDonate(f)) continue;    // its rep is bought with money below
+                const sc = value(a) / work, fit = keepRep || work <= repLeft;
+                // Augs this run can finish come first; only when none fits does the rest go into a partial (it still becomes favor)
+                if (!best || (fit && !fits) || (fit === fits && sc > best.sc)) { best = { a, f, work, sc }; fits = fit; }
             }
             if (!best) break;
-            const give = Math.min(repLeft, best.deficit);
-            Rf[best.f] = R(best.f) + give; repLeft -= give;
-            if (give < best.deficit) break;
+            const give = Math.min(repLeft, best.work);
+            Rf[best.f] = R(best.f) + give * speed(best.f); repLeft -= give;
+            if (give < best.work) break;
         }
-        if (repLeft > 1) { const top = Object.keys(Rf).sort((x, y) => R(y) - R(x))[0] ?? "?"; Rf[top] = R(top) + repLeft; }
+        if (repLeft > 1) { const top = Object.keys(Rf).sort((x, y) => R(y) - R(x))[0] ?? "?"; Rf[top] = R(top) + repLeft * speed(top); }
         let spent = 0, n = 0; const bought = [];
         const cands = pool.filter(a => !a.taken && value(a) > 0.002 && sellers(a).length > 0).map(a => {
             const f = topSeller(a), deficit = Math.max(0, a.rep - R(f));
-            const donate = deficit > 0 && R(f) >= DONATE_REP;            // favour 150: rep can be bought
+            const donate = deficit > 0 && canDonate(f);                  // favour 150: rep can be bought
             return { a, f, deficit, donate, ok: deficit === 0 || donate, extra: donate ? deficit * 1e6 / repMult : 0 };
         }).filter(c => c.ok).sort((x, y) => value(y.a) / (y.a.price + y.extra) - value(x.a) / (x.a.price + x.extra));
         for (const c of cands) {
@@ -323,7 +349,7 @@ function projectRoute(goal, cfg) {
                     if (needH <= 36) { runHours = Math.max(T, needH); stage = 1; entry.note = "Daedalus invite"; }
                 }
             } else if (stage === 1) {
-                const d = R("Daedalus"), repOk = d >= H.rpRep || H.rpHeld, buyRep = !repOk && d >= DONATE_REP ? (H.rpRep - d) * 1e6 / repMult : (repOk ? 0 : Infinity);
+                const d = R("Daedalus"), repOk = d >= H.rpRep || (k === 1 && H.rpHeld), buyRep = !repOk && canDonate("Daedalus") ? (H.rpRep - d) * 1e6 / repMult : (repOk ? 0 : Infinity);
                 if (Number.isFinite(buyRep) && budget >= H.rpPrice + buyRep) { stage = 2; entry.note = "Red Pill bought"; }
             } else if (stage === 2) {
                 // The Red Pill is installed at the start of this run: can this run reach the required level?
@@ -345,6 +371,11 @@ function projectRoute(goal, cfg) {
             }
         }
         hours += runHours + over; entry.hours = hours; log.push(entry);
+        // The install: this run's rep turns into favor (the game's formula) and restarts at 0
+        if (!keepRep) {
+            for (const f of Object.keys(Rf)) { fav[f] = repToFavor(favorToRep(favor(f)) + R(f)); delete Rf[f]; }
+            entry.favor = { ...fav };
+        }
     }
     return { reached: false, hours, runs: maxRuns, log };
 }
@@ -385,4 +416,4 @@ function fitIncomeExponent(points, cap = 3) {
     return { exponent: Math.min(cap, Math.max(0, raw)), raw, r2, reliable: raw >= 0 && raw < cap && r2 >= 0.5, runs: usable.length };
 }
 
-export { skillStart, spendSkills, RANK_PER_SKILL_POINT, levelFactor, modelMults, inviteGate, gateOpen, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };
+export { favorToRep, repToFavor, hoursToLevel, skillStart, spendSkills, RANK_PER_SKILL_POINT, levelFactor, modelMults, inviteGate, gateOpen, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };

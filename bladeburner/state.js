@@ -7,7 +7,7 @@
 //   eta                node-eta.js: its hacking exp samples of this run
 //   rank, actions      bb-pass.js: rank samples of the last hour, and the live action readings the estimate uses (rows, cities, and the next Black Op: blackOp)
 //   perf, perfLog      bb-pass.js: the efficiency report (measured vs ceiling, limiter, idle, banked counts) and its hourly log (docs/bladeburner.md, "Measuring")
-//   restShare, idleShare, penaltyShare   bb-pass.js: moving shares of passes resting, finding the player idle, and under 50 % stamina
+//   restShare, idleShare, penaltyShare, scoutShare   bb-pass.js: moving shares of passes resting, finding the player idle, under 50 % stamina, and scouting while a safe action waits
 //   skillLevels        bb-manage.js: Reaper, Evasive System and Cyber's Edge levels, for bb-pass.js's stamina model
 //   skillModel         bb-manage.js: { levels: { Overclock, Blade's Intuition, points }, costs: { Overclock }, time }, for node-eta.js's skill-point model
 //   action             bb-pass.js: { type, name, time } of the running action (null when none), shown on status' "Doing:" line

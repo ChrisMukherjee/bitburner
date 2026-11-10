@@ -761,3 +761,16 @@ test("bb-pass: scouts with Field Analysis while a better action is too uncertain
 	assert.deepEqual(off.ns.called("bladeburner.startAction").at(-1), ["Contracts", "Tracking"]);
 	assert.equal(loadConfig(fakeNs({})).bladeburner.fieldAnalysis, true, "on by default");
 });
+
+test("bb-pass: scouting takes at most a fifth of the time; past that the safe action plays (Field Analysis took all of a BitNode 6 start)", async () => {
+	const cities = [{ name: "Sector-12", pop: 1e9, chaos: 0 }];
+	const setup = { cities, chances: { Tracking: [0.8, 0.9], Raid: [0.07, 0.95] }, gains: { Tracking: 0.3, Raid: 55 }, seconds: { Tracking: 10, Raid: 66 } };
+	const fresh = pass(setup);
+	await play(fresh.ns);
+	assert.deepEqual(fresh.ns.called("bladeburner.startAction").at(-1), ["General", "Field Analysis"]);
+	assert.ok(fresh.ns.portJson(BB_PORT).scoutShare > 0, "the share goes up while scouting");
+	const busy = pass({ ...setup, post: { scoutShare: 0.25 } });
+	await play(busy.ns);
+	assert.deepEqual(busy.ns.called("bladeburner.startAction").at(-1), ["Contracts", "Tracking"], "over the cap: play the safe action");
+	assert.ok(busy.ns.portJson(BB_PORT).scoutShare < 0.25, "and the share comes back down");
+});

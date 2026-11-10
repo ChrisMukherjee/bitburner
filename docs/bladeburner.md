@@ -71,7 +71,9 @@ Both are computed from the live readings `bb-pass.js` posts (`actions` on the po
   population estimate by a couple of percent each) when an action that isn't safe yet has a higher expected rank rate than the best safe one
   and could still turn out safe (`scoutTarget`); as the estimate converges the action becomes safe or clearly not, and it stops.
   Without this it only analysed when nothing was safe, so a barely safe contract could be played for hours beside a
-  far better operation. `bladeburner.fieldAnalysis: false` restores that.
+  far better operation. `bladeburner.fieldAnalysis: false` restores that. Scouting takes at most a fifth of the passes (a moving
+  share, `scoutShare` on port 36); past that the safe action plays. Uncapped, a BitNode 6 start with low stats spent all its time on
+  Field Analysis (the estimate barely moved) while 1,266 safe counts waited: 12 rank an hour, 8 % of the ceiling.
 - **The Black Op gate and the team:** see [The Black Op gate and the team](#the-black-op-gate-and-the-team) below.
 
 ## The Black Op gate and the team
@@ -233,7 +235,7 @@ the Singularity API too, as before.
 
 ## Route estimate
 
-[`../bladeburner/node-eta.js`](../bladeburner/node-eta.js) (30GB at normal Singularity cost, a one-shot every 5 minutes) answers
+[`../bladeburner/node-eta.js`](../bladeburner/node-eta.js) (31GB at normal Singularity cost, a one-shot every 5 minutes) answers
 "hacking or Bladeburner?" from live game state only, with the models in
 [`../bladeburner/route-model.js`](../bladeburner/route-model.js). It walks both routes reset by reset: every installed aug keeps
 its multiplier, skill exp restarts at each install, income and exp grow with the hacking multiplier. Income growth is
@@ -258,6 +260,11 @@ multiplier. A reliable fit adds a flat scenario to the report for comparison. Th
   and installed-aug levels (`inviteGate` in `route-model.js`, from `getFactionInviteRequirements`; Daedalus has two ways in).
   Money, karma, backdoors and company conditions are assumed met. Without the gates the hacking route bought Illuminati's and
   The Covenant's augs at hacking levels BitNode 6 never reaches.
+- **Faction rep restarts at each install.** As in the game, a modelled run starts every faction's rep at 0 and its rep turns
+  into favor at the install; favor speeds rep up by (1 + favor/100) and opens donations at `getFavorToDonate()`. An aug needs its
+  rep within one run, and Daedalus invites again each run before its rep for The Red Pill counts. The model used to keep rep
+  across installs, which made the hacking route look shorter than it is next to Bladeburner, whose rank does carry over.
+  `persistence.routeRepResets: false` brings that back ([`install-persistence.md`](install-persistence.md)).
 - **Calibrated duty only.** The Bladeburner model's duty (measured rank per hour over predicted) is applied only after 30
   minutes of play; before that it stays at 50 %. `bb-pass.js` restarts its rank samples after a gap of over 10 minutes, so
   time held or training isn't counted as slow play. Both used to happen: the first minutes read 14 % duty, which made the route
