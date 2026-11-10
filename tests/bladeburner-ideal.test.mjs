@@ -159,6 +159,7 @@ test("bb-manage: bladeburner.blackOpSkills turns the Black Op term off", async (
 					inBladeburner: () => true, getCurrentAction: () => null, stopBladeburnerAction: () => {}, getSkillPoints: () => 3,
 					getSkillUpgradeCost: (name) => costs[name] ?? Infinity, getSkillLevel: () => 0,
 					upgradeSkill: (name) => { bought.push(name); return true; },
+					getTeamSize: () => 0, setTeamSize: () => 0,
 				},
 			},
 		});
@@ -183,6 +184,7 @@ function passWorld({ current = null, counts = {}, chances = {}, gains = {}, seco
 		overrides: {
 			getScriptName: () => "bladeburner/bb-pass.js",
 			getPlayer: () => ({ skills: { hacking: 100, strength: 200, defense: 200, dexterity: 200, agility: 200, charisma: 50, intelligence: 1 } }),
+			getTotalScriptIncome: () => [0, 0],
 			bladeburner: {
 				inBladeburner: () => true, getStamina: () => stamina, getCurrentAction: () => current, getRank: () => rank,
 				getNextBlackOp: () => ({ name: "Operation Typhoon", rank: 2500 }),

@@ -237,7 +237,7 @@ Which scripts need which BitNode, Source-File or item is not decided per folder:
 | 33 | One-shot gates (cash the next home upgrade or program needs, player-work done, for startup.js) |
 | 34 | RAM reservations (room kept free on a server for a script waiting to start; the batcher and share-manager leave it alone) |
 | 35 | player-work state between passes |
-| 36 | Bladeburner state, route estimate, rank samples, efficiency figures and status lines (bladeburner/) |
+| 36 | Bladeburner state, route estimate, rank samples, efficiency figures, Black Op team plan and status lines (bladeburner/) |
 | 37 | Last pass of each one-shot, for the debug report ([`utils/pass-log.js`](utils/pass-log.js)) |
 | 38 | This run's money by source, for the augment weights ([`utils/income-mix.js`](utils/income-mix.js), posted by buy-augs.js) |
 

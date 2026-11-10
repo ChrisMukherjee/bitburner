@@ -18,6 +18,7 @@ const STAMINA_SKILLS = ["Reaper", "Evasive System", "Cyber's Edge"];
 const HACK_FLOOR = 10;           // before this the batcher has almost nothing to hack and programs/TOR are out of reach
 const CASH_FLOOR = 5e6;          // or this much cash on hand
 const BOOT_MAX_MS = 3600_000;    // never hold Bladeburner longer than an hour into a run: if the start is stuck, training is not the cause
+const TEAM_PLAN_MAX_AGE_MS = 15 * 60_000; // a team plan older than this (bb-pass.js stopped) is not applied
 
 /**
  * Bladeburner housekeeping, one short pass every few minutes (startup.js runs it): decides the state on port 36,
@@ -28,6 +29,7 @@ const BOOT_MAX_MS = 3600_000;    // never hold Bladeburner longer than an hour i
  *   run    stats are ready: bladeburner/bb-pass.js plays and player-work.js leaves the player alone
  *   hold   no actions: the route estimate says hacking, Bladeburner isn't worth the time now, or the division waits
  *          for Stanek's Gift (`bladeburner.stanekFirst`, see below)
+ * Also puts the team on the next Black Op (the size bb-pass.js chose, `bladeburner.team`).
  * All decided from live state each pass (Source-Files, augmentations, hacking level, income, stats, run age); the
  * only input from outside is the route estimate on the same port (`plan`), when one is written.
  * Ported from the other player's bb-manage.js, which has run in game.
@@ -102,6 +104,30 @@ export async function main(ns) {
 	if (!(config.bladeburner.adaptiveSkills && spendAdaptive(bb, readings))) spendSkillPoints(bb);
 	// The skill levels bb-pass.js needs for its stamina model (Reaper and Evasive System act on agility, Cyber's Edge on regeneration)
 	postBladeburner(ns, { skillLevels: Object.fromEntries(STAMINA_SKILLS.map((name) => [name, bb.getSkillLevel(name)])) });
+	if (config.bladeburner.team) assignTeam(bb, ns, readBladeburner(ns));
+}
+
+/**
+ * Puts the team size bb-pass.js chose (teamPlan on port 36, see bladeburner/team.js) on the next Black Op, and posts the team
+ * size and assignment bb-pass.js prices its next decision with. The game keeps the assignment on the action and trims it
+ * when members die, so this only sets it again when it differs.
+ */
+function assignTeam(bb, ns, post) {
+	const size = bb.getTeamSize();
+	const plan = post.teamPlan;
+	const name = post.actions?.blackOp?.name;
+	const fresh = plan && name && plan.name === name && Date.now() - (plan.time ?? 0) < TEAM_PLAN_MAX_AGE_MS;
+	if (!fresh) {
+		postBladeburner(ns, { team: { size, name: name ?? null, assigned: post.team?.name === name ? Math.min(size, post.team?.assigned ?? 0) : 0, time: Date.now() } });
+		return;
+	}
+	const want = plan.all ? size : Math.max(0, Math.min(size, Math.floor(plan.members) || 0));
+	let assigned = bb.getTeamSize("Black Operations", name);
+	if (assigned !== want) {
+		const set = bb.setTeamSize("Black Operations", name, want);
+		if (set >= 0) assigned = set;
+	}
+	postBladeburner(ns, { team: { size, name, assigned, time: Date.now() } });
 }
 
 /**

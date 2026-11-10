@@ -72,7 +72,48 @@ Both are computed from the live readings `bb-pass.js` posts (`actions` on the po
   and could still turn out safe (`scoutTarget`); as the estimate converges the action becomes safe or clearly not, and it stops.
   Without this it only analysed when nothing was safe, so a barely safe contract could be played for hours beside a
   far better operation. `bladeburner.fieldAnalysis: false` restores that.
-- **Not done:** Recruitment and team assignment (see "Mechanics and what the scripts do with them" for the numbers).
+- **The Black Op gate and the team:** see [The Black Op gate and the team](#the-black-op-gate-and-the-team) below.
+
+## The Black Op gate and the team
+
+[`../bladeburner/team.js`](../bladeburner/team.js) (pure, 0GB) decides when to attempt the next Black Op, how many team members
+go on it and when to recruit. The numbers are the game's own (v3.0.0): a team multiplies the chance by `(members + 1) ^ 0.05`
+(20: x1.16, 100: x1.26); a Black Op with a team kills a whole number of members drawn evenly from 1 to `ceil(team / 2)` on a
+win and 1 to the whole team on a loss; a failure costs the Black Op's fixed rank loss (10 for Typhoon up to 20,000 for
+Vindictus) and `hpLoss x (difficulty ^ 0.28 + difficulty / 650)` damage, which hospitalises the player at 0 HP for
+(HP missing) x $100k, at most 10 % of the cash; Recruitment succeeds with `charisma ^ 0.45 / (team + 1)`, costs no stamina and
+takes `300 - (charisma ^ 0.81 + charisma / 90)` seconds (at least 10).
+
+- **One currency.** Everything is priced in seconds of the player's rank flow (the measured rank per second, or the best safe
+  action's): an attempt's time, the rank a failure loses, the members it kills (each at the seconds a replacement takes to
+  recruit) and the hospital bill (over the income per second). Time is weighted by the share of passes where it earns rank:
+  `freeShare` (port 36) is the moving share of passes where every safe action's counts were used up, and that time is
+  nearly free. The expected cost of getting a Black Op done is the win's cost plus `(1 - p) / p` failures.
+- **When to attempt (`bladeburner.blackOpGate`).** At the old 80 % line it always goes (`safe`). Below it, it goes when the
+  expected cost is below the rank the Black Op gives (`pays`; nearly always true while the counts are used up). Otherwise it
+  asks what holds the BitNode back. While rank is the limit (the rank the Black Op after this one needs is further away than
+  this one would take), waiting costs nothing: the time goes to rank and the chance grows (`rank`). Once the Black Op is the
+  limit (or it is the last one), every second of waiting delays the end, and waiting only pays while the chance grows fast
+  enough: minimising `w + cost(p + g w)` gives "attempt once `p >= sqrt(failure cost x g)`" (`chain`; otherwise
+  `growing`), with `g` the measured growth of the no-team chance (one sample per 5 minutes over 2 hours, `blackOpTrend`).
+  Until half an hour of samples exists it waits (`measuring`). A Black Op already under way is never abandoned.
+- **The team (`bladeburner.team`).** `bb-pass.js` picks the team size that minimises the cost (`teamPlan` on port 36) and
+  `bb-manage.js` sets it on the Black Op with `setTeamSize` (posting `team`: size and assignment). When members are free to
+  replace (time is free) the whole team goes; when each costs minutes of rank, a x1.16 chance does not pay for the members a
+  failure kills, and none go. `bb-pass.js` recruits while the counts are used up (ahead of the risky and filler actions) when a
+  member lowers the next Black Op's cost, and otherwise only when a member saves the Black Op more seconds than recruiting takes.
+- **Operations get no team.** An Operation with a team loses 0 to `ceil(team / 2)` members per win and is played hundreds of
+  times, so the replacements cost far more than a x1.16 chance on actions that are mostly capped anyway.
+- **Kill switches.** `bladeburner.blackOpGate: false` attempts only at 80 % (as before); `bladeburner.team: false` never
+  recruits and leaves the assignment alone.
+- **Tradeoffs.** The member value counts only the next Black Op, though members who survive serve the later ones too (it
+  under-recruits a little). The trend can mistake a jump in the population estimate for growth (Field Analysis settles it).
+  The failure bill assumes the average damage. bb-manage.js applies the plan every 3 minutes, so a team grown by recruiting
+  goes on the Black Op up to 3 minutes later. RAM: `getTeamSize` and `setTeamSize` (4GB each) sit in bb-manage.js so bb-pass.js,
+  the largest one-shot, grows only by the income read (0.1GB).
+- **Rejected:** a lower fixed line (40 % has a positive expected rank, but ignores a failure's members, hospital bill and
+  whether waiting even costs anything); valuing members by the chance they add alone (ignores that a Black Op kills at least
+  one per attempt).
 
 ## Mechanics and what the scripts do with them
 
@@ -84,24 +125,21 @@ much play is left on the table.
 | Contracts and Operations: chance, rank gain, time, level, count | `bb-pass.js` reads all of them each pass, plays the best chance x gain / seconds among the safe ones | Handled. Actions with no count left are no longer planned on (the game stops them and the player idled until the next pass) |
 | Action count: -1 per attempt (win or lose), grows by the table's average per 480 s, no cap | Read per action; `route-model.js` models it | Handled for choosing; it is the **late-game limit** (see "Measuring"): about 0.05 counts a second across all nine actions |
 | Action level (`autoLevel` on: level = max level, which rises with successes) | Read (`level`, `maxLevel`); the game's default keeps the highest level | Not steered. `setActionLevel` could trade reward for chance, but reward grows faster than difficulty, so the default is right whenever the chance holds. Open: the 60 % safety gate can exclude an action whose autolevel difficulty pushed it just under; a lower level would be safe |
-| Success chance: stats^decay, skills, stamina below 50 %, population^0.7, chaos above 50, team | `picks.js` (skills, city), stamina rest below 55 % | Handled except the team (below) |
+| Success chance: stats^decay, skills, stamina below 50 %, population^0.7, chaos above 50, team | `picks.js` (skills, city), stamina rest below 55 %, `team.js` (team on Black Ops) | Handled |
 | Stamina: cost per action, regeneration, Hyperbolic Regeneration Chamber | Rest below 55 % until 90 %; `ideal.js` models the budget | Handled; now measured |
 | City: population, chaos, communities (Raid needs one), random events | `pickCity` moves for a clear gain; Diplomacy only when nothing is safe and chaos is above 10 | Handled. Communities and the pop loss from Raid (-1 % per win) are not modelled; a Raid with no community shows 0 % and is skipped |
-| Black Ops: 21 in order, rank gates, difficulty 2,000-80,000, no city effect, 1.5x time | Played when the low chance is 80 % or more; skills now weigh their chance | Fixed this pass (skills). Open: the 80 % gate is fixed, see below |
+| Black Ops: 21 in order, rank gates, difficulty 2,000-80,000, no city effect, 1.5x time, rank loss and damage on failure | `team.js` gate: always at 80 %, earlier when it pays or holds the BitNode back; skills weigh their chance | Handled |
 | Skills: 12; chance, stat, time, stamina, exp, money, estimate | 10 of 12 (Hands of Midas and Datamancer ignored on purpose) | Handled |
 | Field Analysis (no stamina, +0.1 rank, sharpens the population estimate) | Used to scout and as a fallback | Handled |
 | Training (30 s, combat exp, +stamina bonus), Diplomacy (chaos), Hyperbolic Regeneration Chamber | Fallbacks and rests | Handled |
-| Recruitment (team size) and `setTeamSize` per action | Not used | **Gap.** A team multiplies the chance of Operations and Black Ops by `(team + 1) ^ 0.05` (20 members: x1.16, 100: x1.26) and recruiting is free of stamina; success is about 100 % while `charisma ^ 0.45 > team size`. Casualties: an Operation or Black Op loses up to half the assigned team per win and up to all of it per loss, so the team has to be rebuilt |
+| Recruitment (team size) and `setTeamSize` per action | `team.js`: recruits while counts are used up (or when it saves the Black Op more than it takes); the cheapest team size goes on the Black Op | Handled for Black Ops; Operations get no team on purpose (see above) |
 | Incite Violence (new in v3: +3 minutes of count growth for every action; chaos +10 and more in every city) | Not used | Correctly ignored: chaos only falls by about 0.36 an hour (Diplomacy takes about 1.5 % of it per minute), and above 50 it divides every chance by `sqrt(1 + chaos - 50)` |
 | Sleeves: support (team members that survive), Infiltrate Synthoids (counts) | No sleeve scripts yet | Out of scope here; counts are the late-game limit, so infiltrating sleeves are the lever to add with the sleeves folder |
 | Bonus time (`getBonusTime`), `nextUpdate`, automate console | Not used | Not relevant to a one-shot pass design |
 | Rank, skill points (1 per 3 rank), Bladeburners faction (rank 25), rank to rep | Skill points spent by `bb-manage.js`; the faction is joined elsewhere | Handled |
 | Stanek's Gift vs The Blade's Simulacrum | `bladeburner.stanekFirst` | Handled (above) |
 
-Open items, in the order they would pay off: (1) a team for the Black Ops (recruit while counts are the limit, assign the whole
-team to the next Black Op); (2) a Black Op gate from the expected cost of failing against the cost of waiting, instead of a flat
-80 % (a loss takes rank, health and a 1.5x long action; at 40 % a Black Op has a positive expected rank, but a failure costs a
-team and a long action); (3) lowering an action's level when that alone makes it safe.
+Open items: lowering an action's level when that alone makes it safe; counting the later Black Ops in a member's value.
 
 ## Measuring how well it plays
 
@@ -131,7 +169,8 @@ What a good run looks like, and what to do about a bad one:
 | Efficiency low, banked counts high | The clock is the limit but the player isn't using it: idle or resting too much | `idle`, `restShare`, the 30 s pass cadence against very short actions |
 | Efficiency low, idle high, banked near 0 | Counts ran out and the player waits for the next pass | A faster pass while counts are scarce |
 | Stamina under 50 % above a few percent | Rest threshold too low for the action length | `REST_BELOW` in `bb-pass.js`, Cyber's Edge |
-| Black Op "waits: only N %" for hours | Chance, not rank, is the gate | Chance skills (now steered by the Black Op), the team, stat gains |
+| Black Op "waits (rank)" | Rank for the Black Op after it is still further off; the time goes to rank | Nothing: it goes once that rank is near |
+| Black Op "waits (growing)" or "(measuring)" for hours | The chance, not rank, holds the BitNode back, and it is still rising fast | Chance skills (steered by the Black Op), the team, stat gains; with `blackOpGate: false` it waits for 80 % |
 
 Rank per hour while a Black Op is being attempted includes its jumps (+50 up to +40,000), so read the trend over a few hours.
 Besides the line, port 36 keeps `perf` (the latest figures, regeneration, the three best actions by rank per count) and

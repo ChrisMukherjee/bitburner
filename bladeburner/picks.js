@@ -60,6 +60,11 @@ const BLACK_OPS = [
 	["Operation Daedalus", 80e3, [0.1, 0.2, 0.2, 0.2, 0.2, 0, 0.1], 0, 0],
 ].map(([name, base, w, stealth, lethal]) => ({ name, base, w, dc: BLACK_OP_DECAYS, stealth: !!stealth, lethal: !!lethal }));
 
+/** A Black Op's base difficulty (Black Ops have no levels), or NaN for an unknown name. */
+export function blackOpDifficulty(name) {
+	return Number(BLACK_OPS.find((candidate) => candidate.name === name)?.base ?? NaN);
+}
+
 /** Every skill the adaptive order can buy. Hands of Midas (money) and Datamancer (estimate accuracy) never help rank. */
 export const SKILL_NAMES = [...Object.keys(CHANCE_SKILLS), ...Object.keys(STAT_SKILLS), "Overclock", "Cyber's Edge", "Hyperdrive"];
 

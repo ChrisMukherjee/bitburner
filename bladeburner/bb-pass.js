@@ -4,6 +4,8 @@ import { loadConfig } from "/utils/config.js";
 import { pickCity, nextRestShare, scoutTarget, BLACKOP_CHANCE } from "/bladeburner/picks.js";
 import { idealRankRate, staminaRegen, measuredRate, hoursToRank, nextShare } from "/bladeburner/ideal.js";
 import { bladeburnerState, postBladeburner, readBladeburner } from "/bladeburner/state.js";
+import { readIncomeRate } from "/utils/income.js";
+import { blackOpDecision, chanceGrowth, failureBill, memberValue, nextTrend, recruitSeconds, teamBonus } from "/bladeburner/team.js";
 
 const CONTRACTS = ["Tracking", "Bounty Hunter", "Retirement"];
 const OPERATIONS = ["Investigation", "Undercover Operation", "Sting Operation", "Raid", "Stealth Retirement Operation", "Assassination"];
@@ -23,9 +25,12 @@ const RANK_WINDOW_MS = 3600_000;
  * best action for rank per second and starts it. The game keeps repeating the action between passes, so a pass
  * only changes it when needed.
  * Goal: rank 400000 and every Black Op, which lets singularity/auto-destroy.js end the BitNode (no hacking needed).
- * Logic (no config): stamina first (rest below 55 %, until 90 %), then the next Black Op when its chance is safe,
- * otherwise the Contract/Operation with the best chance x rank gain / seconds; Field Analysis when the estimates
- * are too fuzzy, Diplomacy only when chaos is above 10, otherwise Training when nothing is safe yet.
+ * Logic: stamina first (rest below 55 %, until 90 %), then the next Black Op when it is safe, pays for itself in rank or
+ * holds the BitNode back (bladeburner/team.js, `bladeburner.blackOpGate`; false = only at 80 %), then Recruitment when a
+ * team member is worth it (`bladeburner.team`: free while every safe action's counts are used up, otherwise only when it
+ * saves the Black Op more time than it takes), otherwise the Contract/Operation with the best chance x rank gain / seconds;
+ * Field Analysis when the estimates are too fuzzy, Diplomacy only when chaos is above 10, otherwise Training when nothing
+ * is safe yet. bb-manage.js puts the team on the Black Op (teamPlan on port 36).
  * Posts its reasoning as the status lines on port 36, plus rank samples and live readings for the route estimate.
  * Ported from the other player's bb-pass.js, which has run in game.
  */
@@ -59,6 +64,12 @@ export async function main(ns) {
 		return false;
 	};
 
+	// Rank per hour, measured over this run (the samples survive on port 36 and are dropped when the rank falls: a new run)
+	const now = Date.now();
+	const samples = (before.rank ?? []).filter((sample) => now - sample.t < RANK_WINDOW_MS && sample.rank <= rank);
+	samples.push({ t: now, rank });
+	const perHour = measuredRate(samples);
+
 	let done = false;
 	// 1. Stamina: low stamina makes every action fail more, so rest first
 	const resting = current && current.name === "Hyperbolic Regeneration Chamber";
@@ -66,54 +77,76 @@ export async function main(ns) {
 		done = start(GENERAL, "Hyperbolic Regeneration Chamber", `stamina ${Math.round(ratio * 100)}%`);
 	}
 
-	// 2. The next Black Op, when rank allows and it is safe
+	// 2. Read the Contracts and Operations (the Black Op gate prices its time in their rank per second)
+	let actions = null;
+	let rows = [];
 	let next = null;
 	let blackOpsDone; // true only when the game says no Black Op is left; undefined when not checked this pass
+	let free = false; // the safe actions' counts are used up: the player's time earns little rank this pass
+	let teamPlan;     // the team the next Black Op should have, for bb-manage.js (bladeburner.team)
+	let trend = before.blackOpTrend;
 	if (!done) {
+		rows = readRows(bb, notes);
 		next = bb.getNextBlackOp();
 		blackOpsDone = next === null;
 		if (next) blackOp = blackOpReading(bb, next);
-		if (next && rank >= next.rank) {
-			const [low, high] = bb.getActionEstimatedSuccessChance("Black Operations", next.name);
-			if (high - low > 0.1) done = start(GENERAL, "Field Analysis", `Black Op estimate too fuzzy (${Math.round(low * 100)}-${Math.round(high * 100)}%)`);
-			else if (low >= BLACKOP_CHANCE) done = start("Black Operations", next.name, `${Math.round(low * 100)}% chance, rank ${Math.floor(rank)} >= ${next.rank}`);
-			else notes.push(`${next.name} waits: only ${Math.round(low * 100)}% chance (need ${BLACKOP_CHANCE * 100}%)`);
+		actions = readings(ns, bb, rows, [stamina, maxStamina], rank, blackOp);
+		free = rows.some((row) => row.low >= MIN_CHANCE && row.count < 1) && !rows.some((row) => row.low >= MIN_CHANCE && row.count >= 1);
+		banked = rows.filter((row) => row.count >= 1 && row.low >= MIN_CHANCE).reduce((sum, row) => sum + Math.floor(row.count), 0);
+	}
+	const freeShare = done ? before.freeShare : nextShare(before.freeShare, free);
+
+	// 3. The next Black Op, once rank allows: when it is safe, pays for itself or holds the BitNode back (bladeburner/team.js)
+	let recruit = null; // { secs, value } when a member is worth recruiting this pass
+	if (!done && next) {
+		const team = Number(before.team?.size) || 0;
+		const assigned = before.team?.name === next.name ? Math.min(Number(before.team?.assigned) || 0, team) : 0;
+		const odds = recruitOdds(bb);
+		const player = ns.getPlayer();
+		const income = readIncomeRate(ns).perSecond;
+		const bestRate = Math.max(0, ...rows.filter((row) => row.count >= 1 && row.low >= MIN_CHANCE).map((row) => row.score));
+		const rankRate = Number.isFinite(perHour) && perHour > 0 ? perHour / 3600 : bestRate;
+		const reading = blackOp ?? { chance: 0, high: 0, gain: 0, secs: 1 };
+		trend = nextTrend(trend, next.name, reading.chance / teamBonus(assigned), now);
+		const decision = blackOpDecision({
+			name: next.name, chance: reading.chance, assigned, size: team, gain: reading.gain, secs: reading.secs, rank, rankRate,
+			recruitSecs: odds.secs, timeValue: 1 - (Number.isFinite(freeShare) ? freeShare : 0),
+			bill: failureBill(next.name, player.hp, player.money), income, growth: chanceGrowth(trend), safeChance: BLACKOP_CHANCE,
+		});
+		if (settings.team) {
+			teamPlan = { name: next.name, members: decision.team, all: decision.all, time: now };
+			recruit = { secs: odds.secs, value: memberValue(decision.pricing, team) };
+		}
+		if (current && current.type === "Black Operations" && current.name === next.name) {
+			done = start(current.type, current.name, "a Black Op under way is never abandoned (the time spent on it would be lost)");
+		} else if (rank >= next.rank) {
+			const { chance: low, high } = reading;
+			const attempt = settings.blackOpGate ? decision.attempt : low >= BLACKOP_CHANCE;
+			if (high - low > 0.1) {
+				done = start(GENERAL, "Field Analysis", `Black Op estimate too fuzzy (${Math.round(low * 100)}-${Math.round(high * 100)}%)`);
+			} else if (attempt) {
+				done = start("Black Operations", next.name, settings.blackOpGate ? `${decision.reason}: ${decision.why}` : `${Math.round(low * 100)}% chance, rank ${Math.floor(rank)} >= ${next.rank}`);
+			} else {
+				notes.push(settings.blackOpGate ? `${next.name} waits (${decision.reason}): ${decision.why}` : `${next.name} waits: only ${Math.round(low * 100)}% chance (need ${BLACKOP_CHANCE * 100}%)`);
+			}
 		}
 	}
 
-	// 3. Contracts and Operations by expected rank per second
-	let actions = null;
+	// 4. Recruit a team member: free while the counts are used up, otherwise only when a member saves the Black Op more
+	// time than recruiting takes
+	if (!done && recruit && Number.isFinite(recruit.secs) && recruit.value > 0 && (free || (next && rank >= next.rank && recruit.value > recruit.secs))) {
+		done = start(GENERAL, "Recruitment", `${free ? "no safe counts left" : "the Black Op needs a bigger team"}: a member saves the next Black Op about ${Math.round(recruit.value)} s (${Math.round(recruit.secs)} s to recruit)`);
+	}
+
+	// The best few actions, after what the Black Op and recruiting steps said (the status shows the first lines)
+	for (const row of rows.slice(0, 4)) {
+		notes.push(`  ${row.name}: ${Math.round(row.low * 100)}-${Math.round(row.high * 100)}% chance, ${row.gain.toFixed(2)} rank in ${row.seconds.toFixed(0)} s => ${row.score.toFixed(3)} rank/s`);
+	}
+
+	// 5. Contracts and Operations by expected rank per second
 	if (!done) {
-		const rows = [];
-		for (const [type, names] of [["Contracts", CONTRACTS], ["Operations", OPERATIONS]]) {
-			for (const name of names) {
-				try {
-					const [low, high] = bb.getActionEstimatedSuccessChance(type, name);
-					const gain = bb.getActionRankGain(type, name);
-					const seconds = bb.getActionTime(type, name) / 1000;
-					const middle = (low + high) / 2;
-					let level = 1;
-					let maxLevel = 1;
-					let count = 1; // the game's own refusal (startAction) covers a failed read
-					try {
-						level = bb.getActionCurrentLevel(type, name);
-						maxLevel = bb.getActionMaxLevel(type, name);
-						count = bb.getActionCountRemaining(type, name);
-					} catch { /* not every action has levels */ }
-					rows.push({ type, name, low, high, middle, gain, seconds, level, maxLevel, count, score: (middle * gain) / Math.max(1, seconds) });
-				} catch (error) {
-					notes.push(`${name}: not available (${String(error).slice(0, 60)})`);
-				}
-			}
-		}
-		rows.sort((first, second) => second.score - first.score);
-		actions = readings(ns, bb, rows, [stamina, maxStamina], rank, blackOp);
-		for (const row of rows.slice(0, 4)) {
-			notes.push(`  ${row.name}: ${Math.round(row.low * 100)}-${Math.round(row.high * 100)}% chance, ${row.gain.toFixed(2)} rank in ${row.seconds.toFixed(0)} s => ${row.score.toFixed(3)} rank/s`);
-		}
 		const live = rows.filter((row) => row.count >= 1); // an action with no count left can't be started: don't plan on it
 		const safe = live.filter((row) => row.low >= MIN_CHANCE); // safe by the pessimistic estimate
-		banked = safe.reduce((sum, row) => sum + Math.floor(row.count), 0);
 		const okay = live.filter((row) => row.middle >= FALLBACK_CHANCE); // acceptable by the middle estimate
 		const pool = safe.length > 0 ? safe : okay;
 		const spread = Math.max(0, ...live.map((row) => row.high - row.low));
@@ -153,18 +186,13 @@ export async function main(ns) {
 		}
 	}
 
-	// 4. The city: population and chaos change every chance (bladeburner/picks.js), so play where they are best. Done last, because
+	// 6. The city: population and chaos change every chance (bladeburner/picks.js), so play where they are best. Done last, because
 	// the readings above belong to the city they were taken in; the next pass reads the new one.
 	if (actions && settings.switchCity) {
 		const move = pickCity(actions);
 		if (move && bb.switchCity(move.city)) notes.unshift(`moved to ${move.city}: about ${Math.round(move.gain * 100)}% more rank per second (needs ${Math.round(move.needed * 100)}% to beat the estimate noise)`);
 	}
 
-	// Rank per hour, measured over this run (the samples survive on port 36 and are dropped when the rank falls: a new run)
-	const now = Date.now();
-	const samples = (before.rank ?? []).filter((sample) => now - sample.t < RANK_WINDOW_MS && sample.rank <= rank);
-	samples.push({ t: now, rank });
-	const perHour = measuredRate(samples);
 	const idleShare = nextShare(before.idleShare, idle);
 	const penaltyShare = nextShare(before.penaltyShare, ratio < 0.5);
 	const summary = `rank ${Math.floor(rank)}${Number.isFinite(perHour) ? ` (${Math.round(perHour)}/h)` : ""}; stamina ${Math.round(ratio * 100)}%; ` +
@@ -182,7 +210,45 @@ export async function main(ns) {
 		restShare, idleShare, penaltyShare, script: ns.getScriptName(), action: now2 ? { type: now2.type, name: now2.name, time: now } : null, lines, rank: samples,
 		...(perf ? { perf, perfLog: log } : {}),
 		...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(actions ? { actions } : {}),
+		freeShare, ...(next ? { blackOpTrend: trend } : {}), ...(teamPlan ? { teamPlan } : {}),
 	});
+}
+
+/** Every Contract and Operation's chance range, rank gain, seconds, level and count, best expected rank per second first. */
+function readRows(bb, notes) {
+	const rows = [];
+	for (const [type, names] of [["Contracts", CONTRACTS], ["Operations", OPERATIONS]]) {
+		for (const name of names) {
+			try {
+				const [low, high] = bb.getActionEstimatedSuccessChance(type, name);
+				const gain = bb.getActionRankGain(type, name);
+				const seconds = bb.getActionTime(type, name) / 1000;
+				const middle = (low + high) / 2;
+				let level = 1;
+				let maxLevel = 1;
+				let count = 1; // the game's own refusal (startAction) covers a failed read
+				try {
+					level = bb.getActionCurrentLevel(type, name);
+					maxLevel = bb.getActionMaxLevel(type, name);
+					count = bb.getActionCountRemaining(type, name);
+				} catch { /* not every action has levels */ }
+				rows.push({ type, name, low, high, middle, gain, seconds, level, maxLevel, count, score: (middle * gain) / Math.max(1, seconds) });
+			} catch (error) {
+				notes.push(`${name}: not available (${String(error).slice(0, 60)})`);
+			}
+		}
+	}
+	return rows.sort((first, second) => second.score - first.score);
+}
+
+/** Recruitment's seconds per member (its time over its chance; the chance falls as the team grows), Infinity when it can't succeed. */
+function recruitOdds(bb) {
+	try {
+		const [chance] = bb.getActionEstimatedSuccessChance(GENERAL, "Recruitment");
+		return { chance, secs: recruitSeconds(bb.getActionTime(GENERAL, "Recruitment") / 1000, chance) };
+	} catch {
+		return { chance: 0, secs: Infinity };
+	}
 }
 
 /** The next Black Op's chance (low estimate) and reward, or null when the game won't say. */

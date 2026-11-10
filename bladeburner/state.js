@@ -11,6 +11,10 @@
 //   skillLevels        bb-manage.js: Reaper, Evasive System and Cyber's Edge levels, for bb-pass.js's stamina model
 //   action             bb-pass.js: { type, name, time } of the running action (null when none), shown on status' "Doing:" line
 //   blackOps         bb-pass.js: { done, time }, done when getNextBlackOp() found none (auto-destroy.js ends the BitNode)
+//   freeShare          bb-pass.js: moving share of passes where every safe action's counts were used up (time that earns little rank)
+//   blackOpTrend       bb-pass.js: { name, samples: [{ t, p }] }, the next Black Op's chance without the team, for its growth rate
+//   teamPlan           bb-pass.js: { name, members, all, time }, the team the next Black Op should have (bladeburner/team.js)
+//   team               bb-manage.js: { size, name, assigned, time }, the team and how many are on the next Black Op
 //   giftNotice         bb-manage.js: lastNodeReset of the BitNode whose Stanek's Gift notice it has shown (once per BitNode)
 //   time, title, script, oneShot, lines   the status line tools/status.js shows
 // 0GB (ports only). The one-shots run one at a time (startup.js), so read-modify-write is safe.

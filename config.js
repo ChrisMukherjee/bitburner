@@ -391,7 +391,16 @@ export const DEFAULTS = {
 	// blackOpSkills: the next Black Op's success chance steers the skill points too, once its rank is near (the late Black Ops
 	// are far harder than any Contract or Operation, so chance skills must not stop mattering when those are capped); false =
 	// only the Contracts and Operations count.
-	bladeburner: { route: "combat", stanekFirst: false, adaptiveSkills: true, switchCity: true, fieldAnalysis: true, blackOpSkills: true },
+	// blackOpGate: attempt the next Black Op when its expected cost (time, rank lost, members killed and the hospital bill on a
+	// failure) is below the rank it gives, or once it, not rank, holds the BitNode back and its chance has stopped growing fast
+	// enough to be worth waiting for (bladeburner/team.js); always at 80 %. false = only at 80 %, as before.
+	// team: recruit team members (free while every safe action's counts are used up, otherwise only when one saves the Black Op
+	// more time than recruiting takes) and send the team size that gets the Black Op done cheapest; false = no recruiting and
+	// the team assignment is left alone.
+	bladeburner: {
+		route: "combat", stanekFirst: false, adaptiveSkills: true, switchCity: true, fieldAnalysis: true, blackOpSkills: true,
+		blackOpGate: true, team: true,
+	},
 
 	// Go bot (go/go-bot.js, go/go-plan.js). rotation: the order it moves on to once the focus opponent's bonus
 	// levels off. planAware: opponents in `boosts` jump the queue while the plan uses their bonus (Bladeburner running ->

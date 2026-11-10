@@ -126,6 +126,8 @@ script is replaced, it is saved here as name-vX.js and gets a line in this list.
 ## Bladeburner
 
 - [`bladeburner/bb-pass-v1.js`](bladeburner/bb-pass-v1.js): the action pass before measuring: best chance x gain / seconds among the safe actions (exhausted ones included, refused one by one), Black Op at 80 %, city switch and Field Analysis scouting, rank per hour from the samples. Next: [`bb-pass.js`](../bladeburner/bb-pass.js) skips actions with no count left, posts the next Black Op and the efficiency report (measured rank per hour against the ceiling in [`ideal.js`](../bladeburner/ideal.js), idle and low-stamina share, banked counts, hourly log).
+- [`bladeburner/bb-pass-v2.js`](bladeburner/bb-pass-v2.js): see above, with the efficiency report. Attempted the next Black Op only at 80 % and never recruited. Next: [`bb-pass.js`](../bladeburner/bb-pass.js) attempts it when it pays for itself or holds the BitNode back ([`team.js`](../bladeburner/team.js)), keeps one under way, recruits while the safe counts are used up and posts the team plan.
+- [`bladeburner/bb-manage-v1.js`](bladeburner/bb-manage-v1.js): state, joining and skill points. Next: [`bb-manage.js`](../bladeburner/bb-manage.js) also puts the planned team on the next Black Op (`setTeamSize`).
 - [`bladeburner/picks-v1.js`](bladeburner/picks-v1.js): skill values from the Contracts and Operations being played only, so chance skills were worth nothing once those were capped at 100 % while the Black Ops sat far below the safe chance. Next: [`picks.js`](../bladeburner/picks.js) blends in the next Black Op's chance (`blackOpWeight`, `bladeburner.blackOpSkills`).
 
 ## Go

@@ -117,6 +117,7 @@ function world({ node = 6, sf = [], augs = [], files = {}, skills = STRONG, mone
 				getSkillUpgradeCost: (name) => costs[name] ?? Infinity,
 				getSkillLevel: () => overclock,
 				upgradeSkill: (name) => { bought.push(name); points -= costs[name]; return true; },
+				getTeamSize: () => 0, setTeamSize: () => 0,
 			},
 		},
 	});
@@ -523,6 +524,7 @@ function pass({ city = "Sector-12", cities, files = {}, current = null, stamina 
 		overrides: {
 			getScriptName: () => "bladeburner/bb-pass.js",
 			getPlayer: () => ({ skills: SKILLS_AT }),
+			getTotalScriptIncome: () => [0, 0],
 			bladeburner: {
 				inBladeburner: () => true,
 				getStamina: () => stamina,

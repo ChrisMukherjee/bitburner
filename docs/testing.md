@@ -53,7 +53,7 @@ milliseconds, and a fixed bug stays fixed when a test pins it.
 modules (the tests would check a copy, not the synced script); end-to-end runs against the game (the Remote API can't
 drive scripts or read their state).
 
-**Current state:** about 370 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
+**Current state:** about 390 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
 step, home-upgrade hold, Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without
 Formulas.exe, RAM pool, startup.js stages and one-shots, gym and study choice, income curve, augment filter, BitNode route,
 Go plan order and move search, the gang manager's per-pass decisions, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
