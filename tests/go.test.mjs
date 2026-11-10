@@ -73,7 +73,7 @@ test("goOrder falls back to the built-in rotation when the config has no go sect
 // ---- choose-move: tiny boards. "X" is black, "O" is white, "." empty, "#" offline. Each string is one column x.
 const opts = { timeMs: 2000, maxPlayouts: 3000, komi: 0 };
 
-test("play() places a stone and removes the captured group", () => {
+test("game: play() places a stone and removes the captured group", () => {
 	// White stone at (1,1) with black on three sides; black plays the fourth.
 	const grid = toGrid([".X.", "XO.", ".X."]);
 	const result = play(grid, 1, 2, "X");
@@ -83,7 +83,7 @@ test("play() places a stone and removes the captured group", () => {
 	assert.equal(result.grid[1][2], "X");
 });
 
-test("play() refuses a move on an occupied point and suicide", () => {
+test("game: play() refuses a move on an occupied point and suicide", () => {
 	const grid = toGrid([".X.", "X.X", ".X."]);
 	assert.equal(play(grid, 0, 1, "O"), null, "occupied");
 	assert.equal(play(grid, 1, 1, "O"), null, "suicide into a black eye");

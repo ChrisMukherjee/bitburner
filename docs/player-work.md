@@ -3,7 +3,8 @@
 [`../singularity/player-work.js`](../singularity/player-work.js), with helpers
 [`../singularity/workers/faction-goals.js`](../singularity/workers/faction-goals.js) (port 23),
 [`../singularity/workers/city-plan.js`](../singularity/workers/city-plan.js) (port 25) and
-[`../gang/workers/invite.js`](../gang/workers/invite.js) (port 30).
+[`../gang/workers/invite.js`](../gang/workers/invite.js) (port 30) and
+[`../singularity/workers/crime-invites.js`](../singularity/workers/crime-invites.js) (port 39).
 Invites are accepted by [`../singularity/join-factions.js`](../singularity/join-factions.js).
 
 ## One script owns the player
@@ -14,7 +15,31 @@ or travels; a new player activity is a new step in it, not another script. It al
 Singularity calls instead of five).
 
 Order, one at a time: study (free course to hacking 50), the gang invite (BitNode 2, no gang yet: a crime for
-the karma, the gym for the combat stats), faction work, then megacorp jobs when no faction needs rep.
+the karma, the gym for the combat stats), the crime-faction invite (Bladeburner route), faction work, then megacorp jobs when
+no faction needs rep.
+
+## Alongside Bladeburner
+
+While Bladeburner plays (state `run`), any work started here would cancel its action, so nothing is started; a flight still
+is (it doesn't touch the action). Once The Blade's Simulacrum is installed the game runs both, so the steps go on as usual and
+the gap after them goes to the gym for the lowest combat stat (Bladeburner's chances; a class runs until it is 5 % above the
+new lowest, so it doesn't swap every pass) instead of the cash crime. Why the Simulacrum is bought first:
+[`bladeburner.md`](bladeburner.md#the-blades-simulacrum).
+
+## Crime-faction invites
+
+On the Bladeburner route the combat augments are mostly sold by Slum Snakes, Tetrads, The Syndicate, Speakers for the Dead and
+The Dark Army (`crimeFactions.factions`, easiest first), whose invites want karma, people killed, a city and combat levels, which
+no other step works on. Every 2 minutes [`../singularity/workers/crime-invites.js`](../singularity/workers/crime-invites.js)
+picks the first one that sells a wanted augment (the route's weights) and whose remaining needs are all reachable, from
+`getFactionInviteRequirements`: karma and kills (crimes; karma stays across installs, kills restart), a city (one of a list
+for Tetrads), combat levels (the gym) and money (waiting). A hacking level short or a CIA/NSA job blocks it, and it is listed.
+player-work.js then commits the crime with the most karma (or kills) per minute before faction work, trains the combat levels
+in the gaps, and once only the city is left flies there and stays (`holdCity`) until join-factions.js accepts the invite; a
+flight waits while the travel step still needs the player (Tian Di Hui, the city group). Bladeburner's kill operations lower
+karma too (-1 a success), so on that route the karma is often there already. `crimeFactions.enabled: false` turns it off.
+Rejected: a fixed list of what each faction needs (the game's own requirements stay right as they change) and doing the crimes
+while Bladeburner plays without the Simulacrum (they would cancel its action).
 
 ## Start stage: a small stand-in
 

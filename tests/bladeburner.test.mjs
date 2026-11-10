@@ -69,7 +69,7 @@ test("blackOpsDone needs a done flag from the last hour", () => {
 const resetInfo = (node, sf = [], lastAugReset = Date.now() - 5 * 3600_000) =>
 	() => ({ currentNode: node, ownedSF: new Map(sf.map((n) => [n, 1])), lastAugReset });
 
-test("Bladeburner API: BitNode 6 or 7, or Source-File 6 or 7", () => {
+test("game: Bladeburner API: BitNode 6 or 7, or Source-File 6 or 7", () => {
 	const access = (node, sf) => bladeburnerAccess(fakeNs({ overrides: { getResetInfo: resetInfo(node, sf) } })).available;
 	assert.equal(access(6, []), true);
 	assert.equal(access(7, []), true);
@@ -94,7 +94,7 @@ const STRONG = { hacking: 100, strength: 150, defense: 150, dexterity: 150, agil
  * `files`: data/config.json, data/bitnode.txt...; `costs`: skill name -> cost; `points` skill points; `overclock`: its level.
  */
 function world({ node = 6, sf = [], augs = [], files = {}, skills = STRONG, money = 0, income = 0, ageMs = 5 * 3600_000, post = null,
-	inDivision = true, joins = true, costs = {}, points = 0, overclock = 1, nodeStart = 1000 } = {}) {
+	inDivision = true, joins = true, costs = {}, points = 0, overclock = 1, nodeStart = 1000, factions = [], rank = 100 } = {}) {
 	const bought = [];
 	let current = "Training";
 	const ns = fakeNs({
@@ -106,11 +106,12 @@ function world({ node = 6, sf = [], augs = [], files = {}, skills = STRONG, mone
 				currentNode: node, ownedSF: new Map(sf.map((entry) => (Array.isArray(entry) ? entry : [entry, 1]))),
 				ownedAugs: new Map(augs.map((aug) => [aug, 1])), lastAugReset: Date.now() - ageMs, lastNodeReset: nodeStart,
 			}),
-			getPlayer: () => ({ skills, money }),
+			getPlayer: () => ({ skills, money, factions }),
 			getTotalScriptIncome: () => [income, 0],
 			bladeburner: {
 				inBladeburner: () => inDivision,
 				joinBladeburnerDivision: () => joins,
+				joinBladeburnerFaction: () => { if (rank < 25) return false; factions.push("Bladeburners"); return true; },
 				getCurrentAction: () => current,
 				stopBladeburnerAction: () => { current = null; },
 				getSkillPoints: () => points,
@@ -129,6 +130,17 @@ test("bb-manage exits without a message or a post when there is no Bladeburner A
 	await manage(w.ns);
 	assert.equal(w.ns.portJson(BB_PORT), null);
 	assert.deepEqual(w.ns.terminal, []);
+});
+
+test("bb-manage: joins the Bladeburners faction once the rank allows, without waiting for an install", async () => {
+	const w = world({ rank: 300 });
+	await manage(w.ns);
+	assert.equal(w.ns.called("bladeburner.joinBladeburnerFaction").length, 1);
+	await manage(w.ns);
+	assert.equal(w.ns.called("bladeburner.joinBladeburnerFaction").length, 1, "a member isn't asked again");
+	const low = world({ rank: 10 });
+	await manage(low.ns);
+	assert.equal(low.ns.called("bladeburner.joinBladeburnerFaction").length, 1, "too low: asked, refused");
 });
 
 test("bb-manage: a ready player joins the division and the state is run", async () => {
@@ -208,7 +220,7 @@ test("bb-manage: skill points go to the cheapest skill of the first tier and sto
 	assert.ok(!w.bought.includes("Hyperdrive"), "waits for points rather than skipping to a lesser tier");
 });
 
-test("bb-manage: Overclock stops at level 90", async () => {
+test("game: bb-manage: Overclock stops at level 90", async () => {
 	const w = world({ points: 100, overclock: 90, costs: { Overclock: 10, "Blade's Intuition": 30 } });
 	await manage(w.ns);
 	assert.ok(!w.bought.includes("Overclock"));
@@ -218,7 +230,7 @@ test("bb-manage: Overclock stops at level 90", async () => {
 // ---- Stanek's Gift (utils/stanek.js) and the join
 const info = ({ node = 13, sf = [], augs = [] } = {}) => ({ currentNode: node, ownedSF: new Map(sf), ownedAugs: new Map(augs.map((aug) => [aug, 1])) });
 
-test("the Gift is open with the church (BitNode 13 or Source-File 13) while only NeuroFlux Governor is installed", () => {
+test("game: the Gift is open with the church (BitNode 13 or Source-File 13) while only NeuroFlux Governor is installed", () => {
 	assert.equal(giftOpen(info()), true);
 	assert.equal(giftOpen(info({ augs: ["NeuroFlux Governor"] })), true);
 	assert.equal(giftOpen(info({ node: 6, sf: [[13, 1]] })), true);
@@ -228,14 +240,14 @@ test("the Gift is open with the church (BitNode 13 or Source-File 13) while only
 	assert.equal(giftOpen({ currentNode: 13, ownedSF: new Map() }), true, "no ownedAugs: nothing installed");
 });
 
-test("joining closes the Gift only with Source-File 7 at level 3 (The Blade's Simulacrum)", () => {
+test("game: joining closes the Gift only with Source-File 7 at level 3 (The Blade's Simulacrum)", () => {
 	assert.equal(joiningClosesGift(info({ sf: [[7, 3]] })), true);
 	assert.equal(joiningClosesGift(info({ sf: [[7, 2], [6, 3]] })), false);
 	assert.equal(joiningClosesGift(info({ sf: [[7, 3]], augs: [GIFT] })), false);
 	assert.equal(joiningClosesGift(info({ node: 6, sf: [[7, 3]] })), false);
 });
 
-test("bladeburner.stanekFirst is on by default in BitNode 13 only", () => {
+test("choice: bladeburner.stanekFirst is on by default in BitNode 13 only", () => {
 	assert.equal(loadConfig(fakeNs({ files: { "data/bitnode.txt": "13" } })).bladeburner.stanekFirst, true);
 	assert.equal(loadConfig(fakeNs({ files: { "data/bitnode.txt": "6" } })).bladeburner.stanekFirst, false);
 	assert.equal(loadConfig(fakeNs()).bladeburner.stanekFirst, false);
@@ -294,7 +306,7 @@ test("already in the division: nothing left to wait for", async () => {
 });
 
 // ---- route model
-test("skillAt and expFor are inverses, and a multiplier scales the level", () => {
+test("game: skillAt and expFor are inverses, and a multiplier scales the level", () => {
 	for (const level of [10, 100, 500, 2000]) {
 		assert.ok(Math.abs(skillAt(expFor(level, 1), 1) - level) < 1e-6, `level ${level}`);
 		assert.ok(Math.abs(skillAt(expFor(level, 2.5), 2.5) - level) < 1e-6);
@@ -529,7 +541,7 @@ test("projectRoute (combat): stamina limits what Overclock is worth", () => {
 	assert.ok(!exhausted.reached || exhausted.hours > tired.hours, "almost no stamina: much slower");
 });
 
-test("DONATE_REP is the cumulative rep at 150 favour", () => {
+test("game: DONATE_REP is the cumulative rep at 150 favour", () => {
 	assert.ok(DONATE_REP > 4e5 && DONATE_REP < 5e5);
 });
 
@@ -612,7 +624,7 @@ test("bladeburner.adaptiveSkills false keeps the fixed tiers even with readings"
 	assert.equal(loadConfig(fakeNs({})).bladeburner.switchCity, true);
 });
 
-test("cityFactor: population to the 0.7, less chaos above 50", () => {
+test("game: cityFactor: population to the 0.7, less chaos above 50", () => {
 	assert.equal(cityFactor({ pop: 1e9, chaos: 0 }), 1);
 	assert.ok(Math.abs(cityFactor({ pop: 2e9, chaos: 0 }) - 2 ** 0.7) < 1e-9);
 	assert.equal(cityFactor({ pop: 1e9, chaos: 40 }), 1, "no penalty up to chaos 50");

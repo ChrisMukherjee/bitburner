@@ -141,3 +141,116 @@ test("no room for the helper yet: says so and the class keeps running", () => {
 		overrides: { getHostname: () => "home", getScriptRam: () => 12.1, hasRootAccess: () => false, getServer: () => ({}), scan: () => [], scp: () => true, exec: () => 0, getServerMaxRam: () => 8, getServerUsedRam: () => 8 } });
 	assert.match(idleStep(ns, idleState(), idlePlayer(), { type: "CLASS", classType: "STUDYCOMPUTERSCIENCE" }), /no room/);
 });
+
+// --- The Blade's Simulacrum and crime-faction invites (workStep, inviteFlight, crime-invites.js) ---
+import { workStep, inviteFlight } from "/singularity/player-work.js";
+import { pickInvite, inviteNeeds } from "/singularity/workers/crime-invites.js";
+import { DEFAULTS } from "/config.js";
+
+const SIMULACRUM = "The Blade's Simulacrum";
+const STRONG_PLAYER = (changes = {}) => ({
+	city: "Sector-12", money: 1e12, factions: ["CyberSec"], jobs: {}, karma: 0, numPeopleKilled: 0,
+	skills: { hacking: 500, strength: 300, defense: 310, dexterity: 320, agility: 330 }, ...changes,
+});
+/** A pass of workStep with Bladeburner in `bbState`, the augmentations installed, and `current` work. */
+function bbWorld({ bbState = "run", augs = [], current = null } = {}) {
+	return fakeNs({
+		ports: { 36: { state: bbState, stateTime: Date.now() } },
+		overrides: {
+			getResetInfo: () => ({ currentNode: 6, ownedSF: new Map(), ownedAugs: new Map(augs.map((aug) => [aug, 1])), lastAugReset: 0 }),
+			singularity: {
+				getCurrentWork: () => current, getFactionRep: () => 0, getCompanyRep: () => 1e9, workForFaction: () => true,
+				gymWorkout: () => true, travelToCity: () => true, commitCrime: () => 3000, stopAction: () => true,
+				applyToCompany: () => "", workForCompany: () => true,
+			},
+			getScriptRam: () => 1,
+		},
+	});
+}
+const passState = (changes = {}) => ({
+	config: JSON.parse(JSON.stringify(DEFAULTS)), focus: false, holdCity: false, studyLevel: 50, noCompany: true,
+	goals: { CyberSec: { rep: 1e6, aug: "X", count: 1, skipped: 0 } }, gangDone: true, travelDone: true, ...changes,
+});
+
+test("Bladeburner playing without the Simulacrum: nothing else is started", () => {
+	const ns = bbWorld();
+	const result = workStep(ns, passState(), STRONG_PLAYER());
+	assert.match(result.message, /\[bladeburner\] playing/);
+	assert.equal(ns.called("singularity.workForFaction").length, 0);
+});
+
+test("with The Blade's Simulacrum installed, faction work runs alongside Bladeburner", () => {
+	const ns = bbWorld({ augs: [SIMULACRUM] });
+	const result = workStep(ns, passState(), STRONG_PLAYER());
+	assert.equal(ns.called("singularity.workForFaction").length, 1);
+	assert.match(result.message, /Bladeburner keeps playing/);
+});
+
+test("Simulacrum and nothing else to do: the lowest combat stat goes to the gym (not the cash crime)", () => {
+	const ns = bbWorld({ augs: [SIMULACRUM] });
+	const result = workStep(ns, passState({ goals: {} }), STRONG_PLAYER());
+	assert.deepEqual(ns.called("singularity.gymWorkout").map((call) => call[1]), ["str"]);
+	assert.match(result.message, /Bladeburner's chances/);
+	// Strength's class runs on until it is 5 % above the new lowest, then defense takes over
+	const running = { type: "CLASS", classType: "GYMSTRENGTH", location: "Powerhouse Gym" };
+	const keep = bbWorld({ augs: [SIMULACRUM], current: running });
+	workStep(keep, passState({ goals: {} }), STRONG_PLAYER({ skills: { hacking: 500, strength: 312, defense: 310, dexterity: 320, agility: 330 } }));
+	assert.equal(keep.called("singularity.gymWorkout").length, 0);
+	const swap = bbWorld({ augs: [SIMULACRUM], current: running });
+	workStep(swap, passState({ goals: {} }), STRONG_PLAYER({ skills: { hacking: 500, strength: 330, defense: 310, dexterity: 320, agility: 330 } }));
+	assert.deepEqual(swap.called("singularity.gymWorkout").map((call) => call[1]), ["def"]);
+});
+
+test("a crime-faction invite's karma comes before faction work; with the Simulacrum Bladeburner keeps playing", () => {
+	const crimeInvite = { applies: true, faction: "The Syndicate", missing: ["karma -10 / -90"], city: null, crime: "Homicide", rate: 60, chance: 0.9, gain: "karma", gym: 0 };
+	const ns = bbWorld({ augs: [SIMULACRUM] });
+	const result = workStep(ns, passState({ crimeInvite }), STRONG_PLAYER());
+	assert.deepEqual(ns.called("singularity.commitCrime"), [["Homicide", false]]);
+	assert.equal(ns.called("singularity.workForFaction").length, 0);
+	assert.match(result.message, /\[crime-invite\] Homicide for The Syndicate/);
+	// Done: the crime this step started is stopped and faction work takes over
+	const after = bbWorld({ augs: [SIMULACRUM], current: { type: "CRIME", crimeType: "Homicide" } });
+	workStep(after, passState({ crimeInvite: null, inviteCrime: true }), STRONG_PLAYER());
+	assert.equal(after.called("singularity.stopAction").length, 1);
+	assert.equal(after.called("singularity.workForFaction").length, 1);
+});
+
+test("inviteFlight: flies once only the city is missing, then stays; never while the travel step needs the player", () => {
+	const inv = { faction: "Tetrads", missing: ["be in Chongqing"], city: "Chongqing", crime: null, gym: 0 };
+	const ns = bbWorld();
+	const flown = passState();
+	assert.match(inviteFlight(ns, flown, STRONG_PLAYER(), inv, false), /flew to Chongqing/);
+	assert.deepEqual(ns.called("singularity.travelToCity"), [["Chongqing"]]);
+	assert.equal(flown.holdCity, true);
+	const there = passState();
+	assert.match(inviteFlight(bbWorld(), there, STRONG_PLAYER({ city: "Chongqing" }), { ...inv, city: null, missing: [] }, false), /waiting for the Tetrads invite/);
+	assert.equal(there.holdCity, true);
+	assert.equal(inviteFlight(bbWorld(), passState({ travelDone: false }), STRONG_PLAYER(), inv, false), null);
+	assert.equal(inviteFlight(bbWorld(), passState(), STRONG_PLAYER(), { ...inv, crime: "Homicide" }, false), null, "crimes first");
+});
+
+// Invite rules as v3.0.0's getFactionInviteRequirements gives them
+const TETRADS = [{ type: "someCondition", conditions: [{ type: "city", city: "Chongqing" }, { type: "city", city: "New Tokyo" }, { type: "city", city: "Ishima" }] },
+	{ type: "skills", skills: { strength: 75, defense: 75, dexterity: 75, agility: 75 } }, { type: "karma", karma: -18 }];
+const SPEAKERS = [{ type: "not", condition: { type: "employedBy", company: "CIA" } }, { type: "not", condition: { type: "employedBy", company: "NSA" } },
+	{ type: "skills", skills: { hacking: 100 } }, { type: "skills", skills: { strength: 300, defense: 300, dexterity: 300, agility: 300 } },
+	{ type: "numPeopleKilled", numPeopleKilled: 30 }, { type: "karma", karma: -45 }];
+
+test("inviteNeeds: karma, kills, combat and the city are worked on; other skills and jobs block", () => {
+	const fresh = inviteNeeds(TETRADS, { ...STRONG_PLAYER(), skills: { hacking: 500, strength: 50, defense: 80, dexterity: 80, agility: 80 } });
+	assert.deepEqual([fresh.city, fresh.karma, fresh.gym, fresh.blocked.length], ["Chongqing", -18, 75, 0]);
+	const inTokyo = inviteNeeds(TETRADS, STRONG_PLAYER({ city: "New Tokyo", karma: -20 }));
+	assert.deepEqual(inTokyo.missing, [], "any of the three cities will do");
+	const speakers = inviteNeeds(SPEAKERS, STRONG_PLAYER({ karma: -50, numPeopleKilled: 3 }));
+	assert.deepEqual([speakers.kills, speakers.karma, speakers.gym], [30, null, 0]);
+	assert.match(inviteNeeds(SPEAKERS, STRONG_PLAYER({ jobs: { CIA: "Field Agent" } })).blocked.join(), /not employed by CIA/);
+	assert.match(inviteNeeds(SPEAKERS, STRONG_PLAYER({ skills: { hacking: 50, strength: 300, defense: 300, dexterity: 300, agility: 300 } })).blocked.join(), /hacking 50 \/ 100/);
+});
+
+test("pickInvite: the first reachable faction in the list order; blocked ones are listed", () => {
+	const player = STRONG_PLAYER({ skills: { hacking: 50, strength: 300, defense: 300, dexterity: 300, agility: 300 } });
+	const pick = pickInvite([{ faction: "Speakers for the Dead", needs: SPEAKERS }, { faction: "Tetrads", needs: TETRADS }], player);
+	assert.equal(pick.faction, "Tetrads");
+	assert.deepEqual(pick.blocked.map((entry) => entry.faction), ["Speakers for the Dead"]);
+	assert.equal(pickInvite([], player).faction, null);
+});

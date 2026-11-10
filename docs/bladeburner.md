@@ -138,8 +138,9 @@ much play is left on the table.
 | Incite Violence (new in v3: +3 minutes of count growth for every action; chaos +10 and more in every city) | Not used | Correctly ignored: chaos only falls by about 0.36 an hour (Diplomacy takes about 1.5 % of it per minute), and above 50 it divides every chance by `sqrt(1 + chaos - 50)` |
 | Sleeves: support (team members that survive), Infiltrate Synthoids (counts) | No sleeve scripts yet | Out of scope here; counts are the late-game limit, so infiltrating sleeves are the lever to add with the sleeves folder |
 | Bonus time (`getBonusTime`), `nextUpdate`, automate console | Not used | Not relevant to a one-shot pass design |
-| Rank, skill points (1 per 3 rank), Bladeburners faction (rank 25), rank to rep | Skill points spent by `bb-manage.js`; the faction is joined elsewhere | Handled |
-| Stanek's Gift vs The Blade's Simulacrum | `bladeburner.stanekFirst` | Handled (above) |
+| Rank, skill points (1 per 3 rank), Bladeburners faction (rank 25), rank to rep | Skill points spent by `bb-manage.js`, which also joins the faction as soon as the rank allows (the game joins by itself only at an install, and rep only grows while a member) | Handled |
+| Stanek's Gift vs The Blade's Simulacrum | `bladeburner.stanekFirst` | Handled (below) |
+| The Blade's Simulacrum (Bladeburner actions alongside other work) | Bought first and installed at once on this route; `player-work.js` then works alongside | Handled (below) |
 
 Open items: lowering an action's level when that alone makes it safe; counting the later Black Ops in a member's value.
 
@@ -296,6 +297,24 @@ The augment weights for the combat route follow the state by themselves (`routeA
 [`../utils/config.js`](../utils/config.js), see [`config.md`](config.md)); the `bladeburner` preset only forces them.
 On the same condition `routeAdjust` turns off `resetRule.daedalusPush` and `daedalusFavor`: chasing the Daedalus invite (filler
 augments, resets for favor) is a hacking-route plan and would spend resets the Bladeburner route doesn't need.
+
+## The Blade's Simulacrum
+
+- **Decision.** On the Bladeburner route The Blade's Simulacrum (Bladeburners faction, 1,250 rep, $150b) is bought before any
+  other augment and installed at once. Without it the game cancels the Bladeburner action whenever the player starts other work
+  (and the reverse), so `player-work.js` starts nothing while Bladeburner plays and the faction rep for the combat augments, the
+  gym and the crime-faction invites all wait. Installed, the game runs both (bitburner-src v3.0.0 `Bladeburner.process` and
+  `startAction` check it, installed only), so every later hour of the BitNode gets both.
+- **How.** It has no stats, so `routeAdjust` adds it to `augments.special` (wanted) and `resetRule.routeKeyAugs` while the route
+  is Bladeburner. `buy-augs.js` puts it first in the plan and the buyer buys it first (`first` in `buyList`), and
+  `decideReset` resets for it right after the Black Op hold (a Black Op about to be attempted still goes first). Its rep comes
+  from rank only, so `bb-manage.js` joins the Bladeburners faction at rank 25 instead of waiting for the next install.
+- **Afterwards.** `player-work.js` sees it installed (`simulacrumInstalled` in [`../utils/bladeburner.js`](../utils/bladeburner.js))
+  and goes on with its steps while `bb-pass.js` plays: crime-faction invites, faction work, company work, and in the gaps the
+  gym for the lowest combat stat (Bladeburner's chances) instead of the cash crime.
+- **Tradeoffs.** The reset costs the run's combat stats and faction rep; it is taken anyway because the gain lasts the rest of
+  the BitNode. Rejected: valuing it in the normal reset rule (it has no stats for the weights to price, and a guessed value
+  would be a hardcoded number). `bladeburner.simulacrumFirst: false` turns it off; the scripts then never buy it.
 
 ## What came from the standalone scripts
 

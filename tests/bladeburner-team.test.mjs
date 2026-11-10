@@ -15,14 +15,14 @@ import {
 const close = (actual, expected, relative = 1e-6) => assert.ok(Math.abs(actual - expected) <= Math.abs(expected) * relative, `${actual} vs ${expected}`);
 
 // ---- the game's numbers
-test("teamBonus is (members + 1) ^ 0.05", () => {
+test("game: teamBonus is (members + 1) ^ 0.05", () => {
 	assert.equal(teamBonus(0), 1);
 	close(teamBonus(20), Math.pow(21, 0.05));
 	close(teamBonus(100), 1.2594, 1e-3);
 	assert.equal(teamBonus(-3), 1);
 });
 
-test("expectedLosses: 1..ceil(team/2) on a win, 1..team on a loss, none without a team", () => {
+test("game: expectedLosses: 1..ceil(team/2) on a win, 1..team on a loss, none without a team", () => {
 	assert.equal(expectedLosses(0, true), 0);
 	assert.equal(expectedLosses(0, false), 0);
 	assert.equal(expectedLosses(1, true), 1, "ceil(1/2) = 1: the one member is the minimum");
@@ -31,7 +31,7 @@ test("expectedLosses: 1..ceil(team/2) on a win, 1..team on a loss, none without 
 	assert.equal(expectedLosses(10, false), 5.5, "1..10");
 });
 
-test("failureBill: nothing when the player survives; (HP missing) x $100k, at most 10 % of the cash", () => {
+test("game: failureBill: nothing when the player survives; (HP missing) x $100k, at most 10 % of the cash", () => {
 	const damage = 100 * (Math.pow(2000, 0.28) + 2000 / 650); // Operation Typhoon
 	assert.equal(failureBill("Operation Typhoon", { current: damage + 1, max: 5000 }, 1e12), 0);
 	close(failureBill("Operation Typhoon", { current: 100, max: 500 }, 1e15), (500 - (100 - damage)) * 100e3);
@@ -231,7 +231,7 @@ function manageWorld({ post = {}, size = 12, assigned = 0, files = {} } = {}) {
 		overrides: {
 			getScriptName: () => "bladeburner/bb-manage.js",
 			getResetInfo: () => ({ currentNode: 6, ownedSF: new Map([[6, 1]]), ownedAugs: new Map(), lastAugReset: Date.now() - 1e7, lastNodeReset: 1 }),
-			getPlayer: () => ({ skills: { hacking: 100, strength: 200, defense: 200, dexterity: 200, agility: 200, charisma: 50, intelligence: 1 }, money: 1e9 }),
+			getPlayer: () => ({ skills: { hacking: 100, strength: 200, defense: 200, dexterity: 200, agility: 200, charisma: 50, intelligence: 1 }, money: 1e9, factions: ["Bladeburners"] }),
 			getTotalScriptIncome: () => [1, 0],
 			bladeburner: {
 				inBladeburner: () => true, getCurrentAction: () => null, stopBladeburnerAction: () => {}, getSkillPoints: () => 0,

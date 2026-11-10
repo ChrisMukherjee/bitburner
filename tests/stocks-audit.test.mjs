@@ -227,7 +227,7 @@ test("rotation: a full stock is skipped for the next candidate that has room", (
 
 // ---- the settings switches ----
 
-test("settings: everything is on unless the config turns it off", () => {
+test("choice: settings: everything is on unless the config turns it off", () => {
 	assert.deepEqual(stockSettings({}), { costAware: true, cycleClock: true, rotate: true, holdBackForBuyers: true });
 	assert.equal(stockSettings({ stocks: { rotate: false } }).rotate, false);
 	assert.equal(stockSettings({ stocks: { rotate: false } }).costAware, true);
@@ -327,14 +327,14 @@ const fmt = {
 	money: (n) => `$${n}`, percent: (n, digits = 0) => `${(n * 100).toFixed(digits)}%`, time: (ms) => `${Math.round(ms / 60000)}m`, ago: () => "5s ago",
 };
 
-test("status: not running, just started, and waiting for the TIX API each say so", () => {
+test("choice: status: not running, just started, and waiting for the TIX API each say so", () => {
 	assert.deepEqual(stockLines(null, false, fmt), ["Stocks: stock-trader.js not running"]);
 	assert.match(stockLines(null, true, fmt)[0], /just started/);
 	const waiting = stockLines({ mode: "waiting", waitingFor: "TIX API", cost: 5e9, cash: 1e9, reserve: 5e6, time: 1 }, true, fmt);
 	assert.match(waiting[0], /waiting for the TIX API, which costs \$5000000000/);
 });
 
-test("status: the measuring line appears once the window is ten minutes long", () => {
+test("choice: status: the measuring line appears once the window is ten minutes long", () => {
 	const summary = {
 		mode: "4S", positions: 3, value: 100, unrealized: 5, earned: 50, time: 1,
 		measure: { sinceMs: 120_000, perHour: 10, returnPerHour: 0.2, invested: 0.9, idle: 0.1, heldBack: 0, maxDrawdown: 4, costs: 2, capture: 0.8 },

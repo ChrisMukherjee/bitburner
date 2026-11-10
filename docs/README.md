@@ -17,7 +17,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`bitnode-order.md`](bitnode-order.md): not a design note; a guide to the order of every BitNode for a new save (the default `bitnodePlan`), what each Source-File gives and unlocks here, how to set the route.
 - [`NETSCRIPT.md`](NETSCRIPT.md): not a design note; the coding rules and port list to follow when writing scripts.
 - [`typecheck.md`](typecheck.md): `// @ts-check` plus JSDoc against the game's typings, opt in per file, nothing synced to the game.
-- [`testing.md`](testing.md): Node's built-in test runner on the game scripts as they are, a fake `ns`, regression tests for fixed bugs.
+- [`testing.md`](testing.md): Node's built-in test runner on the game scripts as they are, a fake `ns`, regression tests for fixed bugs, test kinds and what to do when a test fails, the mutation check.
 - [`ram.md`](ram.md): static RAM rules, one-shot helpers and where they run.
 - [`darknet.md`](darknet.md): hint-driven cracking, earning, stasis links, no backdoors.
 - [`stocks.md`](stocks.md): how the game's market works, cost-aware longs, the cycle clock, 4S or estimates, rotation, cash for other buyers, measuring the trader, what is left (shorts).

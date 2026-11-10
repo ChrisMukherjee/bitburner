@@ -113,3 +113,16 @@ test("income mix: too little earned this run falls back to the BitNode, then to 
 	assert.equal(config.augments.incomeMixSource, "default");
 	assert.equal(config.augments.incomeFactors.hacking_money, DEFAULTS.augments.incomeMix.unknownPortions.hacking ?? 0);
 });
+
+test("Bladeburner route: The Blade's Simulacrum counts as wanted and resets at once; simulacrumFirst false turns it off", () => {
+	const SIMULACRUM = "The Blade's Simulacrum";
+	const config = loadConfig(fakeNs({ ports: bladeburnerPort("run") }));
+	assert.ok(config.augments.special[SIMULACRUM]);
+	assert.deepEqual(config.augments.resetRule.routeKeyAugs, [SIMULACRUM]);
+	assert.ok(config.augments.special["The Red Pill"], "the other special augments stay");
+	const hacking = loadConfig(fakeNs({ ports: bladeburnerPort("hold", { plan: { route: "hacking" } }) }));
+	assert.equal(hacking.augments.special[SIMULACRUM], undefined);
+	assert.equal(hacking.augments.resetRule.routeKeyAugs, undefined);
+	const off = loadConfig(fakeNs({ ports: bladeburnerPort("run"), files: { "data/config.json": JSON.stringify({ bladeburner: { simulacrumFirst: false } }) } }));
+	assert.equal(off.augments.special[SIMULACRUM], undefined);
+});

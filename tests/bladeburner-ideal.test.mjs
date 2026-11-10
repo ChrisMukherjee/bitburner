@@ -15,7 +15,7 @@ import {
 const close = (actual, expected, relative = 1e-3) => assert.ok(Math.abs(actual - expected) <= Math.abs(expected) * relative, `${actual} vs ${expected}`);
 
 // ---- the game's formulas
-test("staminaLoss and staminaRegen follow the game's constants", () => {
+test("game: staminaLoss and staminaRegen follow the game's constants", () => {
 	close(staminaLoss(125), 0.285 * (Math.pow(125, 0.28) + 125 / 650));
 	close(staminaLoss(125), 1.156, 2e-3);
 	assert.ok(staminaLoss(1500) > staminaLoss(125), "harder actions cost more");
@@ -92,7 +92,7 @@ test("idealRankRate: a lower chance lowers the ceiling, and nothing known gives 
 	assert.equal(idealRankRate(rows(1), 0, 0.05).perHour, 0);
 });
 
-test("idealRankRate: banked counts lift the ceiling for the hour, so working them off can't measure above it", () => {
+test("regression: idealRankRate: banked counts lift the ceiling for the hour, so working them off can't measure above it", () => {
 	// Rank ~400, low chances, thousands of counts banked: the steady-state ceiling was 610/h while the play measured 1,967/h
 	const rows = (count) => [
 		{ name: "Tracking", chance: 0.6, gain: 0.3, secs: 3, level: 1, count },
@@ -110,13 +110,17 @@ test("idealRankRate: banked counts lift the ceiling for the hour, so working the
 	assert.ok(idealRankRate(rows(1500), 50, staminaRegen(50, 100), 100 * 3600).perHour < banked.perHour);
 });
 
+test("regression: measuredRate needs 15 minutes of samples, so one success can't read as the rate", () => {
+	// A few minutes hold one or two successes of up to ~55 rank each: a real run read 1,967/h from that against ~110/h over hours
+	const t = Date.now();
+	assert.ok(Number.isNaN(measuredRate([{ t, rank: 400 }, { t: t + 5 * 60_000, rank: 455 }])), "five minutes are still noise");
+	close(measuredRate([{ t, rank: 400 }, { t: t + 15 * 60_000, rank: 455 }]), 220);
+});
+
 test("measuredRate, hoursToRank and nextShare", () => {
 	const t = Date.now();
 	close(measuredRate([{ t, rank: 100 }, { t: t + 1800_000, rank: 400 }]), 600);
 	assert.ok(Number.isNaN(measuredRate([{ t, rank: 1 }, { t: t + 60_000, rank: 5 }])), "under two minutes");
-	// A few minutes hold one or two successes of up to ~55 rank each: a real run read 1,967/h from that against ~110/h over hours
-	assert.ok(Number.isNaN(measuredRate([{ t, rank: 400 }, { t: t + 5 * 60_000, rank: 455 }])), "five minutes are still noise");
-	close(measuredRate([{ t, rank: 400 }, { t: t + 15 * 60_000, rank: 455 }]), 220);
 	assert.ok(Number.isNaN(measuredRate([])));
 	close(hoursToRank(100, 400_100, 1000), 400);
 	assert.equal(hoursToRank(500_000, 400_000, 10), 0);
@@ -174,7 +178,7 @@ test("bb-manage: bladeburner.blackOpSkills turns the Black Op term off", async (
 			overrides: {
 				getScriptName: () => "bladeburner/bb-manage.js",
 				getResetInfo: () => ({ currentNode: 6, ownedSF: new Map([[6, 1]]), ownedAugs: new Map(), lastAugReset: Date.now() - 1e7, lastNodeReset: 1 }),
-				getPlayer: () => ({ skills: SK, money: 1e9 }),
+				getPlayer: () => ({ skills: SK, money: 1e9, factions: ["Bladeburners"] }),
 				getTotalScriptIncome: () => [1, 0],
 				bladeburner: {
 					inBladeburner: () => true, getCurrentAction: () => null, stopBladeburnerAction: () => {}, getSkillPoints: () => 3,

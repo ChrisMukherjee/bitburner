@@ -55,6 +55,15 @@ export function bladeburnerPlan(ns) {
 	return plan && Date.now() - (plan.time ?? 0) < 30 * 60_000 ? plan : null;
 }
 
+/**
+ * True while Bladeburner is the route: bb-manage.js is starting it, training for it or playing it, or holds it while the route
+ * estimate still says combat (the same test utils/config.js routeAdjust uses for the augment weights).
+ */
+export function combatRoute(ns) {
+	const state = bladeburnerState(ns);
+	return ["boot", "train", "run"].includes(state) || (state === "hold" && bladeburnerPlan(ns)?.route === "combat");
+}
+
 /** The combat stats must reach this before Bladeburner can be joined (and be played well). */
 export const COMBAT_FLOOR = 100;
 

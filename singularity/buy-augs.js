@@ -126,9 +126,12 @@ export async function main(ns) {
 			else if (!skipped.includes(aug)) skipped.push(aug);
 		}
 	}
+	// Most expensive first (each purchase makes the rest dearer), except resetRule.routeKeyAugs (The Blade's Simulacrum on the
+	// Bladeburner route), which go before everything so the cash is never spent elsewhere first
+	const routeKeys = new Set(RESET_RULE.routeKeyAugs ?? []);
 	const byPrice = () => [...sellers.keys()]
 		.map((aug) => ({ aug, price: ns.singularity.getAugmentationPrice(aug), value: values.get(aug) ?? 0 }))
-		.sort((first, second) => second.price - first.price);
+		.sort((first, second) => Number(routeKeys.has(second.aug)) - Number(routeKeys.has(first.aug)) || second.price - first.price);
 	const stocks = stockValue(ns);
 
 	const installed = new Set(ns.singularity.getOwnedAugmentations(false));
@@ -234,7 +237,7 @@ export async function main(ns) {
 		// For singularity/workers/aug-buyer.js: everything with the rep, most expensive first, and
 		// where to buy NeuroFlux (null when the config or --no-neuroflux says not to).
 		buyList: pushing ? push.fill.map((aug) => ({ aug, faction: anySeller.get(aug) }))
-			: plan.map((entry) => ({ aug: entry.aug, faction: sellers.get(entry.aug) })),
+			: plan.map((entry) => ({ aug: entry.aug, faction: sellers.get(entry.aug), ...(routeKeys.has(entry.aug) ? { first: true } : {}) })),
 		neurofluxFaction: AUG_CONFIG.neuroflux && !flags["no-neuroflux"] ? nfgFaction : null,
 		daedalusPush: push ? { need: push.need, installed: push.installed, missing: push.missing, fill: push.fill } : null,
 	}), "w");
@@ -267,7 +270,8 @@ export async function main(ns) {
  *
  * On top of that: The Red Pill (resetRule.keyAugs) resets at once, the Daedalus rule
  * (daedalusRule) holds or forces a reset around Daedalus favor reaching the donation line, and on the
- * Bladeburner route the Black Op rule (blackOpHoldRule) holds a reset that would delay the next Black Op.
+ * Bladeburner route the Black Op rule (blackOpHoldRule) holds a reset that would delay the next Black Op, and The Blade's
+ * Simulacrum (resetRule.routeKeyAugs) resets at once after it.
  */
 export function decideReset(context) {
 	const { queued, plan, upcoming, income, sinceInstallMs, daedalus, push, endgame, blackOps, ratesMeasured } = context;
@@ -331,6 +335,13 @@ export function decideReset(context) {
 	// Bladeburner route: no reset while it would delay the next Black Op (before the guarantee, which would otherwise force one)
 	const fromBlackOps = blackOpHoldRule(blackOps, ready, now.neuroflux, eta);
 	if (fromBlackOps) return result(fromBlackOps.reset, fromBlackOps.reason);
+	// Bladeburner route: The Blade's Simulacrum (resetRule.routeKeyAugs, set by utils/config.js routeAdjust) lets Bladeburner run
+	// alongside every other kind of work for the rest of the BitNode, so it is installed as soon as it is bought (once the Black Op
+	// rule above lets a reset through): every hour without it is an hour of the player's time spent on one of the two
+	const routeKey = (RESET_RULE.routeKeyAugs ?? []).filter((aug) => ready.includes(aug));
+	if (routeKey.length > 0) {
+		return result(true, `${routeKey.join(" and ")} ready: reset for it now, so Bladeburner runs alongside the other work from the next run on.`);
+	}
 
 	const fromDaedalus = daedalusRule(daedalus, context, horizonMs, eta);
 	if (fromDaedalus) return result(fromDaedalus.reset, fromDaedalus.reason);
