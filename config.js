@@ -140,6 +140,9 @@ export const DEFAULTS = {
 			// After The Red Pill is installed, reset only if the batch gets hacking to w0r1d_d43m0n's level
 			// sooner than keeping on. rebuildFactor: a new run's exp rate as a share of today's (it starts slower).
 			afterRedPill: { rebuildFactor: 0.5 },
+			// On the Bladeburner route, hold a reset while it would delay the next Black Op (the combat stats it wipes
+			// would have to be rebuilt first); worked out from the live rank rate, chance and stats. false turns it off.
+			blackOpHold: true,
 			// Income curve (utils/income-curve.js): forecast cash with income that keeps growing
 			// the way it has this run, instead of flat. Also used by faction-goals' money budget.
 			incomeCurve: {

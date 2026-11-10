@@ -17,6 +17,11 @@ const STOCK_SUMMARY_PORT = 26;   // stock-trader.js posts the value of its posit
 let PRICE_MULT = BASE_PRICE_STEP; // every purchase multiplies the price of the rest: 1.9, less with Source-File 11 (set by setAugConfig)
 const NEUROFLUX_LEVEL_MULT = 1.14; // each NeuroFlux level costs this much more money and rep
 const DONATE_MONEY_PER_REP = 1e6;  // donations: $1m per rep point, before rep multipliers
+const BLADEBURNER_PORT = 36;       // the Bladeburner state (bladeburner/state.js), read raw so this script imports nothing from that folder
+const BLADEBURNER_MAX_AGE_MS = 15 * 60_000; // as in bladeburner/state.js: an older state counts as off
+const BLACK_OP_GATE = 0.8;         // bladeburner/picks.js BLACKOP_CHANCE: a Black Op is attempted at this (low estimate) chance
+const BLACK_OP_COMBAT_DECAY = 0.8; // a Black Op's competence grows with each combat level ^ 0.8 (data/BlackOperations.ts)
+const COMBAT = ["strength", "defense", "dexterity", "agility"];
 // Moments ahead (minutes) the reset rule compares with resetting now, up to resetRule.horizonHours.
 const FORECAST_MINUTES = [10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600, 720];
 
@@ -202,9 +207,14 @@ export async function main(ns) {
 		endgame = { daemonLevel: ns.getServerRequiredHackingLevel(DAEMON), level: player.skills.hacking, exp: player.exp.hacking, rate: hackExp.perSecond, statsOf };
 	}
 
+	// On the Bladeburner route: the next Black Op and the combat stats a reset would wipe (blackOpHoldRule)
+	const blackOps = RESET_RULE.blackOpHold === false ? null : blackOpEndgame(ns, player, sinceInstallMs);
+	if (blackOps) for (const aug of [...queued, NEUROFLUX]) if (!statsOf.has(aug)) statsOf.set(aug, ns.singularity.getAugmentationStats(aug));
+	if (blackOps) blackOps.statsOf = statsOf;
+
 	const decision = homeBeforeNeuroFlux(decideReset({
 		queued, plan, upcoming, cash: cash() + stocks, homeCash: cash(), income, incomeModel, sinceInstallMs,
-		neuroflux, favors, daedalus, push, endgame, ratesMeasured: Object.keys(rates.perSecond).length > 0,
+		neuroflux, favors, daedalus, push, endgame, blackOps, ratesMeasured: Object.keys(rates.perSecond).length > 0,
 	}), homeUpgradeBeatsNeuroFlux(ns, cash() + stocks));
 	// A push reset buys the fill list (cheapest augments) instead of the usual plan.
 	const pushing = push && decision.reset && decision.push;
@@ -254,11 +264,12 @@ export async function main(ns) {
  * less over a run because each purchase makes the rest 1.9x dearer (less with Source-File 11), so there is always a
  * best moment, and the slow start of every run is already inside the run age.
  *
- * On top of that: The Red Pill (resetRule.keyAugs) resets at once, and the Daedalus rule
- * (daedalusRule) holds or forces a reset around Daedalus favor reaching the donation line.
+ * On top of that: The Red Pill (resetRule.keyAugs) resets at once, the Daedalus rule
+ * (daedalusRule) holds or forces a reset around Daedalus favor reaching the donation line, and on the
+ * Bladeburner route the Black Op rule (blackOpHoldRule) holds a reset that would delay the next Black Op.
  */
 export function decideReset(context) {
-	const { queued, plan, upcoming, income, sinceInstallMs, daedalus, push, endgame, ratesMeasured } = context;
+	const { queued, plan, upcoming, income, sinceInstallMs, daedalus, push, endgame, blackOps, ratesMeasured } = context;
 	const minutes = (ms) => `${Math.max(1, Math.round(ms / 60_000))} min`;
 	const eta = (ms) => (ms < 3600_000 ? minutes(ms) : `${(ms / 3600_000).toFixed(1)}h`);
 	const overheadMs = RESET_RULE.overheadMinutes * 60_000;
@@ -315,6 +326,10 @@ export function decideReset(context) {
 	if (!ratesMeasured && upcoming.length > 0) {
 		return result(false, `${count} ready, worth ${speed(now)}. Measuring rep rates before deciding (next check).`);
 	}
+
+	// Bladeburner route: no reset while it would delay the next Black Op (before the guarantee, which would otherwise force one)
+	const fromBlackOps = blackOpHoldRule(blackOps, ready, now.neuroflux, eta);
+	if (fromBlackOps) return result(fromBlackOps.reset, fromBlackOps.reason);
 
 	const fromDaedalus = daedalusRule(daedalus, context, horizonMs, eta);
 	if (fromDaedalus) return result(fromDaedalus.reset, fromDaedalus.reason);
@@ -387,6 +402,84 @@ function daedalusRule(daedalus, { income, incomeModel, homeCash }, horizonMs, et
 		return { reset: false, reason: `Daedalus favor reaches the donation line (${daedalus.threshold}) in about ${eta(lineMs)}. Waiting for it, then resetting.` };
 	}
 	return null;
+}
+
+/**
+ * What the Black Op rule needs, from port 36 and the player, or null when Bladeburner isn't the route (the same test as
+ * utils/config.js routeAdjust: the state is boot, train or run, or hold while the estimate says combat) or no Black Op is next.
+ * rankPerHour comes from bb-pass.js's rank samples (NaN until they span 2 minutes).
+ */
+function blackOpEndgame(ns, player, sinceInstallMs) {
+	let shared = null;
+	try { shared = JSON.parse(ns.peek(BLADEBURNER_PORT)); } catch { /* nothing posted */ }
+	if (!shared || typeof shared !== "object") return null;
+	const state = Date.now() - (shared.stateTime ?? 0) < BLADEBURNER_MAX_AGE_MS ? shared.state : "off";
+	if (!(["boot", "train", "run"].includes(state) || (state === "hold" && shared.plan?.route === "combat"))) return null;
+	const next = shared.actions?.blackOp ?? shared.progress?.next;
+	if (!next?.name || !(Number(next.rank) >= 0) || !Number.isFinite(Number(next.chance))) return null;
+	const samples = Array.isArray(shared.rank) ? shared.rank : [];
+	const first = samples[0];
+	const last = samples[samples.length - 1];
+	const rankPerHour = first && last && last.t - first.t > 120_000 ? (last.rank - first.rank) / ((last.t - first.t) / 3600_000) : NaN;
+	return {
+		next: { name: next.name, rank: Number(next.rank), chance: Number(next.chance) }, rank: Number(shared.actions?.rank ?? shared.progress?.rank ?? last?.rank ?? 0),
+		rankPerHour, sinceInstallMs, skills: Object.fromEntries(COMBAT.map((stat) => [stat, player.skills[stat]])),
+		exp: Object.fromEntries(COMBAT.map((stat) => [stat, player.exp[stat]])), statsOf: null,
+	};
+}
+
+/**
+ * Bladeburner route: an install keeps rank, skills and Black Ops done, but wipes the combat stats, and every Black Op's chance
+ * rests on them. Near the last Black Ops (difficulty up to 80,000) a reset can leave the next one under the attempt gate for hours.
+ * So: the time until the next Black Op can be attempted, keeping on versus resetting with the ready batch:
+ *   rank      (its rank requirement - rank) / the measured rank per hour; a reset doesn't change it (rank is kept)
+ *   stats     the combat levels where its chance reaches the gate: today's x (gate / chance) ^ (1 / 0.8) (competence grows with
+ *             level ^ 0.8). Keeping on: the exp still missing at this run's average exp rate per stat. Resetting: all of it again
+ *             from zero, with the batch's stat and stat-exp multipliers, plus the reset overhead.
+ * The effective multiplier (BitNode level multipliers included) is read back from each stat's level and exp, as in afterRedPillRule.
+ * Holds the reset while keeping on reaches the Black Op sooner (by waitMargin) and within the forecast horizon; otherwise null: the
+ * normal rule decides. With the rank still far off, both wait for the rank and nothing is held (resets early on are cheap).
+ * Returns { reset: false, reason } or null.
+ */
+export function blackOpHoldRule(blackOps, ready, neurofluxLevels, eta) {
+	if (!blackOps || RESET_RULE.blackOpHold === false) return null;
+	const { next, rank, rankPerHour, sinceInstallMs, skills, exp, statsOf } = blackOps;
+	if (!(next.chance > 0) || !(sinceInstallMs > 0)) return null; // nothing to scale from
+	const rankWaitMs = rank >= next.rank ? 0 : rankPerHour > 0 ? ((next.rank - rank) / rankPerHour) * 3600_000 : Infinity;
+	const scale = Math.max(1, Math.pow(BLACK_OP_GATE / next.chance, 1 / BLACK_OP_COMBAT_DECAY));
+	const levelMult = {};
+	const expMult = {};
+	for (const stat of COMBAT) { levelMult[stat] = 1; expMult[stat] = 1; }
+	const boost = (stats, times = 1) => {
+		for (const stat of COMBAT) {
+			levelMult[stat] *= Math.pow(stats?.[stat] ?? 1, times);
+			expMult[stat] *= Math.pow(stats?.[`${stat}_exp`] ?? 1, times);
+		}
+	};
+	for (const aug of ready) if (aug !== NEUROFLUX) boost(statsOf?.get(aug));
+	const levels = neurofluxLevels + (ready.includes(NEUROFLUX) ? 1 : 0);
+	if (levels > 0) boost(statsOf?.get(NEUROFLUX), levels);
+	let stayStatMs = 0;
+	let resetStatMs = 0;
+	for (const stat of COMBAT) {
+		const level = skills[stat];
+		const have = exp[stat];
+		const base = 32 * Math.log(have + 534.6) - 200;
+		if (!(level >= 1) || !(have > 0) || !(base > 0)) return null;
+		const mult = level / base;
+		const target = level * scale;
+		const expFor = (withMult) => Math.max(0, Math.exp((target / withMult + 200) / 32) - 534.6);
+		const rate = have / (sinceInstallMs / 1000); // this run's average exp per second
+		stayStatMs = Math.max(stayStatMs, (Math.max(0, expFor(mult) - have) / rate) * 1000);
+		resetStatMs = Math.max(resetStatMs, (expFor(mult * levelMult[stat]) / (rate * expMult[stat])) * 1000);
+	}
+	const stayMs = Math.max(rankWaitMs, stayStatMs);
+	const resetMs = Math.max(rankWaitMs, resetStatMs + RESET_RULE.overheadMinutes * 60_000);
+	const horizonMs = RESET_RULE.horizonHours * 3600_000;
+	if (!(stayMs * (1 + RESET_RULE.waitMargin) < resetMs) || stayMs > horizonMs) return null;
+	const when = stayMs === 0 ? "now" : `in about ${eta(stayMs)}`;
+	return { reset: false, reason: `Bladeburner: ${next.name} can be attempted ${when} (rank ${Math.floor(rank)}/${next.rank}, chance ${Math.round(next.chance * 100)}%); ` +
+		`a reset would wipe the combat stats and push it to about ${Number.isFinite(resetMs) ? eta(resetMs) : "never"}. No reset until then.` };
 }
 
 /**

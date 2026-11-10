@@ -208,6 +208,26 @@ hacking multiplier, at today's exp rate x the batch's hacking-exp multiplier x `
 with the mult read back from the current level and exp, so BitNode multipliers count without Source-File 5.
 Exp rate comes from snapshots in the plan, like rep rates; no reset until it is measured.
 
+## Bladeburner route: the Black Op hold
+
+An install keeps Bladeburner rank, skills and the Black Ops done, but wipes the combat stats, and every Black Op's chance rests
+on them. Early on that costs nothing (the next Black Op's rank is far off, and the stats are rebuilt long before it), but near
+the last Black Ops (difficulty up to 80,000) a reset could leave the next one under the attempt gate (80 %) for hours. So on the
+Bladeburner route (the same test as the aug filter's: the Bladeburner state is boot, train or run, or hold while the estimate
+says combat) `blackOpHoldRule` compares when the next Black Op can be attempted, keeping on or resetting with the ready batch:
+
+- **Rank:** its requirement minus the rank, at the measured rank per hour (`bb-pass.js`' samples on port 36). The same either
+  way, since a reset keeps the rank.
+- **Stats:** the combat levels where its chance (the low estimate) reaches the gate, today's x (gate / chance)^(1/0.8) (a Black
+  Op's competence grows with each combat level^0.8). Keeping on: the exp still missing at this run's average exp rate. Resetting:
+  all of it again from zero with the batch's combat and combat-exp multipliers, plus `overheadMinutes`. The multiplier is read
+  back from each stat's level and exp, as after The Red Pill.
+
+It holds the reset while keeping on gets there sooner by `waitMargin` and within `horizonHours`; otherwise the normal rule
+decides (so a batch that rebuilds faster than this run's stats would grow still resets, and a Black Op far out of reach holds
+nothing). It comes before the `maxRunHours` guarantee, which would otherwise force the reset. `resetRule.blackOpHold: false`
+turns it off. Not counted: the team's chance bonus and skill points bought meanwhile (both raise the chance either way).
+
 ## Daedalus push (getting the invite)
 
 The Daedalus invite needs a number of **installed** augments (30 by default) on top of hack level and

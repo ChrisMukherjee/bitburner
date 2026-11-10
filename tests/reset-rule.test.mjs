@@ -7,7 +7,7 @@ import { fakeNs } from "./support/fake-ns.mjs";
 import { loadConfig } from "/utils/config.js";
 import {
 	setAugConfig, decideReset, homeBeforeNeuroFlux, valueAt, whatFits, cheapestFill,
-	favorToRep, repToFavor, requirementMet,
+	favorToRep, repToFavor, requirementMet, blackOpHoldRule,
 } from "/singularity/buy-augs.js";
 import { homeUpgradeBeatsNeuroFlux } from "/singularity/ready.js";
 
@@ -213,4 +213,53 @@ test("after The Red Pill: a batch that gets there much sooner resets", () => {
 	const endgame = { daemonLevel: 3000, level: 1000, exp: 1e8, rate: 10, statsOf };
 	const decision = decideReset(context({ queued: ["Boost"], endgame }));
 	assert.equal(decision.reset, true);
+});
+
+// --- Bladeburner route: the Black Op hold ---
+
+/** Combat stats at level 1389 (mult 3, 1e9 exp each), built over an 8h run; a batch with x1.1 combat queued. */
+function blackOps(next, changes = {}) {
+	const stat = (value) => ({ strength: value, defense: value, dexterity: value, agility: value });
+	return {
+		next, rank: 74_000, rankPerHour: 3000, sinceInstallMs: 8 * HOUR, skills: stat(1389), exp: stat(1e9),
+		statsOf: new Map([["Combat", { strength: 1.1, defense: 1.1, dexterity: 1.1, agility: 1.1 }]]), ...changes,
+	};
+}
+const lateRun = (bb) => context({ queued: ["Combat"], sinceInstallMs: 8 * HOUR, blackOps: bb });
+
+test("Black Op hold: the next Black Op is 20 min away and safe, a reset would take hours to rebuild the stats: no reset", () => {
+	useConfig();
+	assert.equal(decideReset(lateRun(null)).reset, true, "without the rule this batch resets");
+	const decision = decideReset(lateRun(blackOps({ name: "Operation Wallace", rank: 75_000, chance: 0.85 })));
+	assert.equal(decision.reset, false);
+	assert.match(decision.reason, /Operation Wallace can be attempted in about 20 min.*No reset until then/);
+});
+
+test("Black Op hold: with the rank far off, a reset is rebuilt before it arrives, so nothing is held (early Bladeburner)", () => {
+	useConfig();
+	const far = blackOps({ name: "Operation Typhoon", rank: 2500, chance: 0.9 }, { rank: 139, rankPerHour: 12 });
+	assert.equal(decideReset(lateRun(far)).reset, true);
+	assert.equal(blackOpHoldRule(far, ["Combat"], 0, String), null);
+});
+
+test("Black Op hold: a chance far under the gate needs more than the horizon either way, so the normal rule decides", () => {
+	useConfig();
+	// BitNode 6 start: Typhoon at 2-3 % with the rank there would need the stats ~75x higher
+	const hopeless = blackOps({ name: "Operation Typhoon", rank: 2500, chance: 0.025 }, { rank: 3000 });
+	assert.equal(blackOpHoldRule(hopeless, ["Combat"], 0, String), null);
+	assert.equal(decideReset(lateRun(hopeless)).reset, true);
+});
+
+test("Black Op hold: a batch that rebuilds the stats faster than keeping on gets there lets the reset through", () => {
+	useConfig();
+	// Chance 70 %: the stats must grow ~18 %. A x3 combat batch rebuilds that from zero sooner than this run's exp gets there.
+	const bb = blackOps({ name: "Operation Wallace", rank: 75_000, chance: 0.7 }, { rank: 75_000,
+		statsOf: new Map([["Combat", { strength: 3, defense: 3, dexterity: 3, agility: 3, strength_exp: 2, defense_exp: 2, dexterity_exp: 2, agility_exp: 2 }]]) });
+	assert.equal(blackOpHoldRule(bb, ["Combat"], 0, String), null);
+});
+
+test("Black Op hold: resetRule.blackOpHold false turns it off (and it is on by default)", () => {
+	assert.equal(useConfig().resetRule.blackOpHold, true);
+	useConfig({ blackOpHold: false });
+	assert.equal(decideReset(lateRun(blackOps({ name: "Operation Wallace", rank: 75_000, chance: 0.85 }))).reset, true);
 });
