@@ -245,7 +245,7 @@ and the verdict uses the flat-income one. A slope at the cap means income grew f
 credit it to the multiplier, which makes hacking look far better than it is: a real history had x90 income for 7% more
 multiplier. A reliable fit adds a flat scenario to the report for comparison. The Bladeburner side is scaled from the live readings of
 `bb-pass.js` with the game's own formulas, and calibrated against the measured rank per hour. The readable report is
-`data/node-eta.txt`; the verdict is `plan` on the port.
+`data/node-eta.txt` (alias `eta`); the verdict is `plan` on the port.
 
 - **One route at a time.** The committed route changes only when the other is 25 % better by its own measure (hours when a
   scenario finishes, else the income it would need), since flipping wastes the gym time, rank and rep already spent.

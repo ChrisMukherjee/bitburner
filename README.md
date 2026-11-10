@@ -46,6 +46,7 @@ alias startup='run /startup.js';
 alias restart='run /startup.js --restart';
 alias status='run /tools/status.js';
 alias debug-report='run /tools/debug-report.js; cat data/debug-report.txt';
+alias eta='cat /data/node-eta.txt';
 alias config='run /tools/show-config.js';
 alias set-config='run /tools/set-config.js';
 alias afk-route='run /tools/set-config.js route';
