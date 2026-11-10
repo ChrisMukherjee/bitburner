@@ -125,8 +125,40 @@ function predictRankPerHour(acts, lv, hours = 1, minChance = 0.4) {
  * cfg: { augs: [{ name, price, rep, f: [factions], h, e, cs[4] }], nf, mult: {hacking, hackExp, combat[4], combatExp}, income, expRate, installed,
  *        runHours, overheadHours, rep: { facMult, bn, timeShare }, scenario: {income, exp}, maxRuns, bb: { acts, rank, lv, duty, gymHours } | null,
  *        hackRoute: { required, daedalusAugs, daedalusMoney, daedalusHack, rpRep, rpPrice, rpHeld, startStage },
- *        augStep: the price step per augmentation bought (AUG_STEP when left out; less with Source-File 11, utils/aug-price.js) }
+ *        augStep: the price step per augmentation bought (AUG_STEP when left out; less with Source-File 11, utils/aug-price.js),
+ *        gates: { faction: inviteGate(...) } for the factions not joined yet (their augs count only once a run meets the gate),
+ *        combatLevel: today's lowest combat stat, for the gates }
  */
+/**
+ * A faction's invite requirements (getFactionInviteRequirements) as the levels the route models can check: a list of alternatives
+ * { hacking, combat, augs } (combat = the highest of the four combat stats asked for), any one of which opens the faction.
+ * Daedalus is hacking 2500 OR every combat stat 1500, so it has two. Everything else (money, karma, backdoors, companies, cities)
+ * is left out: the models assume the player meets it, so they stay optimistic there.
+ */
+function inviteGate(requirements) {
+    const none = { hacking: 0, combat: 0, augs: 0 };
+    const both = (lists) => lists.reduce((acc, alts) => acc.flatMap((x) => alts.map((y) => ({
+        hacking: Math.max(x.hacking, y.hacking), combat: Math.max(x.combat, y.combat), augs: Math.max(x.augs, y.augs) }))).slice(0, 16), [none]);
+    const gate = (req) => {
+        if (!req || typeof req !== "object") return [none];
+        if (req.type === "skills") {
+            const sk = req.skills ?? {};
+            return [{ ...none, hacking: sk.hacking ?? 0, combat: Math.max(0, ...["strength", "defense", "dexterity", "agility"].map((k) => sk[k] ?? 0)) }];
+        }
+        if (req.type === "numAugmentations") return [{ ...none, augs: req.numAugmentations ?? 0 }];
+        if (req.type === "someCondition") return (req.conditions ?? []).flatMap(gate).slice(0, 16);
+        if (req.type === "everyCondition") return both((req.conditions ?? []).map(gate));
+        return [none];
+    };
+    const alts = both((Array.isArray(requirements) ? requirements : []).map(gate));
+    return alts.length ? alts : [none];
+}
+/** True when `levels` ({ hacking, combat, installed }) meet one of the gate's alternatives (no gate = open). */
+function gateOpen(alts, levels) {
+    if (!Array.isArray(alts) || alts.length === 0) return true;
+    return alts.some((g) => levels.hacking >= g.hacking && levels.combat >= g.combat && levels.installed >= g.augs);
+}
+
 const DONATE_REP = 25000 * (Math.pow(1.02, 150) - 1);
 function projectRoute(goal, cfg) {
     const maxRuns = cfg.maxRuns ?? 60, T = cfg.runHours, over = cfg.overheadHours ?? 0.25, step = cfg.augStep ?? AUG_STEP;
@@ -135,7 +167,12 @@ function projectRoute(goal, cfg) {
     const repMult = (cfg.rep?.facMult ?? 1) * (cfg.rep?.bn ?? 1), repShare = cfg.rep?.timeShare ?? 0.7;
     const pool = cfg.augs.map(a => ({ ...a, f: a.f && a.f.length ? a.f : ["?"] }));
     const Rf = {};                                   // faction -> cumulative rep (persists across installs)
-    const R = (f) => Rf[f] ?? 0, maxR = (a) => Math.max(0, ...a.f.map(R)), allMax = () => Math.max(0, ...Object.values(Rf));
+    // Factions the player can join (cfg.gates: invite gates of the factions not joined yet, see inviteGate); once open, open for good
+    const gates = cfg.gates ?? {}, opened = new Set();
+    const open = (f) => !gates[f] || opened.has(f);
+    const sellers = (a) => a.f.filter(open);
+    const R = (f) => Rf[f] ?? 0, maxR = (a) => Math.max(0, ...sellers(a).map(R)), allMax = () => Math.max(0, ...Object.values(Rf));
+    const topSeller = (a) => sellers(a).reduce((x, y) => R(y) > R(x) ? y : x, sellers(a)[0]);
     let hours = 0, installed = cfg.installed ?? 0, state = { rank: cfg.bb?.rank ?? 0 }, acts = cfg.bb ? bladeburnerClone(cfg.bb.acts) : null;
     let nfLevel = 0;
     let stage = cfg.hackRoute?.startStage ?? 0;           // hacking: 0 = before Daedalus, 1 = Red Pill rep/price, 2 = Red Pill installed
@@ -146,6 +183,10 @@ function projectRoute(goal, cfg) {
         const budget = income * T * 3600 * 0.5;       // income ramps up during a run: about half of T x income is spendable
         const rate = cfg.expRate * (m.hackExp / mult0.hackExp) * Math.pow(Math.max(1, m.hacking / mult0.hacking), cfg.scenario.exp);   // hacking exp/s this run
         const levelAt = (hrs) => skillAt(rate * hrs * 3600, m.hacking);
+        // Invites this run: the hacking level the run reaches, the combat level (today's, or the gym's on the Bladeburner route when higher)
+        const gymExp = cfg.bb ? GYM_EXP_PER_SECOND * 3600 * (cfg.bb.gymHours / 4) * (cfg.mult.combatExp ?? 1) : 0;
+        const combatLevel = Math.max(cfg.combatLevel ?? 1, cfg.bb ? Math.min(...m.combat.map((v) => skillAt(gymExp, v))) : 0);
+        for (const f of Object.keys(gates)) if (!opened.has(f) && gateOpen(gates[f], { hacking: levelAt(T), combat: combatLevel, installed })) opened.add(f);
         // Rep earned this run: hacking work at the level reached a quarter of the way into the run
         const repRun = 5 * (levelAt(T * 0.25) / 975) * repMult * T * 3600 * repShare;
         let repLeft = repRun;
@@ -153,8 +194,8 @@ function projectRoute(goal, cfg) {
         for (let guard = 0; guard < 80 && repLeft > 1; guard++) {
             let best = null;
             for (const a of pool) {
-                if (a.taken || value(a) <= 0.002 || maxR(a) >= a.rep) continue;
-                const f = a.f.reduce((x, y) => R(y) > R(x) ? y : x, a.f[0]), deficit = a.rep - R(f);
+                if (a.taken || value(a) <= 0.002 || sellers(a).length === 0 || maxR(a) >= a.rep) continue;
+                const f = topSeller(a), deficit = a.rep - R(f);
                 const sc = value(a) / deficit;
                 if (!best || sc > best.sc) best = { a, f, deficit, sc };
             }
@@ -165,8 +206,8 @@ function projectRoute(goal, cfg) {
         }
         if (repLeft > 1) { const top = Object.keys(Rf).sort((x, y) => R(y) - R(x))[0] ?? "?"; Rf[top] = R(top) + repLeft; }
         let spent = 0, n = 0; const bought = [];
-        const cands = pool.filter(a => !a.taken && value(a) > 0.002).map(a => {
-            const f = a.f.reduce((x, y) => R(y) > R(x) ? y : x, a.f[0]), deficit = Math.max(0, a.rep - R(f));
+        const cands = pool.filter(a => !a.taken && value(a) > 0.002 && sellers(a).length > 0).map(a => {
+            const f = topSeller(a), deficit = Math.max(0, a.rep - R(f));
             const donate = deficit > 0 && R(f) >= DONATE_REP;            // favour 150: rep can be bought
             return { a, f, deficit, donate, ok: deficit === 0 || donate, extra: donate ? deficit * 1e6 / repMult : 0 };
         }).filter(c => c.ok).sort((x, y) => value(y.a) / (y.a.price + y.extra) - value(x.a) / (x.a.price + x.extra));
@@ -264,4 +305,4 @@ function fitIncomeExponent(points, cap = 3) {
     return { exponent: Math.min(cap, Math.max(0, raw)), raw, r2, reliable: raw >= 0 && raw < cap && r2 >= 0.5, runs: usable.length };
 }
 
-export { levelFactor, modelMults, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };
+export { levelFactor, modelMults, inviteGate, gateOpen, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };

@@ -201,7 +201,7 @@ function passWorld({ current = null, counts = {}, chances = {}, gains = {}, seco
 
 test("bb-pass: posts the efficiency report, the Black Op reading and the hourly log", async () => {
 	const t = Date.now();
-	const ns = passWorld({ post: { rank: [{ t: t - 1800_000, rank: 0 }], skillLevels: { "Cyber's Edge": 10 } }, rank: 300, gains: { Raid: 55 }, chances: { Raid: [0.9, 0.95], "Operation Typhoon": [0.2, 0.3] } });
+	const ns = passWorld({ post: { rank: [30, 25, 20, 15, 10, 5].map((m) => ({ t: t - m * 60_000, rank: 0 })), skillLevels: { "Cyber's Edge": 10 } }, rank: 300, gains: { Raid: 55 }, chances: { Raid: [0.9, 0.95], "Operation Typhoon": [0.2, 0.3] } });
 	await play(ns);
 	const post = ns.portJson(BB_PORT);
 	assert.equal(post.perf.limiter, "count");

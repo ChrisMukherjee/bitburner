@@ -156,6 +156,19 @@ export function measuredRate(samples) {
 	return span > 120_000 ? (last.rank - first.rank) / (span / 3600_000) : NaN;
 }
 
+/**
+ * The rank samples to keep for this pass: the last `windowMs`, none from a higher rank (a new BitNode), and none from before a
+ * gap of more than `gapMs` (Bladeburner was held, training or stopped), so the measured rate is the rate while playing. Without
+ * the gap rule a hold in the window made the play look several times slower than it is, and the route estimate held it longer.
+ */
+export function keepRankSamples(samples, rank, now, windowMs = 3600_000, gapMs = 10 * 60_000) {
+	const kept = (Array.isArray(samples) ? samples : []).filter((sample) => now - sample.t < windowMs && sample.rank <= rank);
+	let start = 0;
+	for (let i = 1; i < kept.length; i++) if (kept[i].t - kept[i - 1].t > gapMs) start = i;
+	const recent = kept.slice(start);
+	return recent.length && now - recent[recent.length - 1].t > gapMs ? [] : recent;
+}
+
 /** Hours to go from `rank` to `goal` at `perHour`, or NaN when the rate is not positive. */
 export function hoursToRank(rank, goal, perHour) {
 	if (!(perHour > 0)) return NaN;

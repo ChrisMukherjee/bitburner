@@ -171,7 +171,8 @@ function passWorld({ current = null, counts = {}, chances = {}, gains = {}, seco
 }
 const lastStart = (ns) => ns.called("bladeburner.startAction").at(-1);
 const ALL_OUT = { Tracking: 0, "Bounty Hunter": 0, Retirement: 0, Investigation: 0, "Undercover Operation": 0, "Sting Operation": 0, Raid: 0, "Stealth Retirement Operation": 0, Assassination: 0 };
-const hourAgo = (rank) => [{ t: Date.now() - 1800_000, rank }];
+// Samples every 5 minutes over the last half hour (bb-pass.js drops samples from before a gap of over 10 minutes)
+const hourAgo = (rank) => [30, 25, 20, 15, 10, 5].map((m) => ({ t: Date.now() - m * 60_000, rank }));
 
 test("bb-pass: with the counts used up, a 50 % Black Op pays for itself and is attempted; the old gate waits for 80 %", async () => {
 	const setup = {

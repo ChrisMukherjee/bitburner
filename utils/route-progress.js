@@ -9,7 +9,7 @@
 // the Bladeburner API, the hacking route is shown on its own.
 
 /**
- * @typedef {{ number: (n: number) => string, time: (ms: number) => string, money: (n: number) => string }} Fmt
+ * @typedef {{ number: (n: number) => string, int: (n: number) => string, time: (ms: number) => string, money: (n: number) => string }} Fmt
  * @typedef {{ money: number, installed: number, skills: Record<string, number> }} Have what the player has now
  */
 
@@ -28,7 +28,7 @@ export function describeNeeds(needs, have, fmt) {
 			case "numAugmentations": return `augs installed ${have.installed}/${need.numAugmentations}${tick(have.installed >= need.numAugmentations)}`;
 			case "skills": {
 				const entries = Object.entries(need.skills);
-				const parts = entries.map(([skill, level]) => `${skill} ${fmt.number(have.skills[skill] ?? 0)}/${fmt.number(Number(level))}`);
+				const parts = entries.map(([skill, level]) => `${skill} ${fmt.int(have.skills[skill] ?? 0)}/${fmt.int(Number(level))}`);
 				return parts.join(" + ") + tick(entries.every(([skill, level]) => (have.skills[skill] ?? 0) >= Number(level)));
 			}
 			case "someCondition": return "(" + need.conditions.map(one).join(" or ") + ")";
@@ -82,12 +82,12 @@ export function hackingSegments(d, fmt) {
 		const eta = missing <= 0 ? "enough rep, buy it" : d.repPerSecond > 0 ? `ETA ~${fmt.time((missing / d.repPerSecond) * 1000)}` : "no rate yet";
 		segments.push({
 			short: `The Red Pill rep ${fmt.number(d.daedalusRep)}/${fmt.number(d.redPill.rep)}`,
-			long: `The Red Pill not owned: Daedalus rep ${fmt.number(d.daedalusRep)} / ${fmt.number(d.redPill.rep)} (${fmt.money(d.redPill.price)}) | ${eta}`,
+			long: `The Red Pill not owned: Daedalus rep ${fmt.number(d.daedalusRep)} / ${fmt.number(d.redPill.rep)} ${d.redPill.price > 0 ? ` (${fmt.money(d.redPill.price)})` : ""} | ${eta}`,
 		});
 	} else {
 		segments.push({
 			short: "The Red Pill not owned",
-			long: `The Red Pill not owned: needs ${fmt.number(d.redPill.rep)} Daedalus rep and ${fmt.money(d.redPill.price)}`,
+			long: `The Red Pill not owned: needs ${fmt.number(d.redPill.rep)} Daedalus rep${d.redPill.price > 0 ? ` and ${fmt.money(d.redPill.price)}` : ""}`,
 		});
 	}
 	// 3. w0r1d_d43m0n
@@ -96,9 +96,9 @@ export function hackingSegments(d, fmt) {
 		segments.push({ short: "w0r1d_d43m0n appears with The Red Pill", long: "w0r1d_d43m0n: its hacking level shows once The Red Pill is installed" });
 	} else {
 		const gap = level - d.hacking;
-		const verdict = gap <= 0 ? "ready" : `${fmt.number(gap)} to go`;
+		const verdict = gap <= 0 ? "ready" : `${fmt.int(gap)} to go`;
 		const root = d.daemon.exists ? ` | root ${d.daemon.root ? "yes" : "no (needs all 5 port openers)"}` : " (it appears once The Red Pill is installed)";
-		segments.push({ short: `w0r1d_d43m0n hacking ${fmt.number(d.hacking)}/${fmt.number(level)}`, long: `w0r1d_d43m0n: hacking ${fmt.number(d.hacking)} / ${fmt.number(level)} (${verdict})${root}` });
+		segments.push({ short: `w0r1d_d43m0n hacking ${fmt.int(d.hacking)}/${fmt.int(level)}`, long: `w0r1d_d43m0n: hacking ${fmt.int(d.hacking)} / ${fmt.int(level)} (${verdict})${root}` });
 	}
 	return segments;
 }
@@ -112,18 +112,18 @@ export function bladeburnerSegments(d, fmt) {
 	const progress = d.progress;
 	if (!progress) {
 		const reason = d.state === "off" || !d.state ? "not running yet (bb-manage.js joins once the combat stats are trained)" : `state ${d.state}, no Black Op reading yet`;
-		return [{ short: "Bladeburner: no progress yet", long: `Bladeburner: ${reason}` }];
+		return [{ short: "no progress yet", long: `Bladeburner: ${reason}` }];
 	}
 	const note = d.hold ? " | on hold: the best chance is too low to earn rank" : "";
 	const age = Date.now() - (progress.time ?? 0) > 15 * 60_000 ? ` (last reading ${d.ago(progress.time)})` : "";
 	const next = progress.next;
-	const rank = `rank ${fmt.number(Math.floor(progress.rank))}/${fmt.number(progress.finalRank)}`;
+	const rank = `rank ${fmt.int(Math.floor(progress.rank))}/${fmt.int(progress.finalRank)}`;
 	if (!next) {
 		return [{ short: `Black Ops ${progress.done}/${progress.total} done`, long: `Black Ops ${progress.done}/${progress.total} done${age}: every one is done, the BitNode can end` }];
 	}
 	const chance = next.high > next.chance + 0.005
 		? `${Math.round(next.chance * 100)}-${Math.round(next.high * 100)}%` : `${Math.round(next.chance * 100)}%`;
-	const reach = progress.rank >= next.rank ? "rank ok" : `rank ${fmt.number(Math.floor(progress.rank))}/${fmt.number(next.rank)}`;
+	const reach = progress.rank >= next.rank ? "rank ok" : `rank ${fmt.int(Math.floor(progress.rank))}/${fmt.int(next.rank)}`;
 	return [
 		{
 			short: `Black Ops ${progress.done}/${progress.total}, ${rank}`,

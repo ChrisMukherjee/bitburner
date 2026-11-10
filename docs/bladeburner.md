@@ -254,6 +254,14 @@ multiplier. A reliable fit adds a flat scenario to the report for comparison. Th
   `buy-augs.js` uses after The Red Pill; no Source-File 5 needed). `player.mults` leaves the BitNode's multiplier out, so
   without it BitNode 6 (hacking level x0.35) saw hacking levels about 2.9 times too high, the hacking route looked far shorter
   than it is, and Bladeburner was held. The report's "Hacking" line shows the multiplier when it isn't 1.
+- **Invite gates.** A faction not joined yet sells in a modelled run only once that run reaches its invite's hacking, combat
+  and installed-aug levels (`inviteGate` in `route-model.js`, from `getFactionInviteRequirements`; Daedalus has two ways in).
+  Money, karma, backdoors and company conditions are assumed met. Without the gates the hacking route bought Illuminati's and
+  The Covenant's augs at hacking levels BitNode 6 never reaches.
+- **Calibrated duty only.** The Bladeburner model's duty (measured rank per hour over predicted) is applied only after 30
+  minutes of play; before that it stays at 50 %. `bb-pass.js` restarts its rank samples after a gap of over 10 minutes, so
+  time held or training isn't counted as slow play. Both used to happen: the first minutes read 14 % duty, which made the route
+  look slow enough to hold it again before it was measured properly.
 - **Hold.** `plan.hold` is true when the best action's chance, rescaled to the current skills, is under 30 % (back above 40 %).
 - Left out of the original: its combat-aug shopping plan (faction-goals and buy-augs already decide what to buy) and the
   long projected-multiplier report lines. `plan.trainTarget` is read by `bb-manage.js` but never written; the original did not

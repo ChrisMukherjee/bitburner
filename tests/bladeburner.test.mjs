@@ -13,7 +13,7 @@ import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
 import { main as manage } from "/bladeburner/bb-manage.js";
 import {
 	skillAt, expFor, rawChance, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour,
-	projectRoute, incomeNeeded, DONATE_REP, fitIncomeExponent, levelFactor, modelMults,
+	projectRoute, incomeNeeded, DONATE_REP, fitIncomeExponent, levelFactor, modelMults, inviteGate, gateOpen,
 } from "/bladeburner/route-model.js";
 
 const minutesAgo = (n) => Date.now() - n * 60_000;
@@ -438,6 +438,50 @@ test("projectRoute (hacking) takes longer when the BitNode level multiplier is c
 	assert.ok(!real.reached || real.hours > 1.5 * raw.hours, `raw ${raw.hours} h, with x0.35 ${real.reached ? real.hours + " h" : "not reached"}`);
 });
 
+// Daedalus in BitNode 6, as getFactionInviteRequirements gives it
+const DAEDALUS_REQS = [{ type: "numAugmentations", numAugmentations: 35 }, { type: "money", money: 1e11 },
+	{ type: "someCondition", conditions: [{ type: "skills", skills: { hacking: 2500 } }, { type: "skills", skills: { strength: 1500, defense: 1500, dexterity: 1500, agility: 1500 } }] }];
+
+test("inviteGate turns invite requirements into level alternatives (Daedalus: hacking 2500 or combat 1500, 35 augs)", () => {
+	const gate = inviteGate(DAEDALUS_REQS);
+	assert.deepEqual(gate, [{ hacking: 2500, combat: 0, augs: 35 }, { hacking: 0, combat: 1500, augs: 35 }]);
+	assert.equal(gateOpen(gate, { hacking: 2600, combat: 10, installed: 35 }), true);
+	assert.equal(gateOpen(gate, { hacking: 600, combat: 1600, installed: 35 }), true, "the combat way in");
+	assert.equal(gateOpen(gate, { hacking: 2600, combat: 1600, installed: 31 }), false, "too few augs installed");
+	assert.equal(gateOpen(gate, { hacking: 600, combat: 300, installed: 40 }), false);
+	const illuminati = inviteGate([{ type: "skills", skills: { hacking: 1500, strength: 1200, defense: 1200, dexterity: 1200, agility: 1200 } }, { type: "numAugmentations", numAugmentations: 30 }]);
+	assert.deepEqual(illuminati, [{ hacking: 1500, combat: 1200, augs: 30 }]);
+	assert.deepEqual(inviteGate([{ type: "money", money: 1e9 }, { type: "karma", karma: -90 }]), [{ hacking: 0, combat: 0, augs: 0 }], "other conditions are assumed met");
+	assert.equal(gateOpen(undefined, { hacking: 1, combat: 1, installed: 0 }), true, "no gate = open");
+});
+
+test("projectRoute (hacking) doesn't buy from a faction whose invite the runs never reach", () => {
+	// One strong aug sold only by a faction asking hacking 1500 and combat 1200: a BitNode 6 hacking run (level ~550, combat 100) never gets in
+	const augs = [{ name: "Q", price: 1e9, rep: 0, f: ["Illuminati"], h: 1.75, e: 1, cs: [1, 1, 1, 1] }];
+	const cfg = (gates) => ({
+		augs, nf: null, installed: 31, runHours: 4, income: 3e9, expRate: 4e4, mult: { hacking: 1.23, hackExp: 1, combat: [1, 1, 1, 1], combatExp: 1 },
+		scenario: { income: 0, exp: 0 }, maxRuns: 3, rep: { facMult: 1, bn: 1, timeShare: 0.7 }, combatLevel: 100, gates,
+		hackRoute: { required: 6000, daedalusAugs: 35, daedalusMoney: 1e11, daedalusHack: 2500, rpRep: 2.5e6, rpPrice: 1e10, rpHeld: false, startStage: 0 },
+	});
+	assert.deepEqual(projectRoute("hacking", cfg(undefined)).log[0].names, ["Q"], "no gates: bought at once");
+	const gated = projectRoute("hacking", cfg({ Illuminati: inviteGate([{ type: "skills", skills: { hacking: 1500, strength: 1200, defense: 1200, dexterity: 1200, agility: 1200 } }]) }));
+	assert.ok(gated.log.every((run) => !run.names.includes("Q")), "never reachable, never bought");
+	const easy = projectRoute("hacking", cfg({ Illuminati: inviteGate([{ type: "skills", skills: { hacking: 100 } }]) }));
+	assert.deepEqual(easy.log[0].names, ["Q"], "a gate the run meets opens the faction");
+});
+
+test("keepRankSamples restarts after a gap, so time held or training doesn't count as slow play", () => {
+	const now = 10 * 3600_000;
+	const min = (m) => now - m * 60_000;
+	// played 50-40 min ago, held, playing again for the last 6 minutes
+	const samples = [{ t: min(50), rank: 0 }, { t: min(45), rank: 40 }, { t: min(40), rank: 80 }, { t: min(6), rank: 80 }, { t: min(3), rank: 110 }];
+	assert.deepEqual(keepRankSamples(samples, 130, now), samples.slice(3));
+	assert.deepEqual(keepRankSamples(samples.slice(0, 3), 130, now), [], "nothing in the last 10 minutes: start over");
+	assert.deepEqual(keepRankSamples([{ t: min(70), rank: 1 }, { t: min(2), rank: 5 }], 6, now), [{ t: min(2), rank: 5 }], "older than the window");
+	assert.deepEqual(keepRankSamples([{ t: min(2), rank: 900 }], 5, now), [], "a higher rank is from another BitNode");
+	assert.deepEqual(keepRankSamples(undefined, 5, now), []);
+});
+
 test("DONATE_REP is the cumulative rep at 150 favour", () => {
 	assert.ok(DONATE_REP > 4e5 && DONATE_REP < 5e5);
 });
@@ -445,6 +489,7 @@ test("DONATE_REP is the cumulative rep at 150 favour", () => {
 // ---- adaptive skills and city choice (bladeburner/picks.js)
 import { chanceGain, topRows, skillValues, pickSkill, cityFactor, pickCity, nextRestShare, scoutTarget, SKILL_NAMES } from "/bladeburner/picks.js";
 import { main as play } from "/bladeburner/bb-pass.js";
+import { keepRankSamples } from "/bladeburner/ideal.js";
 
 const SKILLS_AT = { hacking: 100, strength: 200, defense: 200, dexterity: 200, agility: 200, charisma: 50, intelligence: 1 };
 const row = (type, name, chance, extra = {}) => ({ type, name, chance, lo: chance - 0.02, hi: chance + 0.02, gain: 1, secs: 10, level: 1, maxLevel: 1, count: 5, ...extra });

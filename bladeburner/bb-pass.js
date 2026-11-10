@@ -2,7 +2,7 @@
 import { postPass } from "/utils/pass-log.js";
 import { loadConfig } from "/utils/config.js";
 import { pickCity, nextRestShare, scoutTarget, BLACKOP_CHANCE } from "/bladeburner/picks.js";
-import { idealRankRate, staminaRegen, measuredRate, hoursToRank, nextShare } from "/bladeburner/ideal.js";
+import { idealRankRate, staminaRegen, measuredRate, hoursToRank, nextShare, keepRankSamples } from "/bladeburner/ideal.js";
 import { bladeburnerState, postBladeburner, readBladeburner } from "/bladeburner/state.js";
 import { readIncomeRate } from "/utils/income.js";
 import { blackOpDecision, chanceGrowth, failureBill, memberValue, nextTrend, recruitSeconds, teamBonus } from "/bladeburner/team.js";
@@ -64,9 +64,10 @@ export async function main(ns) {
 		return false;
 	};
 
-	// Rank per hour, measured over this run (the samples survive on port 36 and are dropped when the rank falls: a new run)
+	// Rank per hour, measured over this run (the samples survive on port 36 and are dropped when the rank falls: a new run,
+	// or after a gap: time held or training is not play)
 	const now = Date.now();
-	const samples = (before.rank ?? []).filter((sample) => now - sample.t < RANK_WINDOW_MS && sample.rank <= rank);
+	const samples = keepRankSamples(before.rank, rank, now, RANK_WINDOW_MS);
 	samples.push({ t: now, rank });
 	const perHour = measuredRate(samples);
 

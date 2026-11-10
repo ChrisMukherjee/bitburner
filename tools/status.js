@@ -147,7 +147,7 @@ export async function main(ns) {
 	const showBladeburner = config.status?.routeProgress !== false && bladeburnerAccess(ns).available;
 	const installedCount = resetInfo.ownedAugs.size;
 	const daemonExists = ns.serverExists(DAEMON);
-	const fmt = { number: (value) => ns.format.number(value), time: (ms) => ns.format.time(ms), money };
+	const fmt = { number: (value) => ns.format.number(value), int: (value) => Math.round(value).toLocaleString("en-US"), time: (ms) => ns.format.time(ms), money };
 	const hacking = hackingSegments({
 		hacking: player.skills.hacking, installed: installedCount,
 		have: { money: player.money, installed: installedCount, skills: { ...player.skills } },

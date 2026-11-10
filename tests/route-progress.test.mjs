@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { describeNeeds, inviteAugs, hackingSegments, bladeburnerSegments, routeLines } from "/utils/route-progress.js";
 
-const fmt = { number: (n) => String(Math.round(n * 10) / 10), time: (ms) => `${Math.round(ms / 1000)}s`, money: (n) => "$" + n };
+const fmt = { int: (n) => String(Math.round(n)), number: (n) => String(Math.round(n * 10) / 10), time: (ms) => `${Math.round(ms / 1000)}s`, money: (n) => "$" + n };
 const invite = [
 	{ type: "numAugmentations", numAugmentations: 35 },
 	{ type: "money", money: 100e9 },
@@ -97,4 +97,13 @@ test("routeLines: no verdict yet shows both in full; no Bladeburner shows only t
 	const only = routeLines({ route: "hacking", routeAgo: "", hacking, bladeburner: null });
 	assert.equal(only.length, 3);
 	assert.ok(only.every((line) => !/Route|Black Op/.test(line)));
+});
+
+test("the Red Pill's price is left out when it is free; the Bladeburner brief has no doubled label", () => {
+	const free = hackingSegments(hack({ redPill: { rep: 2.5e6, price: 0 } }), fmt)[1];
+	assert.doesNotMatch(free.long, /\$/);
+	assert.doesNotMatch(hackingSegments(hack({ daedalusJoined: true, redPill: { rep: 2.5e6, price: 0 } }), fmt)[1].long, /\(\$/);
+	const hacking = hackingSegments(hack(), fmt);
+	const none = bladeburnerSegments({ state: "off", progress: null, hold: false, ago: () => "" }, fmt);
+	assert.match(routeLines({ route: "hacking", routeAgo: "", hacking, bladeburner: none }).join("\n"), /Other route, Bladeburner: no progress yet$/);
 });
