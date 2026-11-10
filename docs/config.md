@@ -35,6 +35,8 @@ depends on progress is a setting, and scripts don't hardcode new ones.
 - **Detected, not configured:** the BitNode multipliers (with Source-File 5) gate mechanics a BitNode makes worthless (`mechanicGates`) and rank the route suggestion; the player's settings win.  whether the Singularity API is usable (and its RAM multiplier) comes from
   the game. Rep and price multipliers are already in the game's own numbers.
 
+`status.routeProgress` (default on) is the kill switch for the Bladeburner part of the BitNode block in `status`; off shows only the hacking route's lines.
+
 ## Presets and automatic adjustments
 
 Presets: `hacking` (the defaults) and `bladeburner` (combat and Bladeburner augments instead of hacking

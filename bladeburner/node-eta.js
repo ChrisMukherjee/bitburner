@@ -37,9 +37,10 @@ const fmt = (s) => !Number.isFinite(s) ? "unknown" : s < 90 ? `${Math.ceil(s)} s
  * BitNode take, hacking (Daedalus, The Red Pill, then the daemon's hacking level) or Bladeburner (combat augs, gym, rank 400000 and
  * every Black Op)? Walks both routes reset by reset with the models in route-model.js, from live game state only (no per-BitNode tables).
  *
- * Writes the verdict on port 36 as `plan` ({ route, hold, time }), which bb-manage.js follows:
+ * Writes the verdict on port 36 as `plan` ({ route, hold, daemonLevel, time }), which bb-manage.js follows:
  *   route  "hacking" or "combat"; kept between passes and changed only for a 25 % better route. Left out until bb-pass.js has posted
  *          live action readings, so Bladeburner can measure itself before the first verdict (the config route applies meanwhile)
+ *   daemonLevel  the hacking level w0r1d_d43m0n needs (the live server once it exists, else the BitNode's table), for tools/status.js
  *   hold   true when the best action's chance, rescaled to the current skills, is too low to earn rank (hysteresis 30 % / 40 %)
  * and the readable report in data/node-eta.txt (`cat data/node-eta.txt`).
  * Reads from port 36: the live action readings and rank samples of bb-pass.js. Keeps its exp samples there too (`eta`).
@@ -302,7 +303,7 @@ function estimate(ns) {
 	if (!acts && route) lines.push("Route not committed yet: Bladeburner has no live readings, so it trains, joins and measures first");
 	postBladeburner(ns, {
 		eta: { stamp, samples },
-		plan: { route: acts ? route || undefined : undefined, hold, time: now },
+		plan: { route: acts ? route || undefined : undefined, hold, daemonLevel: required, time: now },
 	});
 	return lines;
 }

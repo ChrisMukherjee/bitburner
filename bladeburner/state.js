@@ -10,6 +10,7 @@
 //   restShare, idleShare, penaltyShare   bb-pass.js: moving shares of passes resting, finding the player idle, and under 50 % stamina
 //   skillLevels        bb-manage.js: Reaper, Evasive System and Cyber's Edge levels, for bb-pass.js's stamina model
 //   action             bb-pass.js: { type, name, time } of the running action (null when none), shown on status' "Doing:" line
+//   progress           bb-pass.js: { done, total, rank, finalRank, next: { name, rank, chance, high } | null, time } of the Black Ops, for tools/status.js
 //   blackOps         bb-pass.js: { done, time }, done when getNextBlackOp() found none (auto-destroy.js ends the BitNode)
 //   freeShare          bb-pass.js: moving share of passes where every safe action's counts were used up (time that earns little rank)
 //   blackOpTrend       bb-pass.js: { name, samples: [{ t, p }] }, the next Black Op's chance without the team, for its growth rate

@@ -81,6 +81,7 @@ export async function main(ns) {
 	let actions = null;
 	let rows = [];
 	let next = null;
+	let progress;     // Black Ops done / total, the next one and rank, for tools/status.js (undefined when not read this pass)
 	let blackOpsDone; // true only when the game says no Black Op is left; undefined when not checked this pass
 	let free = false; // the safe actions' counts are used up: the player's time earns little rank this pass
 	let teamPlan;     // the team the next Black Op should have, for bb-manage.js (bladeburner.team)
@@ -89,6 +90,7 @@ export async function main(ns) {
 		rows = readRows(bb, notes);
 		next = bb.getNextBlackOp();
 		blackOpsDone = next === null;
+		progress = blackOpProgress(bb, next, rank, now);
 		if (next) blackOp = blackOpReading(bb, next);
 		actions = readings(ns, bb, rows, [stamina, maxStamina], rank, blackOp);
 		free = rows.some((row) => row.low >= MIN_CHANCE && row.count < 1) && !rows.some((row) => row.low >= MIN_CHANCE && row.count >= 1);
@@ -209,7 +211,7 @@ export async function main(ns) {
 	postBladeburner(ns, {
 		restShare, idleShare, penaltyShare, script: ns.getScriptName(), action: now2 ? { type: now2.type, name: now2.name, time: now } : null, lines, rank: samples,
 		...(perf ? { perf, perfLog: log } : {}),
-		...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(actions ? { actions } : {}),
+		...(blackOpsDone === undefined ? {} : { blackOps: { done: blackOpsDone, time: now } }), ...(progress ? { progress } : {}), ...(actions ? { actions } : {}),
 		freeShare, ...(next ? { blackOpTrend: trend } : {}), ...(teamPlan ? { teamPlan } : {}),
 	});
 }
@@ -249,6 +251,22 @@ function recruitOdds(bb) {
 	} catch {
 		return { chance: 0, secs: Infinity };
 	}
+}
+
+/**
+ * How far along the Black Ops are: how many are done of the total (they run in order, so the next one's position says it), the
+ * next one's rank requirement and chance, and the rank Operation Daedalus (the last) needs. null when the game won't say.
+ */
+function blackOpProgress(bb, next, rank, now) {
+	try {
+		const names = bb.getBlackOpNames();
+		const position = next ? names.indexOf(next.name) : names.length;
+		const reading = next ? blackOpReading(bb, next) : null;
+		return {
+			done: position < 0 ? 0 : position, total: names.length, rank, finalRank: FINAL_RANK, time: now,
+			next: next ? { name: next.name, rank: next.rank, chance: reading?.chance ?? 0, high: reading?.high ?? 0 } : null,
+		};
+	} catch { return null; }
 }
 
 /** The next Black Op's chance (low estimate) and reward, or null when the game won't say. */

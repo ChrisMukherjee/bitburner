@@ -141,6 +141,24 @@ much play is left on the table.
 
 Open items: lowering an action's level when that alone makes it safe; counting the later Black Ops in a member's value.
 
+## Progress toward ending the BitNode
+
+The `status` BitNode block says how far each way out is, so the player doesn't have to piece it together from the logs. The active
+route (`plan.route`, the verdict of [`node-eta.js`](../bladeburner/node-eta.js)) is spelled out and the other is one line; with no
+verdict yet both are spelled out. The wording lives in [`utils/route-progress.js`](../utils/route-progress.js).
+
+- **Hacking route:** Daedalus (installed augs against the invite's count, cash, hacking level or combat stats, each with what the player
+  has), The Red Pill (Daedalus rep against its requirement with an ETA, then bought, then installed), `w0r1d_d43m0n` (hacking level
+  against its requirement, and root). Before the Red Pill is installed the server doesn't exist, so the requirement is the
+  `daemonLevel` that `node-eta.js` posts in `plan`.
+- **Bladeburner route:** Black Ops done of the total, rank against Operation Daedalus' 400,000, the next Black Op with its rank
+  requirement and chance, and a note when the route is on hold. `bb-pass.js` posts these as `progress` on port 36 (the Black Ops run in
+  order, so the next one's position is the count done). Operation Daedalus is the last, so it is done when all are.
+- **Without Bladeburner access** (no BitNode 6/7, no Source-File 6/7) only the hacking lines show, with no route labels; without
+  Singularity the rep and Red Pill lines say what's missing. `status.routeProgress: false` in the config goes back to the hacking lines only.
+
+Rejected: calling the Bladeburner API from `status` (several GB more RAM for a screen that should stay cheap); `bb-pass.js` posts it instead.
+
 ## Measuring how well it plays
 
 `bb-pass.js` posts an efficiency figure with every pass that reads the actions, from [`ideal.js`](../bladeburner/ideal.js), and

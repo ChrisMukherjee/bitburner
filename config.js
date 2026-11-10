@@ -402,6 +402,11 @@ export const DEFAULTS = {
 		blackOpGate: true, team: true,
 	},
 
+	// tools/status.js. routeProgress: the BitNode block shows how far each way out is (hacking: Daedalus, The Red Pill,
+	// w0r1d_d43m0n; Bladeburner: Black Ops done, rank, the next one's chance), the route node-eta.js picked in full and the other
+	// on one line. false = only the hacking route's lines, as before Bladeburner existed.
+	status: { routeProgress: true },
+
 	// Go bot (go/go-bot.js, go/go-plan.js). rotation: the order it moves on to once the focus opponent's bonus
 	// levels off. planAware: opponents in `boosts` jump the queue while the plan uses their bonus (Bladeburner running ->
 	// combat stats, an open Daedalus rep goal -> rep gain; `gang` is empty because gang members never use your

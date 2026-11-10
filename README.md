@@ -86,9 +86,11 @@ restart        # also restart running scripts, so freshly synced code takes effe
 status         # one-screen summary of the whole run
 ```
 
-`status` also has a BitNode line: the SF level destroying this node gives, the next BitNode on
-`bitnodeRoute`, and how far along the end is (Daedalus invite needs, Daedalus rep against The Red
-Pill's requirement, then hacking level and root for `w0r1d_d43m0n`). The Red Pill and Daedalus
+`status` also has a BitNode block: the SF level destroying this node gives, the next BitNode on
+`bitnodeRoute`, and how far along each way out is. The hacking route shows the Daedalus invite (augs installed against the count, cash,
+level), Daedalus rep against The Red Pill's requirement, then hacking level and root for `w0r1d_d43m0n`; the Bladeburner route shows
+Black Ops done of the total, rank and the next Black Op's chance. The route the estimate picked is spelled out, the other is one line
+(`status.routeProgress`, see [`docs/bladeburner.md`](docs/bladeburner.md#progress-toward-ending-the-bitnode)). The Red Pill and Daedalus
 numbers come from `data/aug-plan.json`, which [`auto-reset.js`](singularity/auto-reset.js) refreshes every 10 minutes.
 
 [`startup.js`](startup.js) holds one priority-ordered list of long-running scripts, each tagged with the
@@ -237,7 +239,7 @@ Which scripts need which BitNode, Source-File or item is not decided per folder:
 | 33 | One-shot gates (cash the next home upgrade or program needs, player-work done, for startup.js) |
 | 34 | RAM reservations (room kept free on a server for a script waiting to start; the batcher and share-manager leave it alone) |
 | 35 | player-work state between passes |
-| 36 | Bladeburner state, route estimate, rank samples, efficiency figures, Black Op team plan and status lines (bladeburner/) |
+| 36 | Bladeburner state, route estimate, Black Op progress, rank samples, efficiency figures, Black Op team plan and status lines (bladeburner/) |
 | 37 | Last pass of each one-shot, for the debug report ([`utils/pass-log.js`](utils/pass-log.js)) |
 | 38 | This run's money by source, for the augment weights ([`utils/income-mix.js`](utils/income-mix.js), posted by buy-augs.js) |
 

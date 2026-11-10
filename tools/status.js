@@ -6,6 +6,8 @@ import { routeStep } from "/utils/bitnode-route.js";
 import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { hasSingularity } from "/utils/singularity.js";
 import { goOrder } from "/go/go-plan.js";
+import { bladeburnerAccess } from "/utils/bladeburner.js";
+import { hackingSegments, bladeburnerSegments, routeLines } from "/utils/route-progress.js";
 
 /**
  * One-screen summary of the run, so you don't have to tail six logs.
@@ -14,8 +16,9 @@ import { goOrder } from "/go/go-plan.js";
  *   alias status='run /tools/status.js'   (absolute path, so it works from any directory)
  *
  * Shows: stage and home RAM, cash and income, Intelligence (only once above 0), current work, faction rep goals with ETAs, the
- * reset advice, how close the BitNode is to ending (Daedalus, The Red Pill, w0r1d_d43m0n and
- * the next BitNode on the route), Go progress, the city-faction plan, stocks, one block per mechanic (gang ...), and which
+ * reset advice, how close the BitNode is to ending per route (hacking: Daedalus, The Red Pill, w0r1d_d43m0n; Bladeburner: Black Ops,
+ * rank; the route node-eta.js picked in full, the other on one line; kill switch status.routeProgress; utils/route-progress.js) and
+ * the next BitNode on the route, Go progress, the city-faction plan, stocks, one block per mechanic (gang ...), and which
  * startup.js scripts run.
  *
  * Cheap on purpose (about 5GB): almost everything comes from what the other scripts already
@@ -138,38 +141,37 @@ export async function main(ns) {
 	out.push(`BitNode ${node}: destroying gives SF${node}.${sfAfter}, next ${nextBN} | auto-destroy ` +
 		(destroyer ? (destroyer.args.includes("--dry") ? "running in --dry" : "running") : "not running"));
 	const redPill = plan?.checkedAt >= lastReset ? plan.bitnode?.redPill : null;
-	if (resetInfo.ownedAugs.has(RED_PILL)) {
-		if (ns.serverExists(DAEMON)) {
-			const needed = ns.getServerRequiredHackingLevel(DAEMON);
-			const root = ns.hasRootAccess(DAEMON);
-			out.push(`  ${RED_PILL} installed | ${DAEMON}: hacking ${player.skills.hacking} / ${needed}` +
-				(player.skills.hacking >= needed ? " (ready)" : ` (${needed - player.skills.hacking} to go)`) +
-				` | root ${root ? "yes" : "no (needs all 5 port openers)"}`);
-			if (player.skills.hacking >= needed && root && !step && !forcedBN) {
-				out.push(`  READY, nothing is destroyed until you pick a BitNode: run /singularity/next-bitnode.js <n> (or add to bitnodeRoute)`);
-			}
-		} else {
-			out.push(`  ${RED_PILL} installed, but ${DAEMON} not found`);
+	const planFresh = plan?.checkedAt >= lastReset;
+	const bbPost = peekJson(ns, 36);
+	const verdict = bbPost?.plan && now - (bbPost.plan.time ?? 0) < 30 * 60_000 ? bbPost.plan : null; // node-eta.js' route verdict
+	const showBladeburner = config.status?.routeProgress !== false && bladeburnerAccess(ns).available;
+	const installedCount = resetInfo.ownedAugs.size;
+	const daemonExists = ns.serverExists(DAEMON);
+	const fmt = { number: (value) => ns.format.number(value), time: (ms) => ns.format.time(ms), money };
+	const hacking = hackingSegments({
+		hacking: player.skills.hacking, installed: installedCount,
+		have: { money: player.money, installed: installedCount, skills: { ...player.skills } },
+		daedalusJoined: joined.has("Daedalus"), daedalusRep: rep.Daedalus ?? 0, repPerSecond: rates.perSecond.Daedalus ?? 0,
+		invite: planFresh ? plan.bitnode?.daedalusInvite ?? null : null, redPill,
+		redPillInstalled: resetInfo.ownedAugs.has(RED_PILL), redPillBought: !!plan?.queued?.includes(RED_PILL) && planFresh,
+		daemon: {
+			exists: daemonExists, root: daemonExists && ns.hasRootAccess(DAEMON),
+			level: daemonExists ? ns.getServerRequiredHackingLevel(DAEMON) : Number(verdict?.daemonLevel) || null,
+		},
+	}, fmt);
+	const bladeburner = showBladeburner ? bladeburnerSegments({
+		state: bbPost?.state && now - (bbPost.stateTime ?? 0) < 15 * 60_000 ? bbPost.state : "off",
+		progress: bbPost?.progress ?? null, hold: verdict?.hold === true && verdict?.route === "combat", ago,
+	}, fmt) : null;
+	out.push(...routeLines({
+		route: verdict?.route === "hacking" || verdict?.route === "combat" ? verdict.route : null,
+		routeAgo: verdict ? ` (node-eta.js estimate, ${ago(verdict.time)})` : "", hacking, bladeburner,
+	}));
+	if (resetInfo.ownedAugs.has(RED_PILL) && daemonExists) {
+		const needed = ns.getServerRequiredHackingLevel(DAEMON);
+		if (player.skills.hacking >= needed && ns.hasRootAccess(DAEMON) && !step && !forcedBN) {
+			out.push(`  READY, nothing is destroyed until you pick a BitNode: run /singularity/next-bitnode.js <n> (or add to bitnodeRoute)`);
 		}
-	} else if (plan?.queued?.includes(RED_PILL) && plan.checkedAt >= lastReset) {
-		out.push(`  ${RED_PILL} bought, not installed: install augments to make ${DAEMON} appear`);
-	} else if (joined.has("Daedalus")) {
-		if (!redPill) {
-			out.push(`  Daedalus joined, ${ns.format.number(rep.Daedalus)} rep | ${RED_PILL} needs: not known yet (buy-augs.js --plan posts it)`);
-		} else {
-			const missing = redPill.rep - rep.Daedalus;
-			const rate = rates.perSecond.Daedalus ?? 0;
-			const eta = missing <= 0 ? "enough rep, buy it" : rate > 0 ? `ETA ~${ns.format.time((missing / rate) * 1000)}` : "no rate yet";
-			out.push(`  Daedalus ${ns.format.number(rep.Daedalus)} / ${ns.format.number(redPill.rep)} rep for ${RED_PILL} ` +
-				`(${money(redPill.price)}) | ${eta}`);
-		}
-	} else {
-		const invite = plan?.checkedAt >= lastReset ? plan.bitnode?.daedalusInvite : null;
-		const installed = resetInfo.ownedAugs.size;
-		out.push(`  Daedalus not joined` + (invite
-			? `; invite needs ${describeNeeds(ns, invite, player, installed)}`
-			: ` (its invite needs aren't known yet; buy-augs.js --plan posts them)`) +
-			(redPill ? ` | then ${ns.format.number(redPill.rep)} rep for ${RED_PILL}` : ""));
 	}
 
 	// --- Go ---
@@ -264,10 +266,6 @@ export async function main(ns) {
 }
 
 /**
- * Daedalus's invite requirements (from getFactionInviteRequirements) as text, each one marked
- * done or with what you have. Only the kinds Daedalus uses are spelled out.
- */
-/**
  * The status lines for the stock trader (stocks/stock-trader.js posts the summary on port 26). A trader that is up but has
  * no summary is only seconds old (it posts on its first market tick); one waiting for the TIX API says so and what it
  * needs. With a summary: positions and profit, then how it is doing since its window started (profit per hour, share of
@@ -294,25 +292,6 @@ export function stockLines(stocks, running, fmt) {
 			(measure.capture === null || measure.capture === undefined ? "" : `, drift captured ${fmt.percent(measure.capture)} of the forecast`));
 	}
 	return lines;
-}
-
-function describeNeeds(ns, needs, player, installed) {
-	const tick = (ok) => (ok ? " ok" : "");
-	const one = (need) => {
-		switch (need.type) {
-			case "money": return `$${ns.format.number(need.money)} (have $${ns.format.number(player.money)})${tick(player.money >= need.money)}`;
-			case "numAugmentations": return `${need.numAugmentations} augs installed (have ${installed})${tick(installed >= need.numAugmentations)}`;
-			case "skills": {
-				const parts = Object.entries(need.skills).map(([skill, level]) => `${skill} ${level}`);
-				const ok = Object.entries(need.skills).every(([skill, level]) => player.skills[skill] >= level);
-				return parts.join(" + ") + tick(ok);
-			}
-			case "someCondition": return "(" + need.conditions.map(one).join(" or ") + ")";
-			case "everyCondition": return need.conditions.map(one).join(" and ");
-			default: return need.type;
-		}
-	};
-	return needs.map(one).join(", ");
 }
 
 export function describeWork(work) {
