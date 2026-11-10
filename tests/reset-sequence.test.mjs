@@ -159,11 +159,11 @@ test("the buyer refuses a plan older than 10 minutes", async () => {
 // --- install-augs.js ---
 
 /** install-augs.js with these flags and plan; records the home buyers it ran and the install. */
-function installer({ flags = {}, planChanges = {}, installReturns = undefined } = {}) {
+function installer({ flags = {}, planChanges = {}, installReturns = undefined, files = {} } = {}) {
 	const ran = [];
 	const world = fakeWorld({
 		homeRam: 256,
-		files: { [PLAN]: JSON.stringify(plan({ affordable: [], queued: ["A"], ...planChanges })) },
+		files: { [PLAN]: JSON.stringify(plan({ affordable: [], queued: ["A"], ...planChanges })), ...files },
 		onExec: (script, args) => { ran.push([script, ...args].join(" ")); return { exits: script !== "startup.js" }; },
 		overrides: {
 			flags: () => ({ force: false, "keep-cash": false, _: ["startup.js"], ...flags }),
@@ -173,15 +173,26 @@ function installer({ flags = {}, planChanges = {}, installReturns = undefined } 
 	return { world, ran };
 }
 
-test("install: spends cash on home RAM then cores, logs the reset, then installs", async () => {
+test("install: spends cash on home RAM then cores, then on stock access and gang equipment (kept by the install), logs the reset, then installs", async () => {
 	const { world, ran } = installer();
 	await installMain(world.ns);
 	assert.deepEqual(ran, [
 		"singularity/upgrade-home-ram.js --once --spend-all",
 		"singularity/upgrade-home-cores.js --once --spend-all",
+		"stocks/workers/buy-market-access.js 0 --4s",
+		"gang/workers/spend-leftover.js 0",
 		"install startup.js",
 	]);
 	assert.equal(JSON.parse(world.ns.files["data/reset-log.json"]).length, 1);
+});
+
+test("install: persistence.spendLeftover false keeps the old order (home upgrades only); --keep-cash spends nothing", async () => {
+	const off = installer({ files: { "data/config.json": JSON.stringify({ persistence: { spendLeftover: false } }) } });
+	await installMain(off.world.ns);
+	assert.deepEqual(off.ran, ["singularity/upgrade-home-ram.js --once --spend-all", "singularity/upgrade-home-cores.js --once --spend-all", "install startup.js"]);
+	const keep = installer({ flags: { "keep-cash": true } });
+	await installMain(keep.world.ns);
+	assert.deepEqual(keep.ran, ["install startup.js"]);
 });
 
 test("install refuses when the advice says wait, augments are affordable but unbought, or nothing is bought", async () => {

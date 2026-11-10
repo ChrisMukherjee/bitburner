@@ -283,6 +283,14 @@ export const DEFAULTS = {
 		cores: { reserveSeconds: 300, fallbackFraction: 0.25, max: null },
 	},
 
+	// What an augmentation install keeps and what it wipes (docs/install-persistence.md). Gangs, Bladeburner, favor, home
+	// RAM/cores, stock market access and sleeves stay; money, faction rep, skills, servers, hacknet, Go bonuses and Stanek
+	// charge go. routeRepResets: node-eta.js's route model restarts faction rep at every install and lets favor carry
+	// (false = the old model, which kept rep across installs and so made the hacking route look shorter). spendLeftover:
+	// before installing, install-augs.js spends the cash left after the home upgrades on what the install keeps: the stock
+	// market access the trader buys anyway, then gang equipment (false = home upgrades only, the rest of the cash is lost).
+	persistence: { routeRepResets: true, spendLeftover: true },
+
 	// startup.js: home RAM (GB) at which "auto" picks each stage, and scripts it never starts
 	// (paths as in its list, e.g. "darknet/dnet-manager.js").
 	startupStages: { start: 0, early: 64, mid: 128, late: 256 },

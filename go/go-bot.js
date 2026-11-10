@@ -14,7 +14,8 @@ const OPPONENTS = ["Netburners", "Slum Snakes", "The Black Hand", "Tetrads", "Da
 // The order the bot uses comes from `go` in config.js (go/go-plan.js); this is the fallback and what tools/status.js falls back to.
 const ROTATION = ["The Black Hand", "Daedalus", "Illuminati", "Netburners", "Tetrads", "Slum Snakes"];
 
-// Per-opponent bonus history, kept across restarts and aug installs (startup.js restarts the bot per stage).
+// Per-opponent bonus history, kept across restarts (startup.js restarts the bot per stage); an opponent's entry starts over once
+// its bonus falls, which every aug install does (docs/install-persistence.md).
 const DATA_FILE = "/data/go-bonus.json";
 const HISTORY = 60; // games kept per opponent
 const RETRY_MS = 60 * 60_000; // an opponent skipped as "losing" gets one more game after this long (history never changes otherwise)
@@ -216,7 +217,8 @@ function loadData(ns) {
 	} catch {
 		data = {};
 	}
-	// A bonus lower than the one we saved means a new BitNode wiped Go progress: start that opponent over.
+	// A bonus lower than the one we saved means an install (it clears Go's node power, so every bonus restarts at 0) or a new
+	// BitNode wiped Go progress: start that opponent over.
 	const stats = ns.go.analysis.getStats();
 	for (const name of Object.keys(data)) {
 		if ((stats[name]?.bonusPercent ?? 0) + 1e-9 < data[name].bonus) delete data[name];

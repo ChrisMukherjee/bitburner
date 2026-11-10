@@ -13,6 +13,7 @@ Every decision is logged: tail `gang/gang-manager.js` if something looks off. `g
 | [`gang-report.js`](gang-report.js) | One-shot report from the metric log: income against the ceiling, training/idle members, ascensions and land per hour, milestones | `--hours <n>` | none | 1.6GB |
 | [`ready.js`](ready.js) | Library: tells [`startup.js`](../startup.js) when the manager has work | import only | none | 1.5GB |
 | [`workers/equipment.js`](workers/equipment.js) | One-shot: equipment list, on port 29 | none | SF2 | 5.6GB, for a moment |
+| [`workers/spend-leftover.js`](workers/spend-leftover.js) | One-shot run by `install-augs.js` just before an install: the cash the install would wipe goes into gang equipment, which the gang keeps (anything that adds pay, best payback first; `persistence.spendLeftover`, [`docs/install-persistence.md`](../docs/install-persistence.md)) | arg: reserve | SF2 | 18.8GB, for a moment |
 | [`workers/invite.js`](workers/invite.js) | One-shot for player-work: what the invite still needs, the crime with the most expected karma (or missing combat exp) per minute, failures included, and whether the gym should train the stats; also for the karma grind outside BitNode 2. On port 30 ([`docs/player-work.md`](../docs/player-work.md)) | arg: JSON | SF4 | 16.1GB (211.1GB at SF4.1, 55.1GB at SF4.2), for a moment |
 
 [`startup.js`](../startup.js) starts the manager once there's work: a gang exists, or a gang faction is joined and a
@@ -38,4 +39,6 @@ gang can be created (BitNode 2, or Source-File 2 with karma -54,000; that rule l
   point of power. Clashes go on when the share of contested land we would take (win chance and land per win or loss,
   over every gang holding land) reaches 55% and off below 50%.
 - **Equipment:** once a minute, best payback first within the `gang.buying` spending stages. Augmentations (they survive
-  ascension) may pay back over the whole horizon; other gear only until that member's next ascension.
+  ascension) may pay back over the whole horizon; other gear only until that member's next ascension. An augmentation
+  install keeps the gang and its gear, so just before one `install-augs.js` puts the cash it would wipe into equipment too
+  (`workers/spend-leftover.js`, [`docs/install-persistence.md`](../docs/install-persistence.md)).

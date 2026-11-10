@@ -106,7 +106,7 @@ export async function resetNow(ns, plan) {
 	if (!await runAndWait(ns, CONFIG.buyer)) return giveUp(ns, `couldn't run ${CONFIG.buyer} even on an empty home`);
 	const why = notWorthInstalling(ns, plan, buyStart);
 	if (why) return giveUp(ns, why);
-	// --force: the check just ran. It spends what's left on home RAM and cores, then installs.
+	// --force: the check just ran. It spends what's left on home RAM and cores (then stock access and gang equipment, which an install keeps too), then installs.
 	if (ns.exec(CONFIG.installer, "home", 1, "--force", CONFIG.afterReset) === 0) return giveUp(ns, `couldn't start ${CONFIG.installer}`);
 	return true;
 }

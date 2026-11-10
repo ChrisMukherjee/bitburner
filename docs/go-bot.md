@@ -14,10 +14,11 @@
 - **`--think` (ms per move)** trades speed for strength; 400ms is the default.
 - **How the bonus grows** (game source): each game adds black's score x opponent difficulty x a win-streak
   multiplier; losses halve the streak multiplier, and resetting mid-game counts as a loss. The bonus grows
-  roughly like log(power) x power^0.3, so each game adds less than the last.
+  roughly like log(power) x power^0.3, so each game adds less than the last. Every augmentation install clears the
+  node power, so the bonuses restart at 0 each run (only the favor from win streaks stays; [`install-persistence.md`](install-persistence.md)).
 - **Rotation.** Play the focus opponent until its bonus levels off (recent gains below a quarter of its best),
   then the next in `ROTATION`, most useful for a hacking run first. Opponents won against under 20% of the
-  time are skipped. History is kept in `data/go-bonus.json` across resets; `--status` shows it.
+  time are skipped. History is kept in `data/go-bonus.json` across script restarts and starts over for an opponent whose bonus fell (an install or a new BitNode); `--status` shows it.
 - **Illuminati on 5x5.** The game multiplies difficulty by 8 for Illuminati on 5x5 versus 2 on 7x7, and the
   bot wins far more often there.
 - **An offline simulator** with the game's real opponent AI was used to compare versions before running

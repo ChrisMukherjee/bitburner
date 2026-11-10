@@ -1,5 +1,6 @@
 // Design: docs/aug-reset.md
 // @ts-check
+import { loadConfig } from "/utils/config.js";
 const PLAN_FILE = "data/aug-plan.json";
 const RESET_LOG = "data/reset-log.json"; // one line per install, for singularity/reset-log.js (tuning the reset rule)
 const RESET_LOG_KEEP = 40;
@@ -7,6 +8,11 @@ const PLANNER = "singularity/buy-augs.js";
 const PLAN_FRESH_MS = 5 * 60_000; // a plan this new (e.g. buy-augs.js just ran) is used as it is
 // Run with --once --spend-all just before installing: home upgrades survive an install, cash doesn't.
 const HOME_BUYERS = ["singularity/upgrade-home-ram.js", "singularity/upgrade-home-cores.js"];
+// Then what else the install keeps (persistence.spendLeftover): the stock market access the trader buys anyway, then gang
+// equipment. Each exits quietly when it has nothing to buy (no gang, access owned, too little cash).
+const STOCK_TRADER = "stocks/stock-trader.js";
+const MARKET_ACCESS = "stocks/workers/buy-market-access.js"; // [reserve] [--4s]
+const GANG_LEFTOVER = "gang/workers/spend-leftover.js";
 
 /**
  * Installs the augments you've bought, which resets the run (money, servers, scripts).
@@ -20,7 +26,10 @@ const HOME_BUYERS = ["singularity/upgrade-home-ram.js", "singularity/upgrade-hom
  *
  * Before installing it spends the cash that's left on home RAM, then home cores (both buyers
  * with --once --spend-all, about 7GB and 9GB), since home upgrades survive the install. Both stop at
- * the cap in homeUpgrades (a challenge), if one is set. Run
+ * the cap in homeUpgrades (a challenge), if one is set. Then (persistence.spendLeftover, on by default) what's
+ * left goes into other things the install keeps (docs/install-persistence.md): the TIX and 4S Market Data TIX APIs
+ * (stocks/workers/buy-market-access.js, about 8GB) unless the stock trader is in startupSkip, then gang equipment
+ * (gang/workers/spend-leftover.js, about 19GB). Run
  * buy-augs.js first so augments get the money before home does (it leaves NeuroFlux
  * to home when a home upgrade is affordable).
  *
@@ -48,6 +57,11 @@ export async function main(ns) {
 				ns.tprint(`No room on home for ${script} (${ns.format.ram(ns.getScriptRam(script))}); its cash is left unspent.`);
 			}
 		}
+		for (const [script, ...args] of leftoverBuyers(loadConfig(ns))) {
+			if (!await runAndWait(ns, script, ...args)) {
+				ns.tprint(`No room on home for ${script} (${ns.format.ram(ns.getScriptRam(script))}); skipped.`);
+			}
+		}
 	}
 	recordReset(ns);
 	ns.tprint("Installing augments...");
@@ -57,6 +71,22 @@ export async function main(ns) {
 		ns.tprint("Not installed: no augments are bought, so there is nothing to install.");
 		if (afterReset !== undefined && ns.exec(afterReset, "home", 1) !== 0) ns.tprint(`Started ${afterReset} again instead.`);
 	}
+}
+
+/**
+ * What spends the cash left after the home upgrades, in order, as [script, ...args]: things an install keeps.
+ * Stock market access only when the stock trader may run (it buys TIX and 4S itself as soon as cash allows, so buying
+ * them with cash the install would wipe saves that much next run); then gang equipment. Empty with persistence.spendLeftover off.
+ * @param {any} config
+ * @returns {[string, ...(string|number)[]][]}
+ */
+export function leftoverBuyers(config) {
+	if (config?.persistence?.spendLeftover === false) return [];
+	/** @type {[string, ...(string|number)[]][]} */
+	const buyers = [];
+	if (!(config?.startupSkip ?? []).includes(STOCK_TRADER)) buyers.push([MARKET_ACCESS, 0, "--4s"]);
+	buyers.push([GANG_LEFTOVER, 0]);
+	return buyers;
 }
 
 /** Checks the plan (running the planner if it's old) and prints why not, if the rule says to wait. */

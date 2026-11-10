@@ -28,6 +28,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`bitnode-mults.md`](bitnode-mults.md): BitNode multipliers saved once per run and read at 0GB, 1 when unknown.
 - [`challenges.md`](challenges.md): challenge achievements as named config overrides; the home RAM and core cap for BN1.
 - [`bladeburner.md`](bladeburner.md): state manager, action pass, route estimate, gym via player-work, state on a port.
+- [`install-persistence.md`](install-persistence.md): what an augmentation install keeps per mechanic (gang, Bladeburner, favor, stock access...) and what the scripts do with it.
 
 ## Writing one
 

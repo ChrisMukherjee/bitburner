@@ -565,11 +565,12 @@ export function setWarfare(ns, settings, state, noWar) {
  * every (item, member) is valued by what it adds to the member's pay and bought best payback first when the
  * payback fits the item's horizon (the run's age for augmentations; for other gear, until the member's next
  * ascension wipes it). With growth off: augmentations first, then cheapest first. Only items that raise a stat
- * the gang uses.
+ * the gang uses. anyPayback (gang/workers/spend-leftover.js, just before an augmentation install): the cash would be lost
+ * anyway, so every item that adds pay is worth it, best payback first, however long that payback is.
  */
-export function buyEquipment(ns, settings, isHacking, state, policy) {
+export function buyEquipment(ns, settings, isHacking, state, policy, { anyPayback = false } = {}) {
 	if (!state.equipment) state.equipment = readEquipment(ns);
-	if (!state.equipment) return;
+	if (!state.equipment) return [];
 	const growthOn = settings.growth?.enabled;
 	// With growth on, every item is valued by what it adds; without, only items for the stats the gang is built on.
 	const useful = new Set(isHacking ? ["hack", "cha"] : [...COMBAT_STATS, "cha"]);
@@ -579,6 +580,7 @@ export function buyEquipment(ns, settings, isHacking, state, policy) {
 		.map((item) => ({ ...item, cost: ns.gang.getEquipmentCost(item.name) }));
 
 	let budget = getBudget(ns, policy);
+	/** @type {string[]} */
 	const bought = [];
 	const buy = (item, name) => {
 		if (!ns.gang.purchaseEquipment(name, item.name)) return false;
@@ -607,7 +609,7 @@ export function buyEquipment(ns, settings, isHacking, state, policy) {
 				const gain = equipmentGain(view, ctx, item, aug);
 				if (gain <= 0) continue;
 				const payback = item.cost / gain;
-				if (payback <= horizon) offers.push({ item, name, payback });
+				if (anyPayback || payback <= horizon) offers.push({ item, name, payback });
 			}
 		}
 		offers.sort((first, second) => first.payback - second.payback);
@@ -627,6 +629,7 @@ export function buyEquipment(ns, settings, isHacking, state, policy) {
 	if (bought.length) {
 		ns.print(`${TAG} bought (${policy.name} stage, ${formatMoney(ns, budget)} of the pass budget left): ${bought.join(", ")}`);
 	}
+	return bought;
 }
 
 /** Extra money per second an item gives a member: augmentations on its post-ascension stats, other gear on its current stats. */
@@ -658,7 +661,7 @@ export function secondsToAscension(ns, view, ctx) {
 }
 
 /** Equipment names, types and stats from gang/workers/equipment.js (run once; static data). */
-function readEquipment(ns) {
+export function readEquipment(ns) {
 	const posted = ns.peek(EQUIPMENT_PORT);
 	if (posted && typeof posted === "object" && Array.isArray(posted.items)) return posted.items;
 	if (startHelper(ns, EQUIPMENT_HELPER, []) === 0) {

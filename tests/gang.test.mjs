@@ -455,6 +455,21 @@ test("growth equipment: buys what pays back within the horizon, skips useless an
 	assert.ok(!bought.includes("Overpriced Gear"));
 });
 
+test("growth equipment before an install (anyPayback): gear that pays back too slowly is still bought, since the cash would be lost", () => {
+	// The install keeps the gang and its equipment but wipes the cash (gang/workers/spend-leftover.js)
+	const items = [{ name: "Slow Gear", type: "Armor", stats: { cha: 1.01 }, cost: 1e11 }, { name: "Useless Gear", type: "Armor", stats: { hack: 2 }, cost: 1e3 }];
+	const costs = Object.fromEntries(items.map((i) => [i.name, i.cost]));
+	const run = (options) => {
+		const bought = [];
+		const world = growthNs({ a: grown({ exp: 3e4, points: 2e5 }) }, { extra: { getEquipmentCost: (name) => costs[name], purchaseEquipment: (who, name) => { bought.push(name); return true; } } });
+		const ns = fakeNs({ overrides: { getPlayer: () => ({ money: 1e12 }), gang: world.ns.gang, format: world.ns.format } });
+		buyEquipment(ns, grow, false, { equipment: items }, { name: "test", reserve: 0, maxFraction: 0.5 }, options);
+		return bought;
+	};
+	assert.deepEqual(run(undefined), [], "a normal pass waits: the payback is past the horizon");
+	assert.deepEqual(run({ anyPayback: true }), ["Slow Gear"], "before an install anything that adds pay beats losing the cash, but not useless gear");
+});
+
 // ---- metrics
 test("metrics: sample fields, efficiency against the ceiling, milestones and a capped log file", () => {
 	const gang = { moneyGainRate: 2, respect: 1e5, respectGainRate: 1, wantedPenalty: 0.99, wantedLevel: 10, territory: 0.4, power: 50, respectForNextRecruit: Infinity, territoryWarfareEngaged: true };

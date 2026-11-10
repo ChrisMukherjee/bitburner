@@ -162,10 +162,11 @@ room for the planner twice; an older plan is made again first.
 (null while it says wait). auto-reset announces only when that's new in the check it just ran, so
 restarting it (`startup --restart`, `--dry` runs) doesn't repeat the toast.
 
-**Leftover cash goes into home before an install.** Home RAM and cores survive an install and
+**Leftover cash goes into what the install keeps.** Home RAM and cores survive an install and
 cash doesn't, so install-augs runs both home buyers with `--spend-all` (no reserve, no cap)
 after augments are bought (`--keep-cash` skips it). Home RAM first: it's usually the
-bigger help to the next run's start.
+bigger help to the next run's start. Then (`persistence.spendLeftover`) the TIX and 4S APIs the stock trader would buy anyway,
+then gang equipment, which the gang keeps. What each mechanic keeps: [`install-persistence.md`](install-persistence.md).
 
 **No install without a purchase.** auto-reset stops everything on home, sells stocks and runs the buyer,
 which records what that pass bought in the plan (`lastBuy`). It installs only when something was bought, or
