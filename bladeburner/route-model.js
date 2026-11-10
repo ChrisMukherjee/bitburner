@@ -11,6 +11,25 @@ const GYM_EXP_PER_SECOND = 5;               // per stat, Powerhouse Gym, BitNode
 const skillAt = (exp, mult) => Math.max(1, mult * (32 * Math.log(exp + 534.5) - 200));   // game formula
 const expFor = (level, mult) => Math.max(0, Math.exp((level / mult + 200) / 32) - 534.5);
 
+/**
+ * The level multiplier the game applied beyond `mult`, read back from a skill's level and exp: level / (mult x formula). The game
+ * multiplies the player's own mults by the BitNode's level multiplier (HackingLevelMultiplier 0.35 in BitNode 6, the combat ones in
+ * others), which `player.mults` leaves out; without this the models would see levels the player can't reach. Needs no Source-File 5.
+ * 1 when the level is too low to read it through the game's rounding down, or the reading makes no sense.
+ */
+function levelFactor(level, exp, mult) {
+    if (!(level >= 50) || !(exp > 0) || !(mult > 0)) return 1;
+    const factor = level / (mult * (32 * Math.log(exp + 534.5) - 200));
+    return Number.isFinite(factor) && factor > 0.01 && factor < 100 ? factor : 1;
+}
+
+/** The multipliers the route models use: the player's own mults times the level multiplier the game applies on top (levelFactor). */
+function modelMults(player) {
+    const own = (key) => player.mults?.[key] || 1;
+    const effective = (key) => own(key) * levelFactor(player.skills?.[key], player.exp?.[key], own(key));
+    return { hacking: effective("hacking"), combat: ["strength", "defense", "dexterity", "agility"].map(effective) };
+}
+
 const STATS = ["hacking", "strength", "defense", "dexterity", "agility", "charisma", "intelligence"];
 // [type, name, baseDifficulty, difficultyFac, rewardFac, rankGain, avg count growth per 480 s, weights[STATS], decays[STATS], isContract]
 const ACTIONS = [
@@ -245,4 +264,4 @@ function fitIncomeExponent(points, cap = 3) {
     return { exponent: Math.min(cap, Math.max(0, raw)), raw, r2, reliable: raw >= 0 && raw < cap && r2 >= 0.5, runs: usable.length };
 }
 
-export { fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };
+export { levelFactor, modelMults, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };

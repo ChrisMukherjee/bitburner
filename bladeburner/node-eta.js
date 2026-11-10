@@ -78,6 +78,10 @@ function estimate(ns) {
 	const level = player.skills.hacking;
 	const mult = player.mults.hacking || 1;
 	const exp = player.exp.hacking;
+	// The models need the multipliers the levels really grow with: the player's mults leave out the BitNode's level multiplier
+	// (hacking x0.35 in BitNode 6), so read it back from the live levels (route-model.js modelMults). The history keeps the raw mult.
+	const effective = RM.modelMults(player);
+	const hackMult = effective.hacking;
 	const now = Date.now();
 	const shared = readBladeburner(ns);
 	const lines = [`${new Date().toLocaleTimeString()}  BitNode ${node}`];
@@ -101,7 +105,8 @@ function estimate(ns) {
 	const rpRep = sing.getAugmentationRepReq(RED_PILL);
 	const rpPrice = sing.getAugmentationPrice(RED_PILL);
 	const haveRep = joined ? sing.getFactionRep(DAEDALUS) : 0;
-	lines.push(`Hacking ${level}/${required}; multiplier ${mult.toFixed(2)}; exp rate ${Number.isFinite(rate) ? rate.toFixed(1) + "/s" : "still measuring"}`);
+	const bnLevel = hackMult / mult;
+	lines.push(`Hacking ${level}/${required}; multiplier ${mult.toFixed(2)}${Math.abs(bnLevel - 1) > 0.02 ? ` (x${bnLevel.toFixed(2)} BitNode level multiplier on top: ${hackMult.toFixed(2)} effective)` : ""}; exp rate ${Number.isFinite(rate) ? rate.toFixed(1) + "/s" : "still measuring"}`);
 	lines.push(`Red Pill: ${installed ? "installed" : joined ? `rep ${Math.round(haveRep)}/${Math.round(rpRep)}, price $${ns.format.number(rpPrice)}` : "Daedalus has not invited you"}`);
 
 	// The pool of augs the simulation can buy: every hacking or combat aug of every faction (prices scaled back to "none queued")
@@ -164,7 +169,7 @@ function estimate(ns) {
 	const fmtHours = (result) => !result ? "unknown" : result.reached && result.hours <= 400 ? `${result.hours.toFixed(0)} h (${result.runs} runs)`
 		: result.reached ? `over 400 h (${result.hours.toFixed(0)} h modelled: too uncertain to call an estimate)` : "not reached within 60 runs";
 	const repConfig = { facMult: player.mults.faction_rep || 1, bn: BN_FACTION_REP[node] ?? 1, timeShare: 0.7 };
-	const combatNow = COMBAT_STATS.map((key) => player.mults[key] || 1);
+	const combatNow = effective.combat;
 	const blackOpsDone = !!shared.blackOps?.done;
 
 	// Hacking route: Daedalus (installed augs, money in hand, level), The Red Pill, then the final level in one run
@@ -181,7 +186,7 @@ function estimate(ns) {
 		if (Number.isFinite(rate) && rate > 0 && income > 0) {
 			hackSim = scenarios.map((scenario) => ({
 				scenario, result: RM.projectRoute("hacking", {
-					augs: augList, nf: neuroFlux, mult: { hacking: mult, hackExp: player.mults.hacking_exp || 1, combat: combatNow, combatExp: 1 }, income, expRate: rate,
+					augs: augList, nf: neuroFlux, mult: { hacking: hackMult, hackExp: player.mults.hacking_exp || 1, combat: combatNow, combatExp: 1 }, income, expRate: rate,
 					installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, scenario, maxRuns: 60, hackRoute,
 				}),
 			}));
@@ -220,7 +225,7 @@ function estimate(ns) {
 				let best = null;
 				for (const gym of GYM_CHOICES) {
 					const result = RM.projectRoute("combat", {
-						augs: augList, nf: neuroFlux, mult: { hacking: mult, hackExp: 1, combat: combatNow, combatExp: player.mults.strength_exp || 1 }, income, expRate: rate || 1,
+						augs: augList, nf: neuroFlux, mult: { hacking: hackMult, hackExp: 1, combat: combatNow, combatExp: player.mults.strength_exp || 1 }, income, expRate: rate || 1,
 						installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, scenario, maxRuns: 60, bb: { acts, rank: rankNow, lv: skillsNow, duty, gymHours: gym },
 					});
 					result.gym = gym;
@@ -235,10 +240,10 @@ function estimate(ns) {
 	let needHack = NaN;
 	let needBlade = NaN;
 	if (hackSim) {
-		needHack = RM.incomeNeeded("hacking", { augs: augList, nf: neuroFlux, mult: { hacking: mult, hackExp: player.mults.hacking_exp || 1, combat: combatNow, combatExp: 1 }, income, expRate: rate, installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, maxRuns: 60, hackRoute });
+		needHack = RM.incomeNeeded("hacking", { augs: augList, nf: neuroFlux, mult: { hacking: hackMult, hackExp: player.mults.hacking_exp || 1, combat: combatNow, combatExp: 1 }, income, expRate: rate, installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, maxRuns: 60, hackRoute });
 	}
 	if (bladeSim) {
-		needBlade = Math.min(...GYM_CHOICES.map((gym) => RM.incomeNeeded("combat", { augs: augList, nf: neuroFlux, mult: { hacking: mult, hackExp: 1, combat: combatNow, combatExp: player.mults.strength_exp || 1 }, income, expRate: rate || 1, installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, maxRuns: 60, bb: { acts, rank: rankNow, lv: skillsNow, duty, gymHours: gym } })));
+		needBlade = Math.min(...GYM_CHOICES.map((gym) => RM.incomeNeeded("combat", { augs: augList, nf: neuroFlux, mult: { hacking: hackMult, hackExp: 1, combat: combatNow, combatExp: player.mults.strength_exp || 1 }, income, expRate: rate || 1, installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, maxRuns: 60, bb: { acts, rank: rankNow, lv: skillsNow, duty, gymHours: gym } })));
 	}
 
 	lines.push(`--- Assumptions: aug multipliers multiply and stay installed through every reset; skill level = mult x (32 ln(exp+534.5) - 200) with exp restarting at each install; ${RUN_HOURS} h per run + 0.25 h reset overhead; about half of income x run is spendable; each aug bought in a run costs x${Number(augStep.toFixed(3))} more; pool of ${augList.length} hacking/combat augs`);

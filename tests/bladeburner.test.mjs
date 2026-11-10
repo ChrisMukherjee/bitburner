@@ -13,7 +13,7 @@ import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
 import { main as manage } from "/bladeburner/bb-manage.js";
 import {
 	skillAt, expFor, rawChance, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour,
-	projectRoute, incomeNeeded, DONATE_REP, fitIncomeExponent,
+	projectRoute, incomeNeeded, DONATE_REP, fitIncomeExponent, levelFactor, modelMults,
 } from "/bladeburner/route-model.js";
 
 const minutesAgo = (n) => Date.now() - n * 60_000;
@@ -399,6 +399,43 @@ test("projectRoute buys each run's augments at cfg.augStep, 1.9 when left out (l
 test("incomeNeeded is a power of two and 1 when the plan already works", () => {
 	assert.equal(incomeNeeded("combat", combatConfig()), 1);
 	assert.equal(incomeNeeded("combat", combatConfig({ bb: { acts: makeBladeburner([ROW("Tracking", { chance: 0.1 })]), rank: 0, lv: LV, duty: 1, gymHours: 1 } })), Infinity);
+});
+
+// The game's level: floor(mult x BitNode level mult x (32 ln(exp + 534.6) - 200))
+const gameLevel = (exp, mult, bnMult = 1) => Math.max(1, Math.floor(mult * bnMult * (32 * Math.log(exp + 534.6) - 200)));
+
+test("modelMults reads the BitNode level multiplier back from the live levels (BitNode 6: hacking x0.35)", () => {
+	// A BitNode 6 player: aug hacking mult 3.53, hacking 587. Without the 0.35 the route models saw levels 2.9x too high,
+	// so the hacking route looked far shorter than it is and Bladeburner was held.
+	const exp = { hacking: 1.45e9, strength: 2e7, defense: 2e7, dexterity: 2e7, agility: 2e7 };
+	const mults = { hacking: 3.53, strength: 1.8, defense: 1.6, dexterity: 1.7, agility: 1.5 };
+	const skills = Object.fromEntries(Object.keys(exp).map((key) => [key, gameLevel(exp[key], mults[key], key === "hacking" ? 0.35 : 1)]));
+	assert.ok(Math.abs(skills.hacking - 587) <= 1);
+	const model = modelMults({ mults, skills, exp });
+	assert.ok(Math.abs(model.hacking / (3.53 * 0.35) - 1) < 0.01, `hacking ${model.hacking}`);
+	["strength", "defense", "dexterity", "agility"].forEach((key, i) => assert.ok(Math.abs(model.combat[i] / mults[key] - 1) < 0.01, key));
+	assert.ok(Math.abs(skillAt(exp.hacking, model.hacking) - skills.hacking) < 2, "the model's level matches the game's");
+});
+
+test("levelFactor is 1 where the level can't be read (low level, no exp, nonsense)", () => {
+	assert.equal(levelFactor(10, 1e3, 1), 1, "rounding down dominates at low levels");
+	assert.equal(levelFactor(100, 0, 1), 1);
+	assert.equal(levelFactor(undefined, 1e6, 1), 1);
+	assert.equal(levelFactor(500, 1e9, 0), 1);
+	assert.ok(Math.abs(levelFactor(gameLevel(1e9, 2), 1e9, 2) - 1) < 0.01, "no BitNode multiplier: 1");
+});
+
+test("projectRoute (hacking) takes longer when the BitNode level multiplier is counted", () => {
+	const augs = Array.from({ length: 30 }, (_, i) => ({ name: `A${i}`, price: 1e9 * 1.3 ** i, rep: 1e5 * 1.15 ** i, f: [`F${i % 5}`], h: 1.1, e: 1.1, cs: [1, 1, 1, 1] }));
+	const cfg = (hacking) => ({
+		augs, nf: null, installed: 31, runHours: 4, income: 3e9, expRate: 6e4, mult: { hacking, hackExp: 1, combat: [1, 1, 1, 1], combatExp: 1 },
+		scenario: { income: 0, exp: 0 }, maxRuns: 60, rep: { facMult: 1.5, bn: 1, timeShare: 0.7 },
+		hackRoute: { required: 6000, daedalusAugs: 35, daedalusMoney: 1e11, daedalusHack: 2500, rpRep: 2.5e6, rpPrice: 1e10, rpHeld: false, startStage: 0 },
+	});
+	const raw = projectRoute("hacking", cfg(3.53));
+	const real = projectRoute("hacking", cfg(3.53 * 0.35));
+	assert.equal(raw.reached, true);
+	assert.ok(!real.reached || real.hours > 1.5 * raw.hours, `raw ${raw.hours} h, with x0.35 ${real.reached ? real.hours + " h" : "not reached"}`);
 });
 
 test("DONATE_REP is the cumulative rep at 150 favour", () => {

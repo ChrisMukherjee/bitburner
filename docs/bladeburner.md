@@ -231,6 +231,11 @@ multiplier. A reliable fit adds a flat scenario to the report for comparison. Th
   scenario finishes, else the income it would need), since flipping wastes the gym time, rank and rep already spent.
 - **No route before readings.** Until `bb-pass.js` has posted live action readings no route is written (the config route
   applies), otherwise "hacking" would hold Bladeburner and the combat route could never be measured.
+- **Real levels.** The models start from the multipliers the levels really grow with: the player's own mults times the
+  BitNode's level multiplier, read back from the live level and exp (`modelMults` in `route-model.js`, the same reading
+  `buy-augs.js` uses after The Red Pill; no Source-File 5 needed). `player.mults` leaves the BitNode's multiplier out, so
+  without it BitNode 6 (hacking level x0.35) saw hacking levels about 2.9 times too high, the hacking route looked far shorter
+  than it is, and Bladeburner was held. The report's "Hacking" line shows the multiplier when it isn't 1.
 - **Hold.** `plan.hold` is true when the best action's chance, rescaled to the current skills, is under 30 % (back above 40 %).
 - Left out of the original: its combat-aug shopping plan (faction-goals and buy-augs already decide what to buy) and the
   long projected-multiplier report lines. `plan.trainTarget` is read by `bb-manage.js` but never written; the original did not
