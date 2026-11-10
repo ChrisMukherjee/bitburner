@@ -9,7 +9,8 @@
 //   stamina   every Contract/Operation costs 0.285 x (difficulty ^ 0.28 + difficulty / 650); it regenerates by itself, and
 //             Hyperbolic Regeneration Chamber (60 s) adds 1 % of the maximum on top, at the price of that minute
 //   counts    each Contract/Operation has a count that goes down by one per attempt (win or lose) and grows by a random
-//             amount per 480 s (the table's average): in the late game this, not the clock, is what caps the rank rate
+//             amount per 480 s (the table's average); the counts already banked add to the supply over the hour the rate is
+//             measured on. Once the bank is used up this, not the clock, is what caps the rank rate
 // The ceiling is the linear program "maximise sum(chance x gain x rate) subject to those three", solved through its dual.
 import { ACTIONS } from "/bladeburner/route-model.js";
 
@@ -22,6 +23,9 @@ const REST_SECONDS = 60;             // Hyperbolic Regeneration Chamber
 const REST_SHARE = 0.01;             // ... gives 1 % of the maximum stamina
 const COUNT_PERIOD = 480;            // ActionCountGrowthPeriod, seconds
 const SEARCH_STEPS = 50;             // each nested search narrows its range by (2/3)^50
+const BANK_HORIZON_S = 3600;         // banked counts are spread over the hour the measured rate covers
+/** Shortest span of rank samples that measures a rate: one success is up to ~55 rank, so a few minutes read several times off. */
+export const MIN_RATE_SPAN_MS = 15 * 60_000;
 
 /** Stamina one attempt of an action with this difficulty costs. */
 export function staminaLoss(difficulty) {
@@ -121,20 +125,24 @@ function minimise(fn, low, high) {
 /**
  * The most rank per hour any play can earn from these live readings (the Contracts and Operations bb-pass.js posts), with the
  * stamina the player regenerates and rests for. Failures are not subtracted, so it is a ceiling, not a forecast. Black Ops and
- * the 0.1 rank of a Field Analysis are not included.
- * @param {{ name: string, chance: number, gain: number, secs: number, level?: number }[]} rows
+ * the 0.1 rank of a Field Analysis are not included. The counts a row has banked (`count`) are spread over `horizonSeconds` on top
+ * of the steady growth: without them the ceiling was the long-run rate with an empty bank, and a player working off thousands of
+ * banked counts measured several times above it (a real run: 1,967 rank/h against a ceiling of 610, "322 %").
+ * @param {{ name: string, chance: number, gain: number, secs: number, level?: number, count?: number }[]} rows
  * @param {number} maxStamina
  * @param {number} regen  from staminaRegen
+ * @param {number} [horizonSeconds]  the time the banked counts are spread over (the measuring window)
  * @returns {{ perHour: number, limiter: "time" | "stamina" | "count" | null, byAction: { name: string, perHour: number }[] }}
  */
-export function idealRankRate(rows, maxStamina, regen) {
+export function idealRankRate(rows, maxStamina, regen, horizonSeconds = BANK_HORIZON_S) {
 	/** @type {Item[]} */
 	const items = [];
 	/** @type {{ name: string, perHour: number }[]} */
 	const byAction = [];
 	for (const row of rows) {
 		const difficulty = difficultyAt(row.name, row.level);
-		const rate = countRate(row.name);
+		const banked = Number.isFinite(row.count) && horizonSeconds > 0 ? Math.max(0, Math.floor(/** @type {number} */ (row.count))) / horizonSeconds : 0;
+		const rate = countRate(row.name) + banked;
 		if (!(difficulty > 0) || !(rate > 0) || !(row.chance >= 0) || !(row.gain > 0) || !(row.secs > 0)) continue;
 		const value = row.chance * row.gain;
 		items.push({ name: row.name, value, seconds: row.secs, loss: staminaLoss(difficulty), rate });
@@ -147,13 +155,13 @@ export function idealRankRate(rows, maxStamina, regen) {
 	return { perHour: best.perSecond * 3600, limiter: best.limiter, byAction };
 }
 
-/** Rank per hour measured over a window from rank samples [{ t, rank }] (NaN under two minutes of data). */
+/** Rank per hour measured over a window from rank samples [{ t, rank }] (NaN under MIN_RATE_SPAN_MS of data). */
 export function measuredRate(samples) {
 	if (!Array.isArray(samples) || samples.length < 2) return NaN;
 	const first = samples[0];
 	const last = samples[samples.length - 1];
 	const span = last.t - first.t;
-	return span > 120_000 ? (last.rank - first.rank) / (span / 3600_000) : NaN;
+	return span >= MIN_RATE_SPAN_MS ? (last.rank - first.rank) / (span / 3600_000) : NaN;
 }
 
 /**

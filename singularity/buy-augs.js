@@ -21,6 +21,7 @@ const BLADEBURNER_PORT = 36;       // the Bladeburner state (bladeburner/state.j
 const BLADEBURNER_MAX_AGE_MS = 15 * 60_000; // as in bladeburner/state.js: an older state counts as off
 const BLACK_OP_GATE = 0.8;         // bladeburner/picks.js BLACKOP_CHANCE: a Black Op is attempted at this (low estimate) chance
 const BLACK_OP_COMBAT_DECAY = 0.8; // a Black Op's competence grows with each combat level ^ 0.8 (data/BlackOperations.ts)
+const RANK_RATE_SPAN_MS = 15 * 60_000; // shortest rank-sample span that measures a rate (MIN_RATE_SPAN_MS in bladeburner/ideal.js)
 const COMBAT = ["strength", "defense", "dexterity", "agility"];
 // Moments ahead (minutes) the reset rule compares with resetting now, up to resetRule.horizonHours.
 const FORECAST_MINUTES = [10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600, 720];
@@ -407,7 +408,7 @@ function daedalusRule(daedalus, { income, incomeModel, homeCash }, horizonMs, et
 /**
  * What the Black Op rule needs, from port 36 and the player, or null when Bladeburner isn't the route (the same test as
  * utils/config.js routeAdjust: the state is boot, train or run, or hold while the estimate says combat) or no Black Op is next.
- * rankPerHour comes from bb-pass.js's rank samples (NaN until they span 2 minutes).
+ * rankPerHour comes from bb-pass.js's rank samples (NaN until they span RANK_RATE_SPAN_MS, as ideal.js measures it).
  */
 function blackOpEndgame(ns, player, sinceInstallMs) {
 	let shared = null;
@@ -420,7 +421,7 @@ function blackOpEndgame(ns, player, sinceInstallMs) {
 	const samples = Array.isArray(shared.rank) ? shared.rank : [];
 	const first = samples[0];
 	const last = samples[samples.length - 1];
-	const rankPerHour = first && last && last.t - first.t > 120_000 ? (last.rank - first.rank) / ((last.t - first.t) / 3600_000) : NaN;
+	const rankPerHour = first && last && last.t - first.t >= RANK_RATE_SPAN_MS ? (last.rank - first.rank) / ((last.t - first.t) / 3600_000) : NaN;
 	return {
 		next: { name: next.name, rank: Number(next.rank), chance: Number(next.chance) }, rank: Number(shared.actions?.rank ?? shared.progress?.rank ?? last?.rank ?? 0),
 		rankPerHour, sinceInstallMs, skills: Object.fromEntries(COMBAT.map((stat) => [stat, player.skills[stat]])),

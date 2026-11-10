@@ -166,17 +166,24 @@ Rejected: calling the Bladeburner API from `status` (several GB more RAM for a s
 `bb-pass.js` posts an efficiency figure with every pass that reads the actions, from [`ideal.js`](../bladeburner/ideal.js), and
 the status block shows it as one line under the rank line:
 
-`efficiency: 1840 rank/h of at most 2900 (63%), limited by count; idle 12%, stamina under 50% 3%; 8 safe counts banked; rank 400k in ~97 h at this rate`
+`efficiency: 1840 rank/h of at most 2900 (63%), limited by count; idle 12%, stamina under 50% 3%; 8 safe counts banked; rank 400k in ~97 h if this rate held (eta models the growth)`
 
-- **rank/h measured** is the rank gained over the last hour of samples (`rank` on port 36); **at most** is the ceiling below.
+- **rank/h measured** is the rank gained over the last hour of samples (`rank` on port 36), shown once the samples span 15 minutes
+  (`MIN_RATE_SPAN_MS`; `node-eta.js` and the Black Op hold in `buy-augs.js` use the same minimum). One success is worth up to
+  ~55 rank early on, so a two-minute window read 1,967/h in a run averaging ~110/h. **at most** is the ceiling below.
 - **The ceiling** is the best any play could do right now, from the live readings and the game's formulas: maximise
   `sum(chance x gain x attempts/s)` over the nine Contracts and Operations subject to (a) one action at a time, (b) stamina,
   where an attempt costs `0.285 x (d^0.28 + d/650)`, regeneration is `(0.0085 + max/70000) x agility^0.17` (with Reaper, Evasive
   System, Cyber's Edge and the player's stamina multiplier) and resting adds 1 % of the maximum a minute, and (c) counts, which
-  grow by the table's average per 480 s. It is a small linear program solved through its dual (a nested ternary search on a convex
+  grow by the table's average per 480 s, plus the counts already banked spread over the hour the rate is measured on. Without the
+  bank the ceiling was the long-run rate with no counts saved up, and a player working off thousands of banked counts measured
+  above it (322 %). It is a small linear program solved through its dual (a nested ternary search on a convex
   function), so no solver is needed. Failures, Black Ops and the 0.1 rank of a Field Analysis are not in it.
 - **limited by** says which resource, if lifted alone, would raise the ceiling most: `count` (the supply of counts: the usual
-  late-game answer), `time` (long actions) or `stamina` (short, cheap actions).
+  late-game answer once the bank is spent), `time` (long actions, or many counts banked) or `stamina` (short, cheap actions, or a
+  small stamina pool early on).
+- **rank 400k in ~N h** is a straight line at the measured rate. It ignores what grows (skills, action levels, stats, augs), so it
+  reads long early in a BitNode; `data/node-eta.txt` (alias `eta`) models that growth and is the estimate to plan by.
 - **idle** is the share of passes that found no action running (the game stops one when its count runs out, a Black Op ends, or
   stamina hits 0), **stamina under 50 %** the share of passes below the level where every chance is cut, **banked** the counts
   waiting on safe actions.

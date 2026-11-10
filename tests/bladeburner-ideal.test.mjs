@@ -92,10 +92,31 @@ test("idealRankRate: a lower chance lowers the ceiling, and nothing known gives 
 	assert.equal(idealRankRate(rows(1), 0, 0.05).perHour, 0);
 });
 
+test("idealRankRate: banked counts lift the ceiling for the hour, so working them off can't measure above it", () => {
+	// Rank ~400, low chances, thousands of counts banked: the steady-state ceiling was 610/h while the play measured 1,967/h
+	const rows = (count) => [
+		{ name: "Tracking", chance: 0.6, gain: 0.3, secs: 3, level: 1, count },
+		{ name: "Retirement", chance: 0.5, gain: 2.2, secs: 8, level: 1, count },
+		{ name: "Investigation", chance: 0.4, gain: 2.2, secs: 30, level: 1, count },
+		{ name: "Raid", chance: 0.3, gain: 55, secs: 80, level: 1, count },
+	];
+	const steady = idealRankRate(rows(0), 50, staminaRegen(50, 100));
+	const banked = idealRankRate(rows(1500), 50, staminaRegen(50, 100));
+	assert.equal(steady.limiter, "count");
+	assert.notEqual(banked.limiter, "count", "with counts banked the clock or stamina is the limit");
+	assert.ok(banked.perHour > 1.5 * steady.perHour, `${banked.perHour} vs ${steady.perHour}`);
+	close(idealRankRate(rows(undefined), 50, staminaRegen(50, 100)).perHour, steady.perHour, 1e-6);
+	// A longer horizon spreads the same bank thinner
+	assert.ok(idealRankRate(rows(1500), 50, staminaRegen(50, 100), 100 * 3600).perHour < banked.perHour);
+});
+
 test("measuredRate, hoursToRank and nextShare", () => {
 	const t = Date.now();
 	close(measuredRate([{ t, rank: 100 }, { t: t + 1800_000, rank: 400 }]), 600);
 	assert.ok(Number.isNaN(measuredRate([{ t, rank: 1 }, { t: t + 60_000, rank: 5 }])), "under two minutes");
+	// A few minutes hold one or two successes of up to ~55 rank each: a real run read 1,967/h from that against ~110/h over hours
+	assert.ok(Number.isNaN(measuredRate([{ t, rank: 400 }, { t: t + 5 * 60_000, rank: 455 }])), "five minutes are still noise");
+	close(measuredRate([{ t, rank: 400 }, { t: t + 15 * 60_000, rank: 455 }]), 220);
 	assert.ok(Number.isNaN(measuredRate([])));
 	close(hoursToRank(100, 400_100, 1000), 400);
 	assert.equal(hoursToRank(500_000, 400_000, 10), 0);

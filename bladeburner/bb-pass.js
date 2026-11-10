@@ -296,14 +296,14 @@ function efficiencyReport(ns, before, actions, measured) {
 	const player = ns.getPlayer();
 	const agility = (player.skills?.agility ?? 1) * (1 + 0.02 * (levels["Reaper"] ?? 0)) * (1 + 0.04 * (levels["Evasive System"] ?? 0));
 	const regen = staminaRegen(measured.maxStamina, agility, (1 + 0.02 * (levels["Cyber's Edge"] ?? 0)) * (player.mults?.bladeburner_stamina_gain ?? 1));
-	const ideal = idealRankRate(actions.rows.map((row) => ({ name: row.name, chance: row.chance, gain: row.gain, secs: row.secs, level: row.level })), measured.maxStamina, regen);
+	const ideal = idealRankRate(actions.rows.map((row) => ({ name: row.name, chance: row.chance, gain: row.gain, secs: row.secs, level: row.level, count: row.count })), measured.maxStamina, regen, RANK_WINDOW_MS / 1000);
 	if (!(ideal.perHour > 0)) return null;
 	const efficiency = measured.perHour / ideal.perHour;
 	const eta = hoursToRank(measured.rank, FINAL_RANK, measured.perHour);
 	const pct = (value) => `${Math.round(value * 100)}%`;
 	const line = `efficiency: ${Number.isFinite(measured.perHour) ? `${Math.round(measured.perHour)} rank/h of at most ${Math.round(ideal.perHour)} (${pct(efficiency)})` : `at most ${Math.round(ideal.perHour)} rank/h`}, ` +
 		`limited by ${ideal.limiter}; idle ${pct(measured.idleShare)}, stamina under 50% ${pct(measured.penaltyShare)}; ${Number.isFinite(measured.banked) ? measured.banked : "?"} safe counts banked` +
-		(Number.isFinite(eta) && measured.rank < FINAL_RANK ? `; rank ${FINAL_RANK / 1000}k in ~${eta < 10 ? eta.toFixed(1) : Math.round(eta)} h at this rate` : "");
+		(Number.isFinite(eta) && measured.rank < FINAL_RANK ? `; rank ${FINAL_RANK / 1000}k in ~${eta < 10 ? eta.toFixed(1) : Math.round(eta)} h if this rate held (eta models the growth)` : "");
 	return {
 		t: measured.now, perHour: Number.isFinite(measured.perHour) ? measured.perHour : null, ceiling: ideal.perHour, efficiency: Number.isFinite(efficiency) ? efficiency : null,
 		limiter: ideal.limiter, idle: measured.idleShare, penalty: measured.penaltyShare, banked: Number.isFinite(measured.banked) ? measured.banked : null,

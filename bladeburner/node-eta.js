@@ -7,7 +7,7 @@ import { postPass } from "/utils/pass-log.js";
 import { readBladeburner, postBladeburner } from "/bladeburner/state.js";
 import * as RM from "/bladeburner/route-model.js";
 import { augPriceStep } from "/utils/aug-price.js";
-import { staminaRegen } from "/bladeburner/ideal.js";
+import { staminaRegen, MIN_RATE_SPAN_MS } from "/bladeburner/ideal.js";
 import { loadConfig } from "/utils/config.js";
 
 // Every faction that sells augmentations (names from the game), to build the pool of augs the simulation can buy
@@ -240,7 +240,7 @@ function estimate(ns) {
 			rankNow = last.rank;
 			// Samples bb-pass.js stopped adding over 10 minutes ago (held, training) don't measure the play now
 			const current = now - last.t < 10 * 60_000;
-			if (current && last.t - first.t > 120_000) measured = (last.rank - first.rank) / ((last.t - first.t) / 3600_000);
+			if (current && last.t - first.t >= MIN_RATE_SPAN_MS) measured = (last.rank - first.rank) / ((last.t - first.t) / 3600_000);
 			calibrated = current && last.t - first.t > 30 * 60_000;
 		}
 		if (actData && Array.isArray(actData.rows) && actData.rows.length) {
