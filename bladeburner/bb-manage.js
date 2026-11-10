@@ -103,7 +103,13 @@ export async function main(ns) {
 	const readings = config.bladeburner.blackOpSkills || !post.actions ? post : { ...post, actions: { ...post.actions, blackOp: undefined } };
 	if (!(config.bladeburner.adaptiveSkills && spendAdaptive(bb, readings))) spendSkillPoints(bb);
 	// The skill levels bb-pass.js needs for its stamina model (Reaper and Evasive System act on agility, Cyber's Edge on regeneration)
-	postBladeburner(ns, { skillLevels: Object.fromEntries(STAMINA_SKILLS.map((name) => [name, bb.getSkillLevel(name)])) });
+	postBladeburner(ns, {
+		skillLevels: Object.fromEntries(STAMINA_SKILLS.map((name) => [name, bb.getSkillLevel(name)])),
+		// For the route estimate's skill-point model (route-model.js skillStart): the two skills it buys, the points left and the next
+		// Overclock cost (which gives the BitNode's skill cost multiplier)
+		skillModel: { levels: { Overclock: bb.getSkillLevel("Overclock"), "Blade's Intuition": bb.getSkillLevel("Blade's Intuition"), points: bb.getSkillPoints() },
+			costs: { Overclock: bb.getSkillUpgradeCost("Overclock", 1) }, time: Date.now() },
+	});
 	if (config.bladeburner.team) assignTeam(bb, ns, readBladeburner(ns));
 }
 

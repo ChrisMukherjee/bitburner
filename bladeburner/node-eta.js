@@ -7,6 +7,7 @@ import { postPass } from "/utils/pass-log.js";
 import { readBladeburner, postBladeburner } from "/bladeburner/state.js";
 import * as RM from "/bladeburner/route-model.js";
 import { augPriceStep } from "/utils/aug-price.js";
+import { staminaRegen } from "/bladeburner/ideal.js";
 
 // Every faction that sells augmentations (names from the game), to build the pool of augs the simulation can buy
 const ALL_FACTIONS = ["CyberSec", "NiteSec", "The Black Hand", "BitRunners", "Daedalus", "The Covenant", "Illuminati", "ECorp", "MegaCorp",
@@ -214,6 +215,13 @@ function estimate(ns) {
 	let measured = NaN;
 	let calibrated = false;
 	let rankNow = 0;
+	// Skill points bought as rank comes in (Overclock, Blade's Intuition), from the levels and cost bb-manage.js posted
+	const skills = RM.skillStart(shared.skillModel?.levels, shared.skillModel?.costs);
+	// Stamina: maximum from bb-pass.js' readings, regeneration from the game's formula (ideal.js, as bb-pass.js' efficiency line)
+	const levelsNow = shared.skillLevels ?? {};
+	const maxStamina = Array.isArray(shared.actions?.stamina) ? Number(shared.actions.stamina[1]) : NaN;
+	const agility = (player.skills.agility || 1) * (1 + 0.02 * (levelsNow["Reaper"] ?? 0)) * (1 + 0.04 * (levelsNow["Evasive System"] ?? 0));
+	const stamina = maxStamina > 0 ? { max: maxStamina, regen: staminaRegen(maxStamina, agility, (1 + 0.02 * (levelsNow["Cyber's Edge"] ?? 0)) * (player.mults.bladeburner_stamina_gain || 1)) } : undefined;
 	if (!blackOpsDone) {
 		if (rankSamples.length > 0) {
 			const first = rankSamples[0];
@@ -228,7 +236,7 @@ function estimate(ns) {
 			acts = RM.makeBladeburner(actData.rows.map((row) => ({ ...row, lv: actData.lv })));
 			chanceNow = RM.bestChanceNow(acts, skillsNow);
 			const bestThen = RM.bestChanceNow(acts, actData.lv).chance;
-			predicted = RM.predictRankPerHour(acts, actData.lv, 1, Math.min(0.4, bestThen * 0.9));
+			predicted = RM.predictRankPerHour(acts, actData.lv, 1, Math.min(0.4, bestThen * 0.9), stamina);
 			// Only a calibrated window (30 min of play) sets the duty: the first minutes (first actions at level 1, resting) read
 			// several times too low, and a low duty made the route look slow enough to be held before it was ever measured properly
 			if (calibrated && predicted > 0 && Number.isFinite(measured)) duty = Math.min(1, Math.max(0.05, measured / predicted));
@@ -239,7 +247,7 @@ function estimate(ns) {
 				for (const gym of GYM_CHOICES) {
 					const result = RM.projectRoute("combat", {
 						augs: augList, nf: neuroFlux, mult: { hacking: hackMult, hackExp: 1, combat: combatNow, combatExp: player.mults.strength_exp || 1 }, income, expRate: rate || 1,
-						installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, gates, combatLevel, scenario, maxRuns: 60, bb: { acts, rank: rankNow, lv: skillsNow, duty, gymHours: gym },
+						installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, gates, combatLevel, scenario, maxRuns: 60, bb: { acts, rank: rankNow, lv: skillsNow, duty, gymHours: gym, skills, stamina },
 					});
 					result.gym = gym;
 					if (!best || (result.reached && !best.reached) || (result.reached === best.reached && result.hours < best.hours)) best = result;
@@ -250,13 +258,16 @@ function estimate(ns) {
 	}
 
 	// "Income that would make a route take about 100 h" (flat-income model): the robust comparison when no scenario finishes
+	// Only worked out when the verdict scenario finishes within 400 h on neither route (it reruns the routes up to 13 times each, so
+	// it costs a second or two); the verdict uses it only then
+	const someFinish = [hackSim, bladeSim].some((sim) => sim?.[verdictIndex] && sim[verdictIndex].result.reached && sim[verdictIndex].result.hours <= 400);
 	let needHack = NaN;
 	let needBlade = NaN;
-	if (hackSim) {
+	if (hackSim && !someFinish) {
 		needHack = RM.incomeNeeded("hacking", { augs: augList, nf: neuroFlux, mult: { hacking: hackMult, hackExp: player.mults.hacking_exp || 1, combat: combatNow, combatExp: 1 }, income, expRate: rate, installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, gates, combatLevel, maxRuns: 60, hackRoute });
 	}
-	if (bladeSim) {
-		needBlade = Math.min(...GYM_CHOICES.map((gym) => RM.incomeNeeded("combat", { augs: augList, nf: neuroFlux, mult: { hacking: hackMult, hackExp: 1, combat: combatNow, combatExp: player.mults.strength_exp || 1 }, income, expRate: rate || 1, installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, gates, combatLevel, maxRuns: 60, bb: { acts, rank: rankNow, lv: skillsNow, duty, gymHours: gym } })));
+	if (bladeSim && !someFinish) {
+		needBlade = Math.min(...GYM_CHOICES.map((gym) => RM.incomeNeeded("combat", { augs: augList, nf: neuroFlux, mult: { hacking: hackMult, hackExp: 1, combat: combatNow, combatExp: player.mults.strength_exp || 1 }, income, expRate: rate || 1, installed: installedNow.size, runHours: RUN_HOURS, augStep, rep: repConfig, gates, combatLevel, maxRuns: 60, bb: { acts, rank: rankNow, lv: skillsNow, duty, gymHours: gym, skills, stamina } })));
 	}
 
 	lines.push(`--- Assumptions: aug multipliers multiply and stay installed through every reset; skill level = mult x (32 ln(exp+534.5) - 200) with exp restarting at each install; ${RUN_HOURS} h per run + 0.25 h reset overhead; about half of income x run is spendable; each aug bought in a run costs x${Number(augStep.toFixed(3))} more; pool of ${augList.length} hacking/combat augs; a faction not joined yet sells only once a run reaches its invite's hacking, combat and installed-aug levels (${Object.keys(gates).length} gated; its other conditions are assumed met)`);
@@ -273,10 +284,10 @@ function estimate(ns) {
 			lines.push(`Bladeburner, ${scenario.name}: ${fmtHours(result)}${result.reached ? "" : `; after ${result.runs} runs combat x${last.combat.map((value) => value.toFixed(0)).join("/")}, rank ${Math.round(last.rank || 0)}`} (gym ${result.gym} h per run)`);
 		}
 		lines.push(`Bladeburner calibration: the model predicts ${Number.isFinite(predicted) ? predicted.toFixed(1) : "?"} rank/h at full duty; measured ${Number.isFinite(measured) ? measured.toFixed(1) : "?"} rank/h${calibrated ? "" : " (window under 30 min: not yet reliable)"} => duty ${Math.round(duty * 100)}% ${calibrated ? "applied" : "assumed until 30 min of play are measured"}`);
-		lines.push(`Best action chance now ${Math.round((chanceNow?.chance ?? 0) * 100)}% (${chanceNow?.name ?? "n/a"}); rank ${Math.floor(rankNow)}/400000. Not modelled: skill points (help), Black Op chances and rank gates (hurt), city population`);
+		lines.push(`Best action chance now ${Math.round((chanceNow?.chance ?? 0) * 100)}% (${chanceNow?.name ?? "n/a"}); rank ${Math.floor(rankNow)}/400000. Skill points modelled for Overclock (now ${skills.oc}) and Blade's Intuition (now ${skills.bi}); stamina ${stamina ? "modelled" : "not modelled yet (no reading)"}; not modelled: Black Op chances and rank gates (hurt), city population`);
 	} else if (blackOpsDone) lines.push("Bladeburner: every Black Op is done");
 	else lines.push(`Bladeburner: ${acts ? "needs measured income" : "no live readings yet (they appear after bb-pass.js has run once)"}`);
-	if (hackSim || bladeSim) {
+	if ((hackSim || bladeSim) && !someFinish) {
 		const income100 = (need) => Number.isFinite(need) ? `$${ns.format.number(income * need)}/s (x${need})` : "more than x4096";
 		lines.push(`Income that would make a route take about 100 h (flat-income model, today's $${ns.format.number(income)}/s): hacking ${income100(needHack)}; Bladeburner ${income100(needBlade)}`);
 	}

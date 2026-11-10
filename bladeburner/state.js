@@ -9,6 +9,7 @@
 //   perf, perfLog      bb-pass.js: the efficiency report (measured vs ceiling, limiter, idle, banked counts) and its hourly log (docs/bladeburner.md, "Measuring")
 //   restShare, idleShare, penaltyShare   bb-pass.js: moving shares of passes resting, finding the player idle, and under 50 % stamina
 //   skillLevels        bb-manage.js: Reaper, Evasive System and Cyber's Edge levels, for bb-pass.js's stamina model
+//   skillModel         bb-manage.js: { levels: { Overclock, Blade's Intuition, points }, costs: { Overclock }, time }, for node-eta.js's skill-point model
 //   action             bb-pass.js: { type, name, time } of the running action (null when none), shown on status' "Doing:" line
 //   progress           bb-pass.js: { done, total, rank, finalRank, next: { name, rank, chance, high } | null, time } of the Black Ops, for tools/status.js
 //   blackOps         bb-pass.js: { done, time }, done when getNextBlackOp() found none (auto-destroy.js ends the BitNode)

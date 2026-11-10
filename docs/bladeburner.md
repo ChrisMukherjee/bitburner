@@ -262,6 +262,13 @@ multiplier. A reliable fit adds a flat scenario to the report for comparison. Th
   minutes of play; before that it stays at 50 %. `bb-pass.js` restarts its rank samples after a gap of over 10 minutes, so
   time held or training isn't counted as slow play. Both used to happen: the first minutes read 14 % duty, which made the route
   look slow enough to hold it again before it was measured properly.
+- **Skill points, stamina and levels.** The Bladeburner side buys skill points as rank comes in (one per 3 rank): Overclock (-1 %
+  action time a level, up to 90) and Blade's Intuition (+3 % chance), whichever adds more rank per point, from the levels, points and
+  next Overclock cost `bb-manage.js` posts (`skillModel`; the cost gives the BitNode's skill cost multiplier). Stamina the regeneration
+  doesn't cover costs resting time (1 % of the maximum per 60 s), so shorter actions don't count for more than stamina allows. Each
+  action is played at its highest level that is still safe (40 %), and once an action's counts run out the next best fills the time.
+  Without these the model let action levels outgrow the stats until nothing was safe, and the route looked several times slower than
+  it is. Still left out: combat exp from the actions, the Black Ops' own chances and rank gates.
 - **Hold.** `plan.hold` is true when the best action's chance, rescaled to the current skills, is under 30 % (back above 40 %).
 - Left out of the original: its combat-aug shopping plan (faction-goals and buy-augs already decide what to buy) and the
   long projected-multiplier report lines. `plan.trainTarget` is read by `bb-manage.js` but never written; the original did not

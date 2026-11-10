@@ -13,7 +13,7 @@ import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
 import { main as manage } from "/bladeburner/bb-manage.js";
 import {
 	skillAt, expFor, rawChance, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour,
-	projectRoute, incomeNeeded, DONATE_REP, fitIncomeExponent, levelFactor, modelMults, inviteGate, gateOpen,
+	projectRoute, incomeNeeded, DONATE_REP, fitIncomeExponent, levelFactor, modelMults, inviteGate, gateOpen, skillStart, spendSkills, ACTIONS,
 } from "/bladeburner/route-model.js";
 
 const minutesAgo = (n) => Date.now() - n * 60_000;
@@ -480,6 +480,53 @@ test("keepRankSamples restarts after a gap, so time held or training doesn't cou
 	assert.deepEqual(keepRankSamples([{ t: min(70), rank: 1 }, { t: min(2), rank: 5 }], 6, now), [{ t: min(2), rank: 5 }], "older than the window");
 	assert.deepEqual(keepRankSamples([{ t: min(2), rank: 900 }], 5, now), [], "a higher rank is from another BitNode");
 	assert.deepEqual(keepRankSamples(undefined, 5, now), []);
+});
+
+// All nine Contracts and Operations read at the given combat level (level 1, 30 counts, 5 s contracts and 10 s operations)
+function allActions(stat) {
+	const lv = { ...LV, strength: stat, defense: stat, dexterity: stat, agility: stat };
+	return { lv, acts: makeBladeburner(ACTIONS.map((a) => ({ name: a.name, chance: Math.min(0.95, rawChance(a.name, lv)), gain: a.rank, secs: a.contract ? 5 : 10, level: 1, maxLevel: 1, count: 30, lv }))) };
+}
+const bladeRoute = (stat, bb = {}) => {
+	const { lv, acts } = allActions(stat);
+	return projectRoute("combat", {
+		augs: [], nf: null, installed: 31, runHours: 4, income: 1e9, expRate: 4e4, mult: { hacking: 1.2, hackExp: 1, combat: Array(4).fill(stat / 72), combatExp: 1 },
+		scenario: { income: 0, exp: 0 }, maxRuns: 80, rep: { facMult: 1, bn: 1, timeShare: 0.7 }, bb: { acts, rank: 138, lv, duty: 0.5, gymHours: 1, ...bb },
+	});
+};
+
+test("skillStart reads the levels, the points and the BitNode's skill cost multiplier from the live Overclock cost", () => {
+	const none = skillStart();
+	assert.deepEqual([none.oc, none.bi, none.sp, none.costMult], [0, 0, 0, 1]);
+	const live = skillStart({ Overclock: 10, "Blade's Intuition": 4, points: 25 }, { Overclock: 2 * (3 + 1.4 * 10) });
+	assert.deepEqual([live.oc, live.bi, live.sp], [10, 4, 25]);
+	assert.ok(Math.abs(live.costMult - 2) < 1e-9, "twice the formula cost = a x2 BitNode");
+	assert.equal(skillStart({ Overclock: 90 }, { Overclock: 1e9 }).costMult, 1, "a maxed Overclock says nothing about the multiplier");
+});
+
+test("spendSkills buys Overclock while it pays more per point, Blade's Intuition only while the chance is under 100 %", () => {
+	const sk = skillStart({ points: 500 });
+	spendSkills(sk, 1);
+	assert.ok(sk.oc > 10 && sk.bi === 0, `capped chance: everything to Overclock (oc ${sk.oc}, bi ${sk.bi})`);
+	const low = skillStart({ points: 500 });
+	spendSkills(low, 0.5);
+	assert.ok(low.bi > 0, "a 50 % chance makes Blade's Intuition worth points");
+	assert.ok(low.sp < 3 + 2.1 * 90, "points are spent down");
+});
+
+test("projectRoute (combat) counts skill points: without them the actions outgrow the stats and the route stalls", () => {
+	const without = bladeRoute(600);
+	const withSkills = bladeRoute(600, { skills: skillStart() });
+	assert.equal(withSkills.reached, true, `with skill points: ${withSkills.hours} h`);
+	assert.ok(!without.reached || without.hours > 1.5 * withSkills.hours, `without ${without.reached ? without.hours + " h" : "not reached"}`);
+});
+
+test("projectRoute (combat): stamina limits what Overclock is worth", () => {
+	const free = bladeRoute(600, { skills: skillStart() });
+	const tired = bladeRoute(600, { skills: skillStart(), stamina: { max: 400, regen: 0.05 } });
+	assert.ok(tired.reached && tired.hours >= free.hours, `free ${free.hours} h, with stamina ${tired.hours} h`);
+	const exhausted = bladeRoute(600, { skills: skillStart(), stamina: { max: 10, regen: 0 } });
+	assert.ok(!exhausted.reached || exhausted.hours > tired.hours, "almost no stamina: much slower");
 });
 
 test("DONATE_REP is the cumulative rep at 150 favour", () => {

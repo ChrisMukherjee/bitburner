@@ -52,7 +52,7 @@ const timeFactor = (lv) => 0.5 * (Math.pow(lv.agility, 0.04) + Math.pow(lv.dexte
  * Bladeburner rank model. `rows` are the live readings written by bb-pass.js (bb-actions.json): per action the chance, level, count,
  * seconds and rank gain, plus `lv` = the skill levels at that moment. The chance of an action at other skill levels / action levels is
  * scaled from the live reading with the game's own formula (competence = sum of weight x level^decay; difficulty = base x fac^(level-1)),
- * so everything not modelled (skill points, city population, stamina) stays as measured.
+ * so everything not modelled (city population, stamina) stays as measured; skill points are modelled for Overclock and Blade's Intuition.
  */
 function makeBladeburner(rows) {
     const acts = [];
@@ -67,48 +67,128 @@ function makeBladeburner(rows) {
 }
 const bladeburnerClone = (acts) => acts.map(x => ({ ...x }));
 
-function actionNow(x, lv) {
-    const { a, ref } = x;
-    const dRatio = Math.pow(a.dfac, x.level - Math.max(1, ref.level || 1));
-    const chance = Math.min(1, ref.chance * (competence(a, lv) / x.compRef) / dRatio);
-    const secs = Math.max(1, ref.secs * dRatio * timeFactor(ref.lv) / timeFactor(lv));
-    const gain = ref.gain * Math.pow(a.rfac, x.level - Math.max(1, ref.level || 1));
-    return { chance, secs, gain };
+// Bladeburner skills the route model spends points on (Skill data, bitburner-src v3.0.0): Overclock (-1 % action time per level,
+// up to 90) and Blade's Intuition (+3 % success chance per level). A level costs (base + increment x level) x the BitNode's skill
+// cost multiplier; one skill point per 3 rank. The other skills are left out (they only add to these two kinds of gain).
+const RANK_PER_SKILL_POINT = 3;
+const OVERCLOCK = { base: 3, inc: 1.4, max: 90 };
+const INTUITION = { base: 3, inc: 2.1 };
+const skillCost = (skill, level, mult) => (skill.base + skill.inc * level) * mult;
+
+/**
+ * The skills state the route model starts from: the levels now and the BitNode's cost multiplier, read back from the live next-level
+ * cost (bb-manage.js posts both). Missing readings: level 0 and multiplier 1.
+ */
+function skillStart(levels = {}, costs = {}) {
+    const oc = Math.max(0, Number(levels.Overclock) || 0), bi = Math.max(0, Number(levels["Blade's Intuition"]) || 0);
+    const live = Number(costs.Overclock), formula = skillCost(OVERCLOCK, oc, 1);
+    const mult = live > 0 && Number.isFinite(live) && oc < OVERCLOCK.max ? live / formula : 1;
+    return { oc, bi, oc0: oc, bi0: bi, sp: Math.max(0, Number(levels.points) || 0), costMult: mult > 0.05 && mult < 50 ? mult : 1 };
 }
 
-/** Advance the model `hours` at skill levels `lv`; policy as bb-pass.js: best chance x gain / seconds among actions with a safe-ish chance. */
+/** Spends the banked points: whichever of Overclock and Blade's Intuition adds more rank rate per point (chance capped at 1). */
+function spendSkills(sk, bestChance) {
+    for (let guard = 0; guard < 1000; guard++) {
+        const ocCost = sk.oc < OVERCLOCK.max ? skillCost(OVERCLOCK, sk.oc, sk.costMult) : Infinity;
+        const biCost = skillCost(INTUITION, sk.bi, sk.costMult);
+        const ocGain = sk.oc < OVERCLOCK.max ? (1 - 0.01 * sk.oc) / (1 - 0.01 * (sk.oc + 1)) - 1 : 0;
+        const chance = Math.max(0.01, Math.min(1, bestChance));
+        const biGain = Math.min(1, chance * (1 + 0.03 * (sk.bi + 1)) / (1 + 0.03 * sk.bi)) / chance - 1;
+        const pickOc = ocGain / ocCost >= biGain / biCost;
+        const cost = pickOc ? ocCost : biCost;
+        if (!(cost <= sk.sp) || (pickOc ? ocGain : biGain) <= 0) return;
+        sk.sp -= cost;
+        if (pickOc) sk.oc++; else sk.bi++;
+    }
+}
+
+// Stamina (as ideal.js, bitburner-src v3.0.0 Bladeburner constants): an attempt costs 0.285 x (difficulty^0.28 + difficulty / 650);
+// what passive regeneration doesn't cover is rested for in Hyperbolic Regeneration Chamber, 1 % of the maximum per 60 s.
+// Without it Overclock (actions up to 10x shorter) would look 10x better than it is: stamina, not the clock, binds first.
+const staminaPerAttempt = (x) => { const d = x.a.base * Math.pow(x.a.dfac, x.level - 1); return 0.285 * (Math.pow(d, 0.28) + d / 650); };
+
+function actionNow(x, lv, sk, level = x.level) {
+    const { a, ref } = x;
+    const dRatio = Math.pow(a.dfac, level - Math.max(1, ref.level || 1));
+    // Skills bought since the reading: chance x (1 + 3 % per Blade's Intuition level), time x (1 - 1 % per Overclock level)
+    const chanceSkill = sk ? (1 + 0.03 * sk.bi) / (1 + 0.03 * sk.bi0) : 1;
+    const timeSkill = sk ? (1 - 0.01 * sk.oc) / (1 - 0.01 * sk.oc0) : 1;
+    const chance = Math.min(1, ref.chance * chanceSkill * (competence(a, lv) / x.compRef) / dRatio);
+    const secs = Math.max(1, ref.secs * timeSkill * dRatio * timeFactor(ref.lv) / timeFactor(lv));
+    const gain = ref.gain * Math.pow(a.rfac, level - Math.max(1, ref.level || 1));
+    return { chance, secs, gain, level };
+}
+
+/**
+ * The action at the highest level whose chance reaches `minChance` (gain grows faster with the level than the difficulty, so the
+ * highest safe level earns the most), or at its top level when even level 1 is short. Levels never go above what was unlocked.
+ */
+function actionAtSafeLevel(x, lv, sk, minChance) {
+    const top = actionNow(x, lv, sk, x.maxLevel);
+    if (top.chance >= minChance || x.maxLevel <= 1) return top;
+    const drop = Math.ceil(Math.log(minChance / Math.max(1e-9, top.chance)) / Math.log(x.a.dfac));
+    return actionNow(x, lv, sk, Math.max(1, x.maxLevel - drop));
+}
+
+/**
+ * Advance the model `hours` at skill levels `lv`; policy as bb-pass.js: best chance x gain / seconds among actions with a safe-ish chance,
+ * then the next best once its counts are used up. With `state.skills` (skillStart) the rank earned buys skill points as it comes in;
+ * with `state.stamina` ({ max, regen per second }) stamina the regeneration doesn't cover costs resting time.
+ */
 function bladeburnerAdvance(acts, state, lv, hours, duty, minChance = 0.4, dt = 0.25) {
+    const sk = state.skills;
+    const stamina = state.stamina?.max > 0 && state.stamina.regen >= 0 ? state.stamina : null;
     for (let t = 0; t < hours - 1e-9; t += dt) {
         const h = Math.min(dt, hours - t);
-        let best = null;
-        for (const x of acts) {
-            if (x.count < 1) continue;
-            const n = actionNow(x, lv);
-            if (n.chance < minChance) continue;
-            const score = n.chance * n.gain / n.secs;
-            if (!best || score > best.score) best = { x, n, score };
-        }
         for (const x of acts) x.count = Math.min(x.cap, x.count + x.a.growth * h * 3600 / 480);
-        if (!best) continue;
-        const { x, n } = best;
-        const attempts = Math.min(x.count, h * 3600 * duty / n.secs);
-        x.count -= attempts;
-        const wins = attempts * n.chance;
-        x.succ += wins; state.rank += wins * n.gain;
-        while (x.succ >= x.need(x.maxLevel)) { x.maxLevel++; x.level = x.maxLevel; }
+        let seconds = h * 3600 * duty;
+        let pool = stamina ? stamina.regen * h * 3600 : 0;
+        const used = new Set();
+        let bestChance = 0;
+        while (seconds > 1e-6) {
+            let best = null;
+            for (const x of acts) {
+                if (x.count < 1 || used.has(x)) continue;
+                const n = actionAtSafeLevel(x, lv, sk, minChance);
+                if (n.chance < minChance) continue;
+                const score = n.chance * n.gain / n.secs;
+                if (!best || score > best.score) best = { x, n, score };
+            }
+            if (!best) break;
+            const { x, n } = best;
+            used.add(x);
+            x.level = n.level;
+            if (!bestChance) bestChance = n.chance;
+            let attempts = Math.min(x.count, seconds / n.secs);
+            if (stamina) {
+                // Free stamina first (regeneration), then each attempt also pays the rest its stamina needs
+                const loss = staminaPerAttempt(x), restPerSecond = 0.01 * stamina.max / 60;
+                const free = Math.min(attempts, pool / loss);
+                const paid = Math.max(0, Math.min(x.count - free, (seconds - free * n.secs) / (n.secs + loss / restPerSecond)));
+                attempts = free + paid;
+                pool -= free * loss;
+                seconds -= free * n.secs + paid * (n.secs + loss / restPerSecond);
+            } else seconds -= attempts * n.secs;
+            x.count -= attempts;
+            const wins = attempts * n.chance;
+            x.succ += wins; state.rank += wins * n.gain;
+            if (sk) sk.sp += wins * n.gain / RANK_PER_SKILL_POINT;
+            while (x.succ >= x.need(x.maxLevel)) { x.maxLevel++; x.level = x.maxLevel; }
+        }
+        if (sk) spendSkills(sk, bestChance || 1);
     }
 }
 
 /** Best action's chance now (the live "run is worth it" figure), from the live rows rescaled to the current skill levels. */
 function bestChanceNow(acts, lv) {
     let best = 0, name = null;
-    for (const x of acts) { const n = actionNow(x, lv); if (n.chance > best) { best = n.chance; name = x.a.name; } }
+    for (const x of acts) { const n = actionNow(x, lv, null); if (n.chance > best) { best = n.chance; name = x.a.name; } }
     return { chance: best, name };
 }
 
 /** Rank per hour the model predicts at skill levels `lv` for `hours` of play (duty 1), used to calibrate against the measured rate. */
-function predictRankPerHour(acts, lv, hours = 1, minChance = 0.4) {
-    const c = bladeburnerClone(acts), st = { rank: 0 };
+function predictRankPerHour(acts, lv, hours = 1, minChance = 0.4, stamina = undefined) {
+    const c = bladeburnerClone(acts), st = { rank: 0, stamina };
     bladeburnerAdvance(c, st, lv, hours, 1, minChance);
     return st.rank / hours;
 }
@@ -123,7 +203,7 @@ function predictRankPerHour(acts, lv, hours = 1, minChance = 0.4) {
  * faction's favour is 150 (cumulative rep 25000 x (1.02^150 - 1), about 450k) rep can also be bought: $1e6 per rep / (faction_rep x BitNode mult).
  *
  * cfg: { augs: [{ name, price, rep, f: [factions], h, e, cs[4] }], nf, mult: {hacking, hackExp, combat[4], combatExp}, income, expRate, installed,
- *        runHours, overheadHours, rep: { facMult, bn, timeShare }, scenario: {income, exp}, maxRuns, bb: { acts, rank, lv, duty, gymHours } | null,
+ *        runHours, overheadHours, rep: { facMult, bn, timeShare }, scenario: {income, exp}, maxRuns, bb: { acts, rank, lv, duty, gymHours, skills: skillStart(...), stamina: { max, regen } } | null,
  *        hackRoute: { required, daedalusAugs, daedalusMoney, daedalusHack, rpRep, rpPrice, rpHeld, startStage },
  *        augStep: the price step per augmentation bought (AUG_STEP when left out; less with Source-File 11, utils/aug-price.js),
  *        gates: { faction: inviteGate(...) } for the factions not joined yet (their augs count only once a run meets the gate),
@@ -173,7 +253,7 @@ function projectRoute(goal, cfg) {
     const sellers = (a) => a.f.filter(open);
     const R = (f) => Rf[f] ?? 0, maxR = (a) => Math.max(0, ...sellers(a).map(R)), allMax = () => Math.max(0, ...Object.values(Rf));
     const topSeller = (a) => sellers(a).reduce((x, y) => R(y) > R(x) ? y : x, sellers(a)[0]);
-    let hours = 0, installed = cfg.installed ?? 0, state = { rank: cfg.bb?.rank ?? 0 }, acts = cfg.bb ? bladeburnerClone(cfg.bb.acts) : null;
+    let hours = 0, installed = cfg.installed ?? 0, state = { rank: cfg.bb?.rank ?? 0, skills: cfg.bb?.skills ? { ...cfg.bb.skills } : undefined, stamina: cfg.bb?.stamina }, acts = cfg.bb ? bladeburnerClone(cfg.bb.acts) : null;
     let nfLevel = 0;
     let stage = cfg.hackRoute?.startStage ?? 0;           // hacking: 0 = before Daedalus, 1 = Red Pill rep/price, 2 = Red Pill installed
     const log = [];
@@ -305,4 +385,4 @@ function fitIncomeExponent(points, cap = 3) {
     return { exponent: Math.min(cap, Math.max(0, raw)), raw, r2, reliable: raw >= 0 && raw < cap && r2 >= 0.5, runs: usable.length };
 }
 
-export { levelFactor, modelMults, inviteGate, gateOpen, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };
+export { skillStart, spendSkills, RANK_PER_SKILL_POINT, levelFactor, modelMults, inviteGate, gateOpen, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };
