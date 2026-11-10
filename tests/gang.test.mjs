@@ -32,7 +32,7 @@ function accessNs({ node = 1, sf2 = false, inGang = false, karma = 0, factions =
 	});
 }
 
-test("gang access: BitNode 2 needs no karma, elsewhere Source-File 2 and karma -54,000", () => {
+test("game: gang access: BitNode 2 needs no karma, elsewhere Source-File 2 and karma -54,000", () => {
 	assert.deepEqual(gangAccess(accessNs({ node: 2 })), { available: true, inGang: false, karmaNeeded: 0, canCreate: true });
 	assert.deepEqual(gangAccess(accessNs({ node: 1 })), { available: false, inGang: false, karmaNeeded: -54_000, canCreate: false });
 	assert.equal(gangAccess(accessNs({ node: 1, sf2: true, karma: -10_000 })).canCreate, false);
@@ -285,7 +285,7 @@ const HT = { baseRespect: 0.004, baseWanted: 1.25, baseMoney: 360, hackWeight: 3
 	difficulty: 36, territory: { money: 1.5, respect: 1.5, wanted: 1.6 } };
 const all = (level) => ({ hack: level, str: level, def: level, dex: level, agi: level, cha: level });
 
-test("task weight subtracts a different multiple of the difficulty for respect, wanted and money", () => {
+test("game: task weight subtracts a different multiple of the difficulty for respect, wanted and money", () => {
 	assert.equal(taskWeight(HT, all(200), "respect"), 200 - 4 * 36);
 	assert.equal(taskWeight(HT, all(200), "wanted"), 200 - 3.5 * 36);
 	assert.equal(taskWeight(HT, all(200), "money"), 200 - 3.2 * 36);
@@ -293,7 +293,7 @@ test("task weight subtracts a different multiple of the difficulty for respect, 
 		"at 130 Human Trafficking pays money (130 > 115.2) but no respect (130 < 144)");
 });
 
-test("rates match the game's formulas, per second", () => {
+test("game: rates match the game's formulas, per second", () => {
 	const gang = { respect: 1000, wanted: 1000, territory: 0.5 };
 	const weight = 200 - 3.2 * 36;
 	const land = Math.pow(50, 1.5) / 100;
@@ -310,7 +310,7 @@ test("rates match the game's formulas, per second", () => {
 	assert.ok(wantedRate(HT, all(300), gang) < wantedRate(HT, all(150), gang), "stronger members raise the wanted level less on the same task");
 });
 
-test("skill, experience and ascension formulas", () => {
+test("game: skill, experience and ascension formulas", () => {
 	assert.equal(skillLevel(0, 1), 1);
 	assert.equal(skillLevel(5500, 2), 2 * Math.floor(32 * Math.log(6034.5) - 200) <= 0 ? 1 : skillLevel(5500, 2));
 	assert.ok(Math.abs(skillLevel(expForLevel(100), 1) - 100) <= 1, "expForLevel inverts the level formula");

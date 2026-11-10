@@ -23,6 +23,36 @@ milliseconds, and a fixed bug stays fixed when a test pins it.
 - Tests are `.mjs` files in [`../tests/`](../tests/README.md). filesync only pushes `.js` and `.txt`, so they never
   reach the game; `jsconfig.json` only checks `.js`, so they don't affect type checking either.
 
+**Tests protect only if a failure is questioned**
+
+A test written by the same change as the code records what that change meant to do; it catches later accidental
+breakage, but it can't tell whether the original decision was right, and a test edited to match every new behaviour
+protects nothing. So the suite separates what must not move from what may, and makes every edit to a test visible.
+
+- **Kinds**, as a tag at the start of the test's name:
+  - `regression: ...` a bug that was fixed; the test failed before the fix. If it fails, the bug is back.
+  - `game: ...` a formula, constant or rule copied from the game's source (favor, skill levels, the price step, gang
+    rates, Go captures). It changes only when the game does.
+  - `choice: ...` a value we picked: a default (automation on unless switched off), a threshold, the wording of a status
+    line. Updating it is fine when the change meant to change it.
+  - No tag: a rule the script promises (batches land in order, more RAM never picks a smaller batch, a stale plan is
+    ignored, the guarantee resets an old run). Most tests are rules.
+- **When a test fails after a change**, decide whether the change or the test is wrong before editing either. A
+  `regression:` or `game:` failure means the code is wrong unless the game changed or the test's premise was false. A rule
+  failing is either a slip (fix the code) or the rule being changed on purpose (update the test and rename it to the new
+  rule). A `choice:` failure on an intended change is just updated.
+- **Every changed, removed or renamed test goes in the change report** with its kind and the reason.
+  `npm run test:changed` ([`../tests/support/changed-tests.mjs`](../tests/support/changed-tests.mjs)) lists them against
+  `HEAD` (or any ref), plus edits to shared fixtures, since nudging a fixture can make an old test pass under a new rule
+  without touching its assertions.
+- **Assert the rule, not the number.** Expected values come from the inputs, the config (`loadConfig`) or the game's
+  formula, with a message saying why; a number copied from the code's own output only pins it.
+
+**Does a test protect anything?** `npm run mutate -- <script>` ([`../tests/support/mutate.mjs`](../tests/support/mutate.mjs))
+copies the repo to a temp folder, flips one condition at a time in the script (`<` to `>=`, `===` to `!==`, `&&` to `||`)
+and runs the tests that import it. A flip no test notices is an untested condition. Use it on a new test's script to
+check that the test fails when its rule breaks, and on a script before trusting its tests in a refactor.
+
 **What gets a test**
 
 - Every bug fix where the logic can run outside the game: a regression test that fails without the fix (named
@@ -51,10 +81,28 @@ milliseconds, and a fixed bug stays fixed when a test pins it.
 
 **Rejected:** Jest or Vitest (an npm dependency and config for what Node already does); copying logic into test-only
 modules (the tests would check a copy, not the synced script); end-to-end runs against the game (the Remote API can't
-drive scripts or read their state).
+drive scripts or read their state); snapshot files of whole outputs (they fail on every intended change, so they get
+re-recorded without a look); making tests read-only or needing approval to edit (a rule change has to update its test,
+and the report already shows each edit); a line-coverage target (a line can run without any assertion depending on it;
+the mutation check measures that directly); a full mutation tool such as Stryker (npm dependencies and long runs; the
+negation flips catch most of what matters here).
 
-**Current state:** about 400 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
+**Audit (2026-11-10).** Of 428 tests, 16 were `regression:`, 21 checked the game's formulas (now tagged `game:`) and six
+pinned a default or wording (five now tagged `choice:`, one removed); the rest assert a rule, mostly with a message saying
+why, and few assert numbers copied from the code.
+Git history so far shows tests mostly added, rarely edited: the existing assertions that changed (the gang clash rule,
+the default BitNode plan, the install's leftover spending) followed deliberate redesigns, and one fixture change (rank
+samples every 5 minutes) moved old tests onto a new rule; none was loosened to pass, but none of those edits was
+explained anywhere, and the tags and report rule above fix that. A sampled mutation check (negation flips, 25 per script)
+caught 62 % of flips overall: over 80 % in the Bladeburner model and team, stock math, darknet storm rule, config, Go
+plan and aug filter; under 30 % in the reset rule, the batcher and player-work, whose long `main` loops, rate tracking and
+messages have no tests. Tests added then for the reset rule's untested branches (rates not measured, the `maxRunHours`
+guarantee, waiting for the Daedalus donation line, which resets the home-upgrade hold leaves alone) each fail with their
+condition flipped. One test was removed: it only checked that a default was above the old default.
+
+**Current state:** about 440 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
 step, home-upgrade hold, Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without
 Formulas.exe, RAM pool, startup.js stages and one-shots, gym and study choice, income curve, augment filter, BitNode route,
 Go plan order and move search, the gang manager's per-pass decisions, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
-state machine (with the wait for Stanek's Gift) and route model, the darknet's solvers, migration and storm rule, the program order, and repo checks.
+state machine (with the wait for Stanek's Gift) and route model, the darknet's solvers, migration and storm rule, the program order, repo checks,
+and the two test tools. Tagged: 16 `regression:`, 21 `game:`, 5 `choice:`; the rest are rules.

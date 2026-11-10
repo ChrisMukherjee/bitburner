@@ -48,6 +48,10 @@ Before writing or changing a script, read [`docs/NETSCRIPT.md`](docs/NETSCRIPT.m
 - `npm test` (Node 22+) runs [`tests/`](tests/README.md); run it after changing a script and keep it passing. See [`docs/testing.md`](docs/testing.md).
 - A bug fix comes with a test that fails without the fix, where the logic can run outside the game. New decision logic gets tests in the same change.
 - To test a function, export it from its script (adding `export` changes neither behaviour nor RAM); move logic into a pure helper only when that is low risk. Tests are `.mjs` files in `tests/`, never synced.
+- **Test kinds** (a tag at the start of the name): `regression:` a fixed bug, `game:` a formula or rule copied from the game's source, `choice:` a default, threshold or wording picked by us; no tag is a rule the script promises (an ordering, a branch, a property). Assert the rule, not the number: derive expected values from the inputs, the config or the game's formula, and say why in the assertion message. Tag a test `choice:` only when pinning the value is the point.
+- **When an existing test fails after your change, decide which one is wrong before touching it.** `regression:` and `game:` tests: the code is wrong unless you can show otherwise (the game changed, or the test's premise was false); never edit one just to pass. A rule: fix the code, unless the change was meant to change that rule, in which case update the test and its name to the new rule. `choice:`: update it if the change was intended. Never loosen a test to get green (dropping an assert, `equal` to `ok`, wider tolerance, a fixture nudged around a new rule) without saying so.
+- **Report every test you changed, removed or renamed**, with its kind and why (old expectation, new one, reason); `npm run test:changed` lists them, including edits to shared fixtures. A test change in a report with no reason is a bug in the report.
+- New tests should fail when the rule they name breaks: check with `npm run mutate -- <script>` (flips conditions in a copy and lists the ones no test notices). See [`docs/testing.md`](docs/testing.md).
 
 ## Sync to the game
 

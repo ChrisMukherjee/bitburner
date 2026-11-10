@@ -8,8 +8,8 @@ const STOCK_SUMMARY_PORT = 26; // stock-trader.js posts its positions' value her
 
 /**
  * One-shot: buys the augments that buy-augs.js listed in data/aug-plan.json (`buyList`, every
- * augment it wants that a joined faction has the rep for), most expensive first at today's
- * prices (each purchase makes the rest 1.9x dearer, less with Source-File 11), then NeuroFlux Governor levels from the
+ * augment it wants that a joined faction has the rep for), the ones marked `first` (The Blade's Simulacrum on the Bladeburner
+ * route) before the rest, then most expensive first at today's prices (each purchase makes the rest 1.9x dearer, less with Source-File 11), then NeuroFlux Governor levels from the
  * faction the plan names, while cash lasts and no home RAM or cores upgrade is affordable (that goes first). A purchase that fails (money or a missing
  * prerequisite) is tried again after the next one succeeds.
  *
@@ -42,13 +42,14 @@ export async function main(ns) {
 	if (stocks > 0) ns.tprint(`Note: ${money(stocks)} is in stocks and isn't spent here. Run /stocks/stock-trader.js --liquidate first to use it.`);
 
 	const left = new Map(plan.buyList.map((entry) => [entry.aug, entry.faction]));
+	const first = new Set(plan.buyList.filter((entry) => entry.first).map((entry) => entry.aug)); // buy-augs.js: before the rest (The Blade's Simulacrum)
 	const bought = [];
 	let progress = true;
 	while (progress && left.size > 0) {
 		progress = false;
 		const byPrice = [...left.keys()]
 			.map((aug) => ({ aug, price: ns.singularity.getAugmentationPrice(aug) }))
-			.sort((first, second) => second.price - first.price);
+			.sort((one, other) => Number(first.has(other.aug)) - Number(first.has(one.aug)) || other.price - one.price);
 		for (const entry of byPrice.filter((candidate) => candidate.price <= cash())) {
 			if (ns.singularity.purchaseAugmentation(left.get(entry.aug), entry.aug)) {
 				ns.tprint(`Bought ${entry.aug} from ${left.get(entry.aug)} for ${money(entry.price)}`);

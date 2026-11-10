@@ -27,7 +27,9 @@ Files the game writes (anything in `data/`) never come back to disk.
 `npm test` runs the automated tests in [`tests/`](tests/README.md) with Node 22 or later: the reset rule, the batcher's
 thread math, the gym and study choices, the config layers and repo checks (imports, README listings, aliases), outside
 the game with a fake `ns`. Run it after changing a script; it prints the name of anything that broke. The tests are
-`.mjs` files, so filesync never pushes them. Why and how: [`docs/testing.md`](docs/testing.md).
+`.mjs` files, so filesync never pushes them. `npm run test:changed` lists the tests a change edited (for its report),
+and `npm run mutate -- <script>` shows which of a script's conditions no test would notice breaking. Why and how:
+[`docs/testing.md`](docs/testing.md).
 
 To type-check the scripts that start with `// @ts-check`, run `npx -p typescript tsc -p jsconfig.json` from the
 repo root (no alias or npm script for it; it prints nothing when everything is clean). Details:
@@ -243,6 +245,7 @@ Which scripts need which BitNode, Source-File or item is not decided per folder:
 | 36 | Bladeburner state, route estimate, Black Op progress, rank samples, efficiency figures, Black Op team plan and status lines (bladeburner/) |
 | 37 | Last pass of each one-shot, for the debug report ([`utils/pass-log.js`](utils/pass-log.js)) |
 | 38 | This run's money by source, for the augment weights ([`utils/income-mix.js`](utils/income-mix.js), posted by buy-augs.js) |
+| 39 | The crime-faction invite to work on next, on the Bladeburner route ([`singularity/workers/crime-invites.js`](singularity/workers/crime-invites.js), for player-work.js) |
 
 ## Conventions
 

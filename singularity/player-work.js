@@ -7,14 +7,15 @@ import { pickCourse, isCourse } from "/utils/study.js";
 import { GYM_STATS, GYMS, GYM_CITY, GYM_CASH_SECONDS } from "/utils/gyms.js";
 import { startHelper } from "/utils/start-helper.js";
 import { postGate } from "/singularity/ready.js";
-import { bladeburnerAccess } from "/utils/bladeburner.js";
-import { bladeburnerState, bladeburnerPlan, trainFloor } from "/bladeburner/state.js";
+import { bladeburnerAccess, simulacrumInstalled } from "/utils/bladeburner.js";
+import { bladeburnerState, bladeburnerPlan, trainFloor, combatRoute } from "/bladeburner/state.js";
 
 // Ports the one-shot helpers write to (not imported: the static RAM check would charge their
 // Singularity calls to this script too).
 const GOALS_PORT = 23; // singularity/workers/faction-goals.js: rep goal per faction
 const PLAN_PORT = 25;  // singularity/workers/city-plan.js: which city factions still sell something wanted
 const GANG_PORT = 30;  // gang/workers/invite.js: crime or gym for the gang invite (BitNode 2)
+const CRIME_INVITE_PORT = 39; // singularity/workers/crime-invites.js: the crime-faction invite to work on (Bladeburner route)
 const AUG_PLAN_FILE = "data/aug-plan.json"; // buy-augs.js --plan: rep rates for the goals helper
 // What one pass leaves for the next (goals, city plan, what was started or announced), so a
 // --once pass can pick up where the last one stopped. Ports work from any server; a new run
@@ -48,9 +49,14 @@ const CONFIG = {
 	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	gangHelper: "gang/workers/invite.js",
 	gangImports: ["utils/gang.js"],
+	crimeInviteHelper: "singularity/workers/crime-invites.js",
+	crimeInviteImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	idleCrimeHelper: "singularity/workers/start-crime.js",
 	idleCrimeImports: ["utils/notify.js"],
 	gangRefreshMs: 2 * 60_000, // re-check the gang invite needs (and the best crime, as the stats grow) this often
+	// Bladeburner gym in the gaps (The Blade's Simulacrum installed): keep the running stat until it is this share above the
+	// lowest, so the class doesn't swap every pass
+	gymBand: 0.05,
 };
 
 /**
@@ -60,7 +66,9 @@ const CONFIG = {
  *
  * Work, one at a time, in this order:
  *   0. Bladeburner (bladeburner/bb-manage.js posts its state on port 36): while it plays ("run") nothing else
- *      is started; while the combat stats are too low ("train") the lowest goes to the gym first.
+ *      is started, unless The Blade's Simulacrum is installed: then the game keeps the Bladeburner action running
+ *      alongside, and the steps below go on as usual (with the gym, for Bladeburner's chances, in the gaps). While the
+ *      combat stats are too low ("train") the lowest goes to the gym first.
  *   1. Study: below studying.hackLevel (50), takes the free course (`studying` in the config) once
  *      and leaves the class alone. The class keeps running past the target until something
  *      better below takes over.
@@ -70,6 +78,11 @@ const CONFIG = {
  *      invite and gang/gang-manager.js creates the gang. Asked of gang/workers/invite.js every 2 minutes.
  *      Where a gang also needs karma -54,000 (Source-File 2, outside BitNode 2) that grind is slow, so it
  *      is done last, in step 4's gap, only when nothing else needs the player.
+ *   2b. Crime-faction invite (Bladeburner route, `crimeFactions`): Tetrads, The Syndicate, Speakers for the Dead and
+ *      the others sell most combat augments and want karma, kills, a city and combat levels. Asked of
+ *      singularity/workers/crime-invites.js every 2 minutes: the crime with the most karma (or kills) per minute,
+ *      then the flight to the faction's city once nothing else is missing (and a stay there for the invite); the combat
+ *      levels go to the gym in step 4's gap.
  *   3. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
  *      below its real rep goal, from singularity/workers/faction-goals.js on port 23: the highest rep needed
  *      among the augments worth buying there (utils/aug-filter.js) that this run can afford and reach
@@ -194,9 +207,19 @@ async function onePass(ns, state) {
 		if (fresh) Object.assign(state, { gang: fresh, gangAt: Date.now(), gangDone: !fresh.applies });
 	}
 
+	// The crime-faction invite (Bladeburner route only: these factions sell the combat augments it wants)
+	if (config.crimeFactions?.enabled !== false && combatRoute(ns)) {
+		if (Date.now() - (state.crimeInviteAt ?? 0) >= CONFIG.gangRefreshMs) {
+			const arg = JSON.stringify({ factions: config.crimeFactions?.factions ?? [], crimes: config.crimeFactions?.crimes ?? null });
+			const fresh = await runHelper(ns, CONFIG.crimeInviteHelper, CONFIG.crimeInviteImports, CRIME_INVITE_PORT, arg);
+			if (fresh) Object.assign(state, { crimeInvite: fresh, crimeInviteAt: Date.now() });
+		}
+	} else state.crimeInvite = null;
+
 	const trip = travelStep(ns, state, player);
 	player = ns.getPlayer(); // a join or flight above changes factions, city and money
 	state.holdCity = !!trip.hold; // waiting here for an invite: the gym doesn't fly away
+	state.travelDone = !!trip.done;
 	const work = workStep(ns, state, player);
 	return { messages: { travel: trip.message, work: work.message }, all: trip.done && work.done };
 }
@@ -215,6 +238,7 @@ function loadState(ns, resetAt) {
 		goals: null, goalsAt: 0, goalsFor: "", lastGoalFaction: "", factionAnnounced: false,
 		plan: null, planAt: 0, lastAnnounced: "", cityDone: false, cityMessage: "",
 		gang: null, gangAt: 0, gangDone: false, gangCrime: false, gangGym: false, holdCity: false,
+		crimeInvite: null, crimeInviteAt: 0, inviteCrime: false, travelDone: false,
 	};
 	if (saved?.resetAt !== resetAt) return state;
 	const { planGroups, resetAt: _, ...rest } = saved;
@@ -233,7 +257,7 @@ function saveState(ns, state, resetAt) {
 // --- Work: study, then gang-invite crimes, then faction work, then company work ---
 
 /** Starts or keeps the right kind of work. Returns { message, done }. */
-function workStep(ns, state, player) {
+export function workStep(ns, state, player) {
 	const hacking = player.skills.hacking;
 	const joined = new Set(player.factions);
 	let current = ns.singularity.getCurrentWork();
@@ -280,10 +304,15 @@ function workStep(ns, state, player) {
 	const done = hacking >= state.studyLevel && factionDone && companies.length === 0 && state.gangDone && !bladeburnerAccess(ns).available;
 
 	// 0. Bladeburner (bladeburner/bb-manage.js posts its state): "run" = bb-pass.js plays, and anything else started
-	// here would cancel its action; "train" = the combat stats go to the gym first, before anything else.
+	// here would cancel its action, unless The Blade's Simulacrum is installed (then the game runs both: go on below);
+	// "train" = the combat stats go to the gym first, before anything else.
 	const bladeburner = bladeburnerState(ns);
-	if (bladeburner === "run") {
-		return { message: "[bladeburner] playing: nothing else is started (see `status`)", done };
+	const alongside = bladeburner === "run" && simulacrumInstalled(ns);
+	const crimeInvite = state.crimeInvite?.applies ? state.crimeInvite : null;
+	if (bladeburner === "run" && !alongside) {
+		// A flight doesn't stop the action, so the city an invite needs can still be reached
+		const flight = crimeInvite ? inviteFlight(ns, state, player, crimeInvite, true) : null;
+		return { message: `[bladeburner] playing: nothing else is started (see \`status\`)${flight ? `; ${flight}` : ""}`, done };
 	}
 	if (bladeburner === "train") {
 		const trained = gymStep(ns, state, player, current, trainFloor(ns), "[bladeburner]");
@@ -302,6 +331,12 @@ function workStep(ns, state, player) {
 		if (message) return { message, done };
 	}
 	current = stopGangWork(ns, state, current, invite);
+	// 2b. Crime-faction invite: karma or kills from crimes, then the city (the combat levels wait for step 4's gap).
+	if (crimeInvite) {
+		const message = crimeInviteStep(ns, state, player, current, crimeInvite);
+		if (message) return { message: alongside ? `${message} (Bladeburner keeps playing)` : message, done };
+	}
+	current = stopInviteCrime(ns, state, current, crimeInvite);
 	// 3. Faction work.
 	if (goalFaction) {
 		const already = current?.type === "FACTION" && current.factionName === goalFaction;
@@ -311,7 +346,7 @@ function workStep(ns, state, player) {
 		const goal = state.goals[goalFaction];
 		const rep = ns.singularity.getFactionRep(goalFaction);
 		return {
-			message: `[faction-work] ${goalFaction}: ${ns.format.number(rep)} / ${ns.format.number(goal.rep)} rep (for ${goal.aug}, ${goal.count} augment(s) left there${goal.skipped ? `, ${goal.skipped} out of reach this run` : ""})`,
+			message: `[faction-work] ${goalFaction}: ${ns.format.number(rep)} / ${ns.format.number(goal.rep)} rep (for ${goal.aug}, ${goal.count} augment(s) left there${goal.skipped ? `, ${goal.skipped} out of reach this run` : ""})${alongside ? " (Bladeburner keeps playing)" : ""}`,
 			done,
 		};
 	}
@@ -321,6 +356,9 @@ function workStep(ns, state, player) {
 			const message = gangStep(ns, state, player, current, invite);
 			if (message) return { message, done };
 		}
+		// The combat levels a crime-faction invite needs, then (Simulacrum) the lowest combat stat for Bladeburner's chances
+		const gym = gapGym(ns, state, player, current, crimeInvite, alongside);
+		if (gym) return { message: `${factionMessage}; ${gym}`, done };
 		const idle = idleStep(ns, state, player, current);
 		return { message: `${factionMessage}; ${state.noCompany ? "company work off (--no-company)" : "every megacorp faction is joined"}${idle ? `; ${idle}` : ""}`, done };
 	}
@@ -426,6 +464,68 @@ function stopGangWork(ns, state, current, invite) {
 	if (!stop) return current;
 	ns.singularity.stopAction();
 	return null;
+}
+
+/**
+ * Step 2b, the crime-faction invite (singularity/workers/crime-invites.js): the crime with the most karma (or kills) per minute
+ * while either is missing; once only the city is left, the flight there (inviteFlight). The combat levels are trained in the
+ * gaps (gapGym). Returns the log line, or null when no crime is needed (the work steps below go on).
+ */
+function crimeInviteStep(ns, state, player, current, inv) {
+	const flight = inviteFlight(ns, state, player, inv, false);
+	if (!inv.crime) return null;
+	if (!(current?.type === "CRIME" && current.crimeType === inv.crime)) ns.singularity.commitCrime(inv.crime, state.focus);
+	state.inviteCrime = true;
+	const per = inv.gain === "karma" ? `-${ns.format.number(inv.rate)} karma/min` : `${ns.format.number(inv.rate)} kills/min`;
+	return `[crime-invite] ${inv.crime} for ${inv.faction} (${Math.round(100 * inv.chance)}% success, ${per} expected): needs ${inv.missing.join(", ")}` +
+		(flight ? `; ${flight}` : "");
+}
+
+/**
+ * The city part of a crime-faction invite, once nothing but the city (and money) is missing: fly there, then stay
+ * (state.holdCity, so the gym doesn't fly away) until join-factions.js accepts the invite. Waits while the travel step
+ * still needs the player somewhere (Tian Di Hui, a city faction group). `quiet` = only a flight, no hold (Bladeburner plays).
+ * Returns a log line, or null when there's nothing to do.
+ */
+export function inviteFlight(ns, state, player, inv, quiet) {
+	if (inv.crime || inv.gym > 0 || !state.travelDone) return null;
+	const city = inv.city ?? player.city; // null: already in a right city
+	if (player.city === city) {
+		if (!quiet) state.holdCity = true;
+		return `[crime-invite] in ${city}, waiting for the ${inv.faction} invite${inv.missing.length ? ` (${inv.missing.join(", ")})` : ""}`;
+	}
+	if (player.money < CONFIG.travelCost || !ns.singularity.travelToCity(city)) return `[crime-invite] waiting to fly to ${city} for ${inv.faction}`;
+	if (!quiet) state.holdCity = true;
+	notify(ns, "[crime-invite]", `flew to ${city} for the ${inv.faction} invite`, "info");
+	return `[crime-invite] flew to ${city} for the ${inv.faction} invite`;
+}
+
+/** Stops a crime step 2b started once the invite needs no crime any more. Returns the current work. */
+function stopInviteCrime(ns, state, current, inv) {
+	if (inv?.crime) return current;
+	const stop = state.inviteCrime && current?.type === "CRIME";
+	state.inviteCrime = false;
+	if (!stop) return current;
+	ns.singularity.stopAction();
+	return null;
+}
+
+/**
+ * The gap after faction and company work: the combat levels a crime-faction invite needs, then, with The Blade's Simulacrum
+ * installed, the lowest combat stat for Bladeburner's success chances (a class runs on until it is CONFIG.gymBand above the
+ * new lowest). Leaves work the player started alone (anything but a class or a crime). Returns the log line or null.
+ */
+function gapGym(ns, state, player, current, inv, alongside) {
+	if (current && !["CLASS", "CRIME"].includes(current.type)) return null;
+	if (inv?.gym > 0) {
+		const trained = gymStep(ns, state, player, current, inv.gym, "[crime-invite]");
+		if (trained) return `${trained} for ${inv.faction}`;
+	}
+	if (!alongside) return null;
+	if (isCourse(current, state.config.studying.paidCourse)) return null;
+	const lowest = Math.min(...GYM_STATS.map(([stat]) => player.skills[stat]));
+	const trained = gymStep(ns, state, player, current, Math.floor(lowest * (1 + CONFIG.gymBand)) + 1, "[bladeburner]");
+	return trained && `${trained} for Bladeburner's chances (alongside its actions)`;
 }
 
 /** Starts the class once (flying to its city if needed); after that leaves the player's work alone. */

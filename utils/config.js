@@ -49,6 +49,7 @@ export function loadConfig(ns) {
 // (every script that loads the config would otherwise need it copied along).
 const BLADEBURNER_PORT = 36;
 const BLADEBURNER_STATE_MAX_AGE_MS = 15 * 60_000; // as in bladeburner/state.js: an older state counts as off
+const SIMULACRUM = "The Blade's Simulacrum"; // as in utils/bladeburner.js (not imported: workers copy this file alone)
 
 /**
  * Logic, not config: while Bladeburner is the route (the state on port 36 is boot, train or run, or hold while the route estimate
@@ -73,6 +74,14 @@ function routeAdjust(ns, config) {
 	if (aug.resetRule) {
 		aug.resetRule.daedalusPush = false;
 		aug.resetRule.daedalusFavor = false;
+	}
+	// The Blade's Simulacrum has no stats, so the weights never pick it, but it is worth more than any of them on this route:
+	// with it the game keeps the Bladeburner action running while the player works, studies, trains or commits crimes. So it
+	// counts as wanted (bought first: the most expensive goes first anyway) and buy-augs.js resets for it at once
+	// (resetRule.routeKeyAugs). `bladeburner.simulacrumFirst: false` leaves it to the normal rule (it is then never bought).
+	if (config.bladeburner?.simulacrumFirst !== false) {
+		aug.special = { ...(aug.special ?? {}), [SIMULACRUM]: "Bladeburner actions alongside other work" };
+		if (aug.resetRule) aug.resetRule.routeKeyAugs = [...new Set([...(aug.resetRule.routeKeyAugs ?? []), SIMULACRUM])];
 	}
 	const weights = aug.resetRule?.weights;
 	if (weights) {

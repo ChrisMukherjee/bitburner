@@ -22,7 +22,7 @@ function nsFor(password) {
 	return { ns, tried };
 }
 
-test("overflow guess opens every buffer length the game builds", () => {
+test("game: overflow guess opens every buffer length the game builds", () => {
 	for (let length = 4; length <= 7; length++) assert.ok(gameAccepts("x".repeat(length), overflowGuess(length)));
 });
 

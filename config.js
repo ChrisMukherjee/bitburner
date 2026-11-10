@@ -227,6 +227,17 @@ export const DEFAULTS = {
 		repNeeded: 400_000,
 	},
 
+	// Crime factions (player-work.js, Bladeburner route only): they sell most of the combat augments, and their invites need
+	// karma and kills (crimes), a city (a flight) and combat levels (the gym). singularity/workers/crime-invites.js picks the
+	// first one in this order that sells a wanted augment and whose other needs (hacking level, no CIA/NSA job) are met;
+	// player-work.js does the crimes before faction work, flies there once only the city is left, and trains in the gaps.
+	// Easiest invites first. enabled: false = never chase these invites. crimes: null = every crime (Homicide wins), or a list.
+	crimeFactions: {
+		enabled: true,
+		factions: ["Slum Snakes", "Tetrads", "The Syndicate", "Speakers for the Dead", "The Dark Army"],
+		crimes: null,
+	},
+
 	// City factions (player-work.js): rival groups, tried in this order, one group per run.
 	// A group is only joined if one of its factions sells a wanted augment that no faction in
 	// otherSources sells (those are joined anyway).
@@ -411,6 +422,10 @@ export const DEFAULTS = {
 	bladeburner: {
 		route: "combat", stanekFirst: false, adaptiveSkills: true, switchCity: true, fieldAnalysis: true, blackOpSkills: true,
 		blackOpGate: true, team: true,
+		// simulacrumFirst: on the Bladeburner route, buy The Blade's Simulacrum as soon as the Bladeburners faction has the rep
+		// (1,250) and reset for it at once; once installed, player-work.js keeps working, training or committing crimes while
+		// bb-pass.js plays (docs/bladeburner.md, "The Blade's Simulacrum"). false = never bought by the scripts.
+		simulacrumFirst: true,
 	},
 
 	// tools/status.js. routeProgress: the BitNode block shows how far each way out is (hacking: Daedalus, The Red Pill,

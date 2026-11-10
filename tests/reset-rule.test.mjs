@@ -51,7 +51,7 @@ test("cheapestFill takes the cheapest augments that still fit once bought in pri
 	assert.deepEqual(cheapestFill(pool, 1e9, 2), ["a", "b"]);
 });
 
-test("favor and rep convert back and forth (the game's formula)", () => {
+test("game: favor and rep convert back and forth (the game's formula)", () => {
 	for (const favor of [0, 10, 75, 150]) assert.ok(Math.abs(repToFavor(favorToRep(favor)) - favor) < 1e-9);
 	assert.ok(Math.abs(favorToRep(150) - 462_000) < 2_000);
 });
@@ -129,6 +129,30 @@ test("a later moment past maxWaitMinutes doesn't hold the reset", () => {
 	assert.equal(decideReset(ctx).reset, true);
 });
 
+test("rep rates not measured yet: an augment on the way holds the decision; with none on the way the rule decides", () => {
+	useConfig();
+	const upcoming = [{ aug: "Big", faction: "F", repNeeded: 1, missing: 1, price: 1e8, value: 1, etaMs: null }];
+	const waiting = decideReset(context({ queued: ["X"], upcoming, ratesMeasured: false }));
+	assert.equal(waiting.reset, false);
+	assert.match(waiting.reason, /Measuring rep rates/);
+	assert.equal(decideReset(context({ queued: ["X"], ratesMeasured: false })).reset, true, "nothing to measure for");
+});
+
+test("maxRunHours: an old run with a batch worth guaranteeSpeed resets even when a later moment is better", () => {
+	const upcoming = [{ aug: "Big", faction: "F", repNeeded: 1, missing: 1, price: 1e8, value: 1, etaMs: 30 * MINUTE }];
+	const ctx = (value) => context({ plan: [{ aug: "A", price: 1e8, value }], upcoming, cash: 1e9, homeCash: 1e9, sinceInstallMs: 3 * HOUR });
+	const { resetRule } = useConfig({ maxRunHours: null });
+	const worth = Math.log(resetRule.guaranteeSpeed) + 0.1;
+	assert.equal(decideReset(ctx(worth)).reset, false, "without the guarantee the better moment wins");
+	useConfig({ maxRunHours: 2 });
+	const old = decideReset(ctx(worth));
+	assert.equal(old.reset, true);
+	assert.match(old.reason, /instead of waiting/);
+	assert.equal(decideReset(ctx(Math.log(resetRule.guaranteeSpeed) - 0.1)).reset, false, "a batch under guaranteeSpeed still waits");
+	useConfig({ maxRunHours: 4 });
+	assert.equal(decideReset(ctx(worth)).reset, false, "a run younger than maxRunHours still waits");
+});
+
 // --- Home upgrade before NeuroFlux ---
 
 test("regression: a NeuroFlux-only reset waits while a home upgrade is affordable", () => {
@@ -140,6 +164,15 @@ test("regression: a NeuroFlux-only reset waits while a home upgrade is affordabl
 	assert.match(held.reason, /home upgrade/);
 	// No upgrade affordable: the reset stands.
 	assert.equal(homeBeforeNeuroFlux(decision, false).reset, true);
+});
+
+test("homeBeforeNeuroFlux holds only a NeuroFlux-only reset: not a wait, a Daedalus push, real augments or no NeuroFlux", () => {
+	const decision = (changes, point = {}) => ({ reset: true, push: false, reason: "r", curve: [{ augs: 0, neuroflux: 2, ...point }], ...changes });
+	assert.equal(homeBeforeNeuroFlux(decision({}), true).reset, false, "NeuroFlux only: held");
+	assert.equal(homeBeforeNeuroFlux(decision({ reset: false }), true).reset, false, "a wait stays a wait");
+	assert.equal(homeBeforeNeuroFlux(decision({ push: true }), true).reset, true, "a push installs for the invite");
+	assert.equal(homeBeforeNeuroFlux(decision({}, { augs: 1 }), true).reset, true);
+	assert.equal(homeBeforeNeuroFlux(decision({}, { neuroflux: 0 }), true).reset, true);
 });
 
 test("a reset that buys real augments isn't held for a home upgrade", () => {
@@ -178,6 +211,19 @@ test("Daedalus favor reaches the donation line on reset, and work is slower: res
 	const decision = decideReset(context({ queued: ["X"], income: 1e9, daedalus: d }));
 	assert.equal(decision.reset, true);
 	assert.match(decision.reason, /Daedalus favor/);
+});
+
+test("Daedalus favor reaches the donation line within the horizon: hold for it; past the horizon the normal rule decides", () => {
+	const { resetRule } = useConfig();
+	const favor = 100;
+	const toLine = favorToRep(150) - favorToRep(favor);
+	// Little rep yet, so a reset now leaves favor under the line; work for The Red Pill is slower than a reset plus donations.
+	const withRate = (hoursToLine) => daedalus({ favor, rep: 1e3, rate: (toLine - 1e3) / (hoursToLine * 3600) });
+	const near = decideReset(context({ queued: ["X"], income: 1e9, daedalus: withRate(resetRule.horizonHours / 2) }));
+	assert.equal(near.reset, false);
+	assert.match(near.reason, /donation line/);
+	const far = decideReset(context({ queued: ["X"], income: 1e9, daedalus: withRate(resetRule.horizonHours * 2) }));
+	assert.doesNotMatch(far.reason, /Daedalus/);
 });
 
 test("regression: under the Bladeburner route the Daedalus rule doesn't drive resets", () => {
@@ -262,4 +308,24 @@ test("Black Op hold: resetRule.blackOpHold false turns it off (and it is on by d
 	assert.equal(useConfig().resetRule.blackOpHold, true);
 	useConfig({ blackOpHold: false });
 	assert.equal(decideReset(lateRun(blackOps({ name: "Operation Wallace", rank: 75_000, chance: 0.85 }))).reset, true);
+});
+
+// --- Bladeburner route: The Blade's Simulacrum ---
+
+test("Simulacrum: once bought on the Bladeburner route it resets at once (resetRule.routeKeyAugs)", () => {
+	useConfig({ routeKeyAugs: ["The Blade's Simulacrum"] });
+	const decision = decideReset(context({ queued: ["The Blade's Simulacrum"], sinceInstallMs: 2 * HOUR }));
+	assert.equal(decision.reset, true);
+	assert.match(decision.reason, /Simulacrum ready/);
+	useConfig();
+	const plain = decideReset(context({ queued: ["The Blade's Simulacrum"], sinceInstallMs: 2 * HOUR, income: 1e9, upcoming: [{ aug: "Y", price: 1, value: 5, etaMs: 30 * MINUTE }] }));
+	assert.doesNotMatch(plain.reason, /Simulacrum ready/, "off the route it is just another augment");
+});
+
+test("Simulacrum: a Black Op about to be attempted still holds the reset first", () => {
+	useConfig({ routeKeyAugs: ["The Blade's Simulacrum"] });
+	const bb = blackOps({ name: "Operation Wallace", rank: 75_000, chance: 0.85 });
+	const decision = decideReset(context({ queued: ["Combat", "The Blade's Simulacrum"], sinceInstallMs: 8 * HOUR, blackOps: bb }));
+	assert.equal(decision.reset, false);
+	assert.match(decision.reason, /Operation Wallace/);
 });

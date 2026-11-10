@@ -16,7 +16,7 @@ const hackingRun = ({ rep = {}, augs, hackRoute = {}, maxRuns = 8 } = {}) => ({
 });
 const runOf = (result, aug) => result.log.find((entry) => entry.names.includes(aug))?.run ?? Infinity;
 
-test("favor formulas match the game: 150 favor is the donation line, about 462k rep", () => {
+test("game: favor formulas match the game: 150 favor is the donation line, about 462k rep", () => {
 	assert.ok(Math.abs(favorToRep(150) - DONATE_REP) < 1e-6);
 	assert.ok(Math.abs(repToFavor(favorToRep(81.3)) - 81.3) < 1e-9);
 	assert.ok(Math.abs(DONATE_REP - 462_500) < 1000);
@@ -73,7 +73,7 @@ test("route model: rep already held for The Red Pill counts only in the run that
 	assert.ok(result.log.every((entry) => entry.note !== "Red Pill bought"), "too poor in run 1, and the held rep is gone after the install");
 });
 
-test("persistence config: on by default, with kill switches", () => {
+test("choice: persistence config: on by default, with kill switches", () => {
 	const config = loadConfig(fakeNs());
 	assert.deepEqual(config.persistence, { routeRepResets: true, spendLeftover: true });
 });

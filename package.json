@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "sync": "bitburner-filesync",
-    "test": "node --disable-warning=ExperimentalWarning --import ./tests/support/register.mjs --test \"tests/**/*.test.mjs\""
+    "test": "node --disable-warning=ExperimentalWarning --import ./tests/support/register.mjs --test \"tests/**/*.test.mjs\"",
+    "test:changed": "node tests/support/changed-tests.mjs",
+    "mutate": "node tests/support/mutate.mjs"
   },
   "devDependencies": {
     "bitburner-filesync": "1.2.0-beta4"

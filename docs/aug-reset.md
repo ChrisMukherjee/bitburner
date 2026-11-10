@@ -228,6 +228,10 @@ decides (so a batch that rebuilds faster than this run's stats would grow still 
 nothing). It comes before the `maxRunHours` guarantee, which would otherwise force the reset. `resetRule.blackOpHold: false`
 turns it off. Not counted: the team's chance bonus and skill points bought meanwhile (both raise the chance either way).
 
+Right after the hold comes The Blade's Simulacrum (`resetRule.routeKeyAugs`, filled in by `routeAdjust` on this route): once it
+is ready the run resets at once, since it lets Bladeburner run alongside every other kind of work for the rest of the BitNode.
+It is first in the plan and the buyer's list, so the cash never goes elsewhere first ([`bladeburner.md`](bladeburner.md#the-blades-simulacrum)).
+
 ## Daedalus push (getting the invite)
 
 The Daedalus invite needs a number of **installed** augments (30 by default) on top of hack level and

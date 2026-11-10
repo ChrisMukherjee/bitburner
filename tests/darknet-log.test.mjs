@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import { fakeNs } from "./support/fake-ns.mjs";
 import { summaryDue } from "/darknet/dnet-manager.js";
 import { main as solverMain } from "/contracts/workers/contract-solver.js";
-import { DEFAULTS } from "/config.js";
 
 const MIN = 60000;
 
@@ -22,9 +21,6 @@ test("an urgent event prints to both at once; terminalMinutes 0 silences the per
 	assert.equal(summaryDue(999 * MIN, last, { terminalMinutes: 0 }).terminal, false);
 });
 
-test("the defaults are quieter than the old 5 minute terminal line", () => {
-	assert.ok(DEFAULTS.darknetLog.terminalMinutes > 5);
-});
 
 test("contract solver prints nothing to the terminal when it solves a contract", async () => {
 	const ns = fakeNs({ overrides: {

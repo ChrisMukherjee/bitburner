@@ -139,7 +139,7 @@ Source-File 6 or 7; either one is enough for the scripts. Once every Black Op is
 [`../singularity/auto-destroy.js`](../singularity/auto-destroy.js) and `next-bitnode` end the BitNode with no hacking
 level or Red Pill needed, which is how the plan gets out of BitNodes 10, 9 and 13. Combat training goes through `player-work.js`, which needs SF4. The `bladeburner` preset
 in [`../config.js`](../config.js) swaps the augment weights for combat; `bladeburner.route` picks between playing it and
-holding it. SF7's bonuses apply by themselves; no script checks for The Blade's Simulacrum yet.
+holding it. SF7's bonuses apply by themselves. Without SF7.3 the scripts buy The Blade's Simulacrum first on the Bladeburner route and install it at once ([`bladeburner.md`](bladeburner.md#the-blades-simulacrum)).
 
 With SF7.3, joining the Bladeburner division installs The Blade's Simulacrum, which closes Stanek's Gift for the rest
 of the BitNode (the game warns when you join by hand; the API doesn't). With `bladeburner.stanekFirst` on,

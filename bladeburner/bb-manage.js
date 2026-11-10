@@ -19,10 +19,11 @@ const HACK_FLOOR = 10;           // before this the batcher has almost nothing t
 const CASH_FLOOR = 5e6;          // or this much cash on hand
 const BOOT_MAX_MS = 3600_000;    // never hold Bladeburner longer than an hour into a run: if the start is stuck, training is not the cause
 const TEAM_PLAN_MAX_AGE_MS = 15 * 60_000; // a team plan older than this (bb-pass.js stopped) is not applied
+const BLADEBURNERS = "Bladeburners"; // the faction, joinable from rank 25
 
 /**
  * Bladeburner housekeeping, one short pass every few minutes (startup.js runs it): decides the state on port 36,
- * joins the division, spends skill points. Exits at once without the Bladeburner API.
+ * joins the division (and the Bladeburners faction from rank 25), spends skill points. Exits at once without the Bladeburner API.
  *   off    not available
  *   boot   start of a run: first get hacking to 10 and income flowing, Bladeburner waits
  *   train  a combat stat is below the floor: player-work.js trains it in the gym (also after an install resets the stats)
@@ -98,6 +99,9 @@ export async function main(ns) {
 		return setState("hold", "hold: not worth the player's time right now");
 	}
 	setState("run");
+	// Bladeburners faction rep (which sells The Blade's Simulacrum and the Bladeburner augments) grows with rank only while a
+	// member; the game joins by itself only at an install, so join as soon as the rank allows (25) instead of a run later
+	if (!(ns.getPlayer().factions ?? []).includes(BLADEBURNERS) && bb.joinBladeburnerFaction()) notify(ns, "[bladeburner]", `joined the ${BLADEBURNERS} faction`, "success");
 	const post = readBladeburner(ns);
 	// The next Black Op's chance steers the points too (bladeburner.blackOpSkills); without it only the Contracts and Operations count
 	const readings = config.bladeburner.blackOpSkills || !post.actions ? post : { ...post, actions: { ...post.actions, blackOp: undefined } };

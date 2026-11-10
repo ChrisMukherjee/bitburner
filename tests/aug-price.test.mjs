@@ -13,7 +13,7 @@ import { main as factionGoals, GOALS_PORT } from "/singularity/workers/faction-g
 const close = (actual, expected, what = "") => assert.ok(Math.abs(actual - expected) < 1e-9, `${what} ${actual} != ${expected}`);
 const withSF11 = (level) => new Map([[1, 3], [11, level]]);
 
-test("the price step is 1.9, and 0.96, 0.94 and 0.93 of that at Source-File 11 levels 1 to 3 (the game's numbers)", () => {
+test("game: the price step is 1.9, and 0.96, 0.94 and 0.93 of that at Source-File 11 levels 1 to 3 (the game's numbers)", () => {
 	assert.equal(BASE_PRICE_STEP, 1.9);
 	close(augPriceStep(new Map()), 1.9);
 	close(augPriceStep(null), 1.9, "no Source-Files known");
