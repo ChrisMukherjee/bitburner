@@ -163,6 +163,7 @@ function installer({ flags = {}, planChanges = {}, installReturns = undefined, f
 	const ran = [];
 	const world = fakeWorld({
 		homeRam: 256,
+		node: 4, // install-augs.js exits without the Singularity API
 		files: { [PLAN]: JSON.stringify(plan({ affordable: [], queued: ["A"], ...planChanges })), ...files },
 		onExec: (script, args) => { ran.push([script, ...args].join(" ")); return { exits: script !== "startup.js" }; },
 		overrides: {

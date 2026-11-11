@@ -113,7 +113,7 @@ export function playerSim({
 			getHostname: () => "home",
 			getServer: () => ({ cpuCores: 1 }),
 			getPlayer: () => structuredClone(player),
-			getResetInfo: () => ({ currentNode: node, ownedSF: new Map(), ownedAugs: new Map(), lastAugReset: sim.resetAt }),
+			getResetInfo: () => ({ currentNode: node, ownedSF: new Map([[4, 3]]), ownedAugs: new Map(), lastAugReset: sim.resetAt }),
 			flags: () => ({ "focus": false, "no-focus": false, "study": 0, "no-company": false, "plan": false, "once": true }),
 			sleep: async (ms) => { now += ms; return true; },
 			singularity: {

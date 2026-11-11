@@ -21,11 +21,12 @@ const minGap = (times) => Math.min(...times.slice(1).map((time, index) => time -
 /** Our share of the land that would change hands, as the game's clash rules give it, at one history point. */
 const outlookAt = (point) => clashOutlook({ power: point.power, territory: point.territory }, point.others);
 
-test("no Gang API in this run (BitNode 1, no Source-File 2): one terminal line and nothing else", async () => {
+test("no Gang API in this run (BitNode 1, no Source-File 2): the reason and one advice line, nothing else", async () => {
 	const sim = gangSim({ inGang: false, node: 1 });
 	await sim.run(main, 10 * MIN);
-	assert.equal(sim.ns.terminal.length, 1);
+	assert.equal(sim.ns.terminal.length, 2);
 	assert.match(sim.ns.terminal[0], /isn't available/);
+	assert.match(sim.ns.terminal[1], /Gang API.*destroy BitNode 2/);
 	assert.deepEqual(sim.ns.calls.filter((call) => call.name.startsWith("gang.") && call.name !== "gang.inGang"), []);
 });
 

@@ -152,11 +152,12 @@ function world({ node = 6, sf = [], augs = [], files = {}, skills = STRONG, mone
 	return { ns, bought, state: () => ns.portJson(BB_PORT)?.state };
 }
 
-test("bb-manage exits without a message or a post when there is no Bladeburner API", async () => {
+test("bb-manage exits without a post and with one advice line when there is no Bladeburner API", async () => {
 	const w = world({ node: 1 });
 	await manage(w.ns);
 	assert.equal(w.ns.portJson(BB_PORT), null);
-	assert.deepEqual(w.ns.terminal, []);
+	assert.equal(w.ns.terminal.length, 1, "only the advice on getting the API");
+	assert.match(w.ns.terminal[0], /Bladeburner API.*destroy BitNode 6/);
 });
 
 test("bb-manage: joins the Bladeburners faction once the rank allows, without waiting for an install", async () => {
