@@ -165,7 +165,7 @@ export async function main(ns) {
 	}, fmt) : null;
 	out.push(...routeLines({
 		route: verdict?.route === "hacking" || verdict?.route === "combat" ? verdict.route : null,
-		routeAgo: verdict ? ` (node-eta.js estimate, ${ago(verdict.time)})` : "", hacking, bladeburner,
+		routeAgo: verdict ? ` (node-eta.js estimate, ${ago(verdict.time)})` : "", hacking, bladeburner, fallback: config.bladeburner?.route,
 	}));
 	if (resetInfo.ownedAugs.has(RED_PILL) && daemonExists) {
 		const needed = ns.getServerRequiredHackingLevel(DAEMON);

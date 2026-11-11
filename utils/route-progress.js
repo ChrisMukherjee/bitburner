@@ -137,7 +137,7 @@ export function bladeburnerSegments(d, fmt) {
  * The route block under the BitNode line. The active route is spelled out; the other is one line. With no verdict yet both are
  * spelled out. Without Bladeburner (`bladeburner` null) only the hacking route is shown, with no labels.
  * @param {{
- *   route: "hacking" | "combat" | null, routeAgo: string,
+ *   route: "hacking" | "combat" | null, routeAgo: string, fallback?: string,
  *   hacking: ReturnType<typeof hackingSegments>,
  *   bladeburner: ReturnType<typeof bladeburnerSegments> | null
  * }} d
@@ -158,5 +158,10 @@ export function routeLines(d) {
 	if (d.route === "combat") {
 		return [`  Route: Bladeburner${d.routeAgo}`, ...full(bladeTitle, d.bladeburner), brief("hacking", d.hacking)];
 	}
-	return ["  Route: not chosen yet (node-eta.js commits one once Bladeburner has live readings)", ...full(hackTitle, d.hacking), ...full(bladeTitle, d.bladeburner)];
+	// No estimate yet: bb-manage.js follows `bladeburner.route` (d.fallback) meanwhile, so say what the player is doing now
+	const meanwhile = d.fallback === "hacking"
+		? ["  Route: hacking for now (bladeburner.route), until node-eta.js has Bladeburner readings to compare"]
+		: ["  Route: Bladeburner for now (bladeburner.route), until node-eta.js can compare the two",
+			"    It starts Bladeburner to measure it (hacking 10 and income, the gym to combat 100, then actions), then picks the faster route"];
+	return [...meanwhile, ...full(hackTitle, d.hacking), ...full(bladeTitle, d.bladeburner)];
 }

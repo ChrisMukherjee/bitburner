@@ -204,3 +204,26 @@ test("regression: the main loop sleeps queueMs while one-shots are queued, passM
 	const source = readFileSync(new URL("../startup.js", import.meta.url), "utf8");
 	assert.match(source, /await ns\.sleep\(passDelay\(/);
 });
+
+test("a big script that may leave home starts on another server first, so home keeps room for the home-only ones", (t) => {
+	const heavyGb = 128 * CONFIG.heavyShare + 5;
+	const { game, pass } = setup(t, {
+		homeRam: 128, servers: { "pserv-0": { ram: 512 } },
+		scriptRam: (script) => (script === "go/go-bot.js" ? heavyGb : script === "contracts/solve-contracts.js" ? heavyGb : 2),
+	});
+	pass();
+	const bot = game.running().find((proc) => proc.filename === "go/go-bot.js");
+	assert.ok(bot, "the big script started");
+	assert.equal(bot.host, "pserv-0", "it went to the other server although home had room");
+	const small = game.running().find((proc) => proc.filename === "hack/batcher.js");
+	assert.equal(small?.host, "home", "a small script still starts on home");
+	const homeOnly = game.running().find((proc) => proc.filename === "contracts/solve-contracts.js");
+	assert.equal(homeOnly?.host, "home", "a big home-only script stays on home");
+});
+
+test("a big script falls back to home when no other server has room", (t) => {
+	const heavyGb = 128 * CONFIG.heavyShare + 5;
+	const { game, pass } = setup(t, { homeRam: 128, servers: {}, scriptRam: (script) => (script === "go/go-bot.js" ? heavyGb : 2) });
+	pass();
+	assert.equal(game.running().find((proc) => proc.filename === "go/go-bot.js")?.host, "home");
+});

@@ -8,6 +8,17 @@ has plenty of RAM.
 
 The scripts can do this run by themselves: one setting caps the home RAM and core buyers.
 
+## Before you start
+
+- **Have Source-File 4 at level 3 (SF4.3).** At SF4.1 and SF4.2 Singularity calls cost 16 and 4 times their base RAM,
+  so the reset planner (`buy-augs.js`) needs about 407GB and 107GB and `player-work.js` 432GB and 113GB. Neither fits
+  on a 128GB home, so auto-reset and player work would not run for the whole BitNode. At SF4.3 the planner needs
+  31.6GB and player-work 32.5GB. Without SF4 at all those scripts are left out and you do the work by hand.
+- **Home is tight but works at 128GB.** The scripts that must stay on home (stock trader 26GB, `donate-rep`,
+  auto-reset, contract solver, darknet manager) plus the reset planner fit; the big ones (gang, Bladeburner) start
+  on purchased servers first. Keep `status` closed when a reset is near (it uses 5.5GB of the planner's room), and
+  expect a gang to be the first thing that crowds home out.
+
 ## Steps
 
 1. **Before BitNode 1 starts** (any time in the BitNode before it), switch the challenge on in the game:

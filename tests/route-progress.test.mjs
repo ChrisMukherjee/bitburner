@@ -91,7 +91,9 @@ test("routeLines: no verdict yet shows both in full; no Bladeburner shows only t
 	const hacking = hackingSegments(hack(), fmt);
 	const bladeburner = bladeburnerSegments({ state: "run", progress: progress(), hold: false, ago: () => "" }, fmt);
 	const both = routeLines({ route: null, routeAgo: "", hacking, bladeburner }).join("\n");
-	assert.match(both, /Route: not chosen yet/);
+	assert.match(both, /Route: Bladeburner for now \(bladeburner\.route\)/, "says what the player does while no estimate is in");
+	assert.match(both, /the gym to combat 100/);
+	assert.match(routeLines({ route: null, routeAgo: "", hacking, bladeburner, fallback: "hacking" }).join("\n"), /Route: hacking for now/);
 	assert.match(both, /invite needs/);
 	assert.match(both, /Black Ops 12\/21 done/);
 	const only = routeLines({ route: "hacking", routeAgo: "", hacking, bladeburner: null });

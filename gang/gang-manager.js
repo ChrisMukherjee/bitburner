@@ -72,7 +72,9 @@ export async function main(ns) {
 
 	while (true) {
 		const now = Date.now();
+		noteLosses(ns, state); // before recruit() can fill the place, or the loss is never seen
 		recruit(ns);
+		state.members = ns.gang.getMemberNames().length;
 		if (now - state.lastPlan >= settings.planMs) {
 			ascend(ns, settings, isHacking, state);
 			assignTasks(ns, settings, isHacking, state, flags["no-war"]);
@@ -110,6 +112,20 @@ async function waitForGang(ns, settings) {
 		lastMessage = message;
 		await ns.sleep(30_000);
 	}
+}
+
+/**
+ * Counts and reports members lost since the last look (killed in a clash), then remembers the count.
+ * @returns {string[]} the member names
+ */
+export function noteLosses(ns, state) {
+	const names = ns.gang.getMemberNames();
+	if (names.length < state.members) {
+		state.deaths = (state.deaths ?? 0) + state.members - names.length;
+		notify(ns, TAG, `lost ${state.members - names.length} member(s) (killed in a clash?)`, "warning");
+	}
+	state.members = names.length;
+	return names;
 }
 
 /** Recruits as long as respect allows (the first few are free). */
@@ -414,12 +430,7 @@ export function ascend(ns, settings, isHacking, state = {}) {
 export function assignTasks(ns, settings, isHacking, state, noWar) {
 	const ctx = planContext(ns, settings, isHacking, state);
 	const gang = ctx.info;
-	const names = ns.gang.getMemberNames();
-	if (names.length < state.members) {
-		state.deaths = (state.deaths ?? 0) + state.members - names.length;
-		notify(ns, TAG, `lost ${state.members - names.length} member(s) (killed in a clash?)`, "warning");
-	}
-	state.members = names.length;
+	const names = noteLosses(ns, state);
 	const growth = ctx.growth.enabled;
 
 	// Wanted penalty: wantedPenalty is the multiplier on gains (1 = no penalty).

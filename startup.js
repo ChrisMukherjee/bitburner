@@ -106,6 +106,7 @@ export const CONFIG = {
 	restartMinMs: 30_000,   // wait before restarting a script that stopped...
 	restartMaxMs: 3_600_000, // ...doubling each time it stops again soon after starting, up to this
 	longRunMs: 600_000,     // a script that ran this long before stopping gets the short wait again
+	heavyShare: 0.2,        // a script that may leave home and needs this share of home's RAM or more tries other servers first
 };
 
 /**
@@ -304,14 +305,24 @@ export function runPass(ns, requested, state) {
 
 		// entry.needRam: a script that hands over to a bigger worker (ns.spawn) needs room for that worker.
 		const ram = Math.max(ns.getScriptRam(entry.script, "home"), entry.needRam ?? 0);
+		// A big script that may run off home goes there first (see CONFIG.heavyShare), so home keeps its room for
+		// the scripts that must stay on it and for the planner exec'd on home.
+		const mayLeave = !entry.homeOnly && offHomeUsed + ram <= offHomeTotal * MAX_OFF_HOME_SHARE;
+		const heavy = mayLeave && ram >= homeRam * CONFIG.heavyShare;
 		let host = null;
-		if (ram <= freeRam(ns, "home") && ns.exec(entry.script, "home", 1, ...args) !== 0) {
-			host = "home";
-		} else if (!entry.homeOnly && offHomeUsed + ram <= offHomeTotal * MAX_OFF_HOME_SHARE) {
+		let triedOff = false;
+		if (heavy) {
+			triedOff = true;
 			host = placeOffHome(ns, entry.script, args, ram, hosts);
 			if (host) offHomeUsed += ram;
-			else waiting ??= { label, ram };
 		}
+		if (!host && ram <= freeRam(ns, "home") && ns.exec(entry.script, "home", 1, ...args) !== 0) {
+			host = "home";
+		} else if (!host && mayLeave && !triedOff) {
+			host = placeOffHome(ns, entry.script, args, ram, hosts);
+			if (host) offHomeUsed += ram;
+		}
+		if (!host && mayLeave) waiting ??= { label, ram };
 		if (!host) {
 			noRoom.push(`${entry.script} (${ns.format.ram(ram)})`);
 			continue;

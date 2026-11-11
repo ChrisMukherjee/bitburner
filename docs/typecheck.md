@@ -6,7 +6,7 @@
 
 - [`NetscriptDefinitions.d.ts`](../NetscriptDefinitions.d.ts) is the game's API typing; filesync refreshes it on connect, so it always matches the game version. [`ns-global.d.ts`](../ns-global.d.ts) makes `NS` available to JSDoc without an import.
 - [`jsconfig.json`](../jsconfig.json) covers every script folder (`/utils/x.js` style paths resolve through `paths`), excludes `archive/`, `node_modules/` and `data/`, and sets `noEmit`. `checkJs` is **off** and `strict` is off: only files that opt in with `// @ts-check` are checked, and untyped parameters are not errors.
-- Command line check (optional): `npx -p typescript tsc -p jsconfig.json` from the repo root. It prints nothing when every opted-in file is clean.
+- Command line check: `npx -p typescript tsc -p jsconfig.json` from the repo root. It prints nothing when every opted-in file is clean. GitHub runs it on every push, after the tests ([`../.github/workflows/test.yml`](../.github/workflows/test.yml), TypeScript version pinned there).
 
 **Not synced to the game:** filesync only pushes `.js` and `.txt` (`allowedFiletypes` in [`filesync.json`](../filesync.json)), so the `.d.ts` files and `jsconfig.json` stay on disk. Comments cost no RAM, so `@ts-check` and JSDoc change nothing at runtime.
 
