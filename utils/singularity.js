@@ -7,7 +7,11 @@
  * Singularity RAM costs outside BitNode 4: x16 with SF4.1 (or none), x4 with SF4.2, x1 from SF4.3.
  */
 export function singularityInfo(ns) {
-	const info = ns.getResetInfo();
+	return singularityFromInfo(ns.getResetInfo());
+}
+
+/** singularityInfo for a getResetInfo() result you already have (pure, 0GB). @param {{ currentNode: number, ownedSF: Map<number, number> }} info */
+export function singularityFromInfo(info) {
 	const level = info.ownedSF.get(4) ?? 0;
 	const available = info.currentNode === 4 || level > 0;
 	const ramMultiplier = info.currentNode === 4 || level >= 3 ? 1 : level === 2 ? 4 : 16;

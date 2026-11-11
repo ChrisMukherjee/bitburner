@@ -13,8 +13,13 @@ export function gangAccess(ns) {
 	const info = ns.getResetInfo();
 	const inGang = ns.gang.inGang();
 	const homeNode = info.currentNode === 2;
-	const available = inGang || homeNode || info.ownedSF.has(2);
+	const available = inGang || gangApiFromInfo(info);
 	const karmaNeeded = homeNode ? 0 : -54_000;
 	const canCreate = inGang || (available && ns.heart.break() <= karmaNeeded);
 	return { available, inGang, karmaNeeded, canCreate };
+}
+
+/** Whether the Gang API works by BitNode and Source-Files alone (BitNode 2 or Source-File 2), from a getResetInfo() result. Pure, 0GB. @param {{ currentNode: number, ownedSF: Map<number, number> }} info */
+export function gangApiFromInfo(info) {
+	return info.currentNode === 2 || info.ownedSF.has(2);
 }

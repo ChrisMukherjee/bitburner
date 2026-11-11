@@ -1,4 +1,6 @@
 import { loadConfig } from "/utils/config.js";
+import { requireApi } from "/utils/api-advice.js";
+import { singularityFromInfo } from "/utils/singularity.js";
 import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 import { notify } from "/utils/notify.js";
@@ -34,6 +36,8 @@ export async function main(ns) {
 	ns.disableLog("ALL");
 	const flags = ns.flags([["bn", 0], ["dry", false]]);
 	const config = loadConfig(ns);
+	const resetInfo = ns.getResetInfo();
+	if (!requireApi(ns, "singularity", singularityFromInfo(resetInfo).available, resetInfo, config)) return;
 
 	let lastWaiting = "";
 	let toldReady = false;

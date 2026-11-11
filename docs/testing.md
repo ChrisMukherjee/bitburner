@@ -90,9 +90,24 @@ check that the test fails when its rule breaks, and on a script before trusting 
     and the game's rules for recruiting, ascension, power, clashes with the other gangs (their own power gains too) and
     deaths, with a seeded random number. Tests check creating the gang, recruiting the moment respect allows, the plan,
     buy and log clocks, focus, cooling and its hysteresis, when clashes go on and off, deaths, and the equipment helper.
-- Not covered yet: the Go bot's `main` loop (its plan order and move search are tested; the stock trader's `main` runs a
-  few ticks in a fake market), `bladeburner/bb-pass.js` and `node-eta.js`. The simulators above are the model for
-  testing those loops.
+  - [`../tests/support/fake-bladeburner.mjs`](../tests/support/fake-bladeburner.mjs) runs `bladeburner/bb-pass.js` pass after
+    pass (30 s apart, as startup.js does) and `node-eta.js` on what it leaves on port 36: a division where the game repeats
+    the running action until its count or the stamina runs out (the player then idles until the next pass), stamina falls per
+    attempt and regenerates, rank follows the expected value (chance x gain, so a run is repeatable), Field Analysis narrows
+    the estimate ranges, Training raises the chances, the Black Ops run in order, Recruitment adds a member. With a `route`
+    option it also answers what the route estimate reads: BitNode and Source-Files, hacking exp that grows by the second,
+    factions and a few augmentations, The Red Pill and Daedalus. Tests check what must hold over time (the best safe action
+    started once and kept, the stamina rest and its hysteresis, the fallbacks, the Black Op sequence, the rank samples and the
+    measured rate against what the game earned, the efficiency ceiling never below it; the exp rate, the income history, the
+    plan's route and hold hysteresis, the first-guess commit, a failed estimate, running off home).
+  - [`../tests/support/fake-go.mjs`](../tests/support/fake-go.mjs) plays the Go bot's `main` for many games with the real move
+    search against scripted games: the opponent passes after the bot's moves, a win raises that opponent's bonus by a scripted
+    gain, a loss ends the game at once. The clock is the real one plus an offset that games and sleeps move, so the search's
+    time box still works while "an hour later" is one call. Tests check who is played and when it moves on, the hourly retry of
+    a skipped opponent, a game in progress, history across restarts and installs, the plan and the flags. The scripted games say
+    nothing about which point the search plays; that stays with the tiny-board tests.
+- Not covered yet: the stock trader's `main` runs only a few ticks in a fake market; `bladeburner/bb-manage.js`'s state machine
+  is tested one pass at a time, not over a run. The simulators above are the model for testing those loops.
 - The Go search is random and time-boxed, so its tests use boards where one move is clearly right and check the move,
   not the win-chance figure.
 - RAM is not checked by the tests. The offline port of the game's RAM check needs the game's source and npm packages, so
@@ -123,10 +138,16 @@ file); what is left is mostly log wording, the Bladeburner-route crime invites a
 simulator took the gang manager from 65 % to 77 % and found a bug: a member killed in a clash was never reported or
 counted when respect let the next update recruit a replacement before the plan looked.
 
-**Current state:** about 480 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
+**Main-loop simulators for the rest (2026-11-11).** `bb-pass.js`, `node-eta.js` and the Go bot's `main` got simulators and
+85 tests. Mutation checks (negation flips): `bb-pass.js` 92 % of all 89 flips caught (with `tests/bladeburner.test.mjs`),
+`go-bot.js` 91 % of 45, `node-eta.js` 58 % of a fixed sample of 60 of its 125 (the simulator tests alone; the model's own
+branches live in `route-model.js`). What is left is mostly log wording, the rank-per-second pricing of a waiting Black Op and
+model inputs that only change the figures. No script bug turned up; the tests only pin behaviour.
+
+**Current state:** about 565 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
 step, home-upgrade hold, Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without
 Formulas.exe, RAM pool, the batcher's main loop in a hacking simulator, startup.js stages and one-shots, gym and study
 choice, player-work's passes in a player simulator, income curve, augment filter, BitNode route,
 Go plan order and move search, the gang manager's per-pass decisions and its main loop in a gang simulator, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
-state machine (with the wait for Stanek's Gift) and route model, the darknet's solvers, migration and storm rule, the program order, repo checks,
+state machine (with the wait for Stanek's Gift), route model, `bb-pass.js` and `node-eta.js` in a Bladeburner simulator, the Go bot's main loop in a Go simulator, the darknet's solvers, migration and storm rule, the program order, repo checks,
 and the two test tools. Tagged: 19 `regression:`, 21 `game:`, 5 `choice:`; the rest are rules. GitHub runs them and the type check on every push.

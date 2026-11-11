@@ -14,6 +14,8 @@ announces each of these **once** (sticky toast plus a terminal line, since the p
 With the API the pass exits at once: [`../singularity/auto-backdoor.js`](../singularity/auto-backdoor.js) and
 [`../singularity/buy-programs.js`](../singularity/buy-programs.js) do the same by themselves.
 
+The same startup stage also runs [`../tools/api-advice.js`](../tools/api-advice.js), which tells the player once why the API is missing and which BitNode gives it ([`api-advice.md`](api-advice.md)).
+
 ## Why a one-shot
 
 The original ran a resident loop for the backdoors and a one-shot for the shop. One pass every minute does both and holds

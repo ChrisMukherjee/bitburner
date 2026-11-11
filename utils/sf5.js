@@ -10,7 +10,11 @@ export const MULTS_GATE = "bitnode-mults";
  */
 /** @param {NS} ns */
 export function bitnodeMultsAccess(ns) {
-	const info = ns.getResetInfo();
+	return bitnodeMultsFromInfo(ns.getResetInfo());
+}
+
+/** bitnodeMultsAccess for a getResetInfo() result you already have (pure, 0GB). @param {{ currentNode: number, ownedSF: Map<number, number> }} info */
+export function bitnodeMultsFromInfo(info) {
 	return { available: info.currentNode === 5 || info.ownedSF.has(5) };
 }
 

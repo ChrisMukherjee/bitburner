@@ -326,6 +326,12 @@ export const DEFAULTS = {
 	// and restarts the rest. false = never unleash; the status line still says what it would do.
 	darknet: { storm: { enabled: true } },
 
+	// tools/api-advice.js and the managers that exit without their API: when a script runs without something a BitNode or Source-File
+	// unlocks (Singularity, BitNode multipliers, Gang, Bladeburner, Formulas.exe), print once per BitNode run what is missing,
+	// what the scripts do meanwhile and what to do about it (which BitNode to destroy, what to buy), and show it in `status`.
+	// Design: docs/api-advice.md. enabled: false = say nothing.
+	missingApiAdvice: { enabled: true },
+
 	// Mechanics a BitNode makes worthless (startup.js; needs the BitNode multipliers, so BitNode 5 or Source-File 5; without
 	// them nothing is held back). A script is not started while a multiplier listed for it is below minMultiplier.
 	// `force` lists scripts to start anyway (paths as in startupSkip), and enabled: false turns the whole check off,

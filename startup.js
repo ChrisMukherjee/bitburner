@@ -55,6 +55,8 @@ export const SCRIPTS = [
 	{ stage: "early", script: "singularity/player-work.js", args: ["--once"], oneShot: true, first: true, every: 60_000, ready: playerWorkReady },
 	// Without the Singularity API nothing backdoors or buys programs by itself: this tells you when to, once each.
 	{ stage: "start", script: "tools/reminders.js", oneShot: true, every: 60_000, homeOnly: true, ready: (ns) => !singularityInfo(ns).available },
+	// What the scripts lack in this run (Singularity, multipliers, Formulas.exe, Gang, Bladeburner) and what to do about it: printed once, listed in status.
+	{ stage: "start", script: "tools/api-advice.js", oneShot: true, every: 600_000, homeOnly: true },
 	// Mechanics, one folder each. Started only once their ready check says there is work.
 	{ stage: "start", script: "gang/gang-manager.js", ready: gangReady },
 	// Bladeburner (BitNode 6/7 or Source-File 6/7): the manager decides the state every 3 minutes, the pass plays

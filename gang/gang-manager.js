@@ -4,6 +4,7 @@ import { notify } from "/utils/notify.js";
 import { createPolicyTracker, getBudget, formatMoney } from "/utils/spending.js";
 import { startHelper } from "/utils/start-helper.js";
 import { gangAccess } from "/utils/gang.js";
+import { adviseMissing } from "/utils/api-advice.js";
 import { bitnodeMults } from "/utils/bitnode-mults.js";
 import {
 	CYCLES_PER_SECOND, STAT_NAMES, taskWeight, territoryMult, territoryPenalty, wantedFactor, respectRate, moneyRate,
@@ -56,6 +57,7 @@ export async function main(ns) {
 
 	if (!gangAccess(ns).available) {
 		ns.tprint(`${TAG} the Gang API isn't available in this run (needs BitNode 2 or Source-File 2); exiting.`);
+		adviseMissing(ns, "gang", ns.getResetInfo(), loadConfig(ns));
 		return;
 	}
 

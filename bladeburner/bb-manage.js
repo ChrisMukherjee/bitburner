@@ -5,6 +5,7 @@ import { readIncomeRate } from "/utils/income.js";
 import { postPass } from "/utils/pass-log.js";
 import { notify } from "/utils/notify.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
+import { adviseMissing } from "/utils/api-advice.js";
 import { joiningClosesGift } from "/utils/stanek.js";
 import { bladeburnerPlan, postBladeburner, readBladeburner, trainFloor } from "/bladeburner/state.js";
 import { SKILL_NAMES, skillValues, pickSkill } from "/bladeburner/picks.js";
@@ -41,6 +42,7 @@ export async function main(ns) {
 	const access = bladeburnerAccess(ns);
 	if (!access.available) {
 		ns.print(`No Bladeburner in this run: ${access.why}.`);
+		adviseMissing(ns, "bladeburner", ns.getResetInfo(), loadConfig(ns), /^needs /.test(access.why) ? undefined : access.why);
 		return;
 	}
 	const bb = ns.bladeburner;

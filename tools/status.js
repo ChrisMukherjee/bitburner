@@ -7,6 +7,7 @@ import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { hasSingularity } from "/utils/singularity.js";
 import { goOrder } from "/go/go-plan.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
+import { adviceSummary } from "/utils/api-advice.js";
 import { hackingSegments, bladeburnerSegments, routeLines } from "/utils/route-progress.js";
 
 /**
@@ -140,6 +141,11 @@ export async function main(ns) {
 	const sfAfter = (resetInfo.ownedSF.get(node) ?? 0) + 1;
 	out.push(`BitNode ${node}: destroying gives SF${node}.${sfAfter}, next ${nextBN} | auto-destroy ` +
 		(destroyer ? (destroyer.args.includes("--dry") ? "running in --dry" : "running") : "not running"));
+	// What this run lacks (written by tools/api-advice.js every 10 min): one line each; the full text was printed to the terminal.
+	const advice = config.missingApiAdvice?.enabled === false ? null : readJson(ns, "data/api-advice.json");
+	if (advice?.nodeReset === resetInfo.lastNodeReset) {
+		for (const item of advice.items ?? []) out.push(`Missing ${adviceSummary(item.text)}`);
+	}
 	const redPill = plan?.checkedAt >= lastReset ? plan.bitnode?.redPill : null;
 	const planFresh = plan?.checkedAt >= lastReset;
 	const bbPost = peekJson(ns, 36);

@@ -2,6 +2,8 @@
 // @ts-check
 import { postPass } from "/utils/pass-log.js";
 import { loadConfig } from "/utils/config.js";
+import { requireApi } from "/utils/api-advice.js";
+import { singularityFromInfo } from "/utils/singularity.js";
 import { notify } from "/utils/notify.js";
 import { pickCourse, isCourse } from "/utils/study.js";
 import { GYM_STATS, GYMS, GYM_CITY, GYM_CASH_SECONDS } from "/utils/gyms.js";
@@ -131,6 +133,8 @@ const CONFIG = {
 export async function main(ns) {
 	ns.disableLog("ALL");
 	const flags = ns.flags([["focus", false], ["no-focus", false], ["study", 0], ["no-company", false], ["plan", false], ["once", false]]);
+	const resetInfo = ns.getResetInfo();
+	if (!requireApi(ns, "singularity", singularityFromInfo(resetInfo).available, resetInfo, loadConfig(ns))) return;
 
 	if (flags.plan) {
 		const plan = await refreshPlan(ns, loadConfig(ns).cities);
@@ -139,7 +143,7 @@ export async function main(ns) {
 		return;
 	}
 
-	const resetAt = ns.getResetInfo().lastAugReset; // state from before the last install is dropped
+	const resetAt = resetInfo.lastAugReset; // state from before the last install is dropped
 	const lastMessages = {};
 	while (true) {
 		const config = loadConfig(ns);

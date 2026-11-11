@@ -6,6 +6,8 @@ import { wantedBoosts, augValue } from "/utils/aug-filter.js";
 import { recordIncomeSample, buildIncomeModel, earnedOver, timeToEarn, incomeMultAt } from "/utils/income-curve.js";
 import { homeUpgradeBeatsNeuroFlux } from "/singularity/ready.js";
 import { BASE_PRICE_STEP, augPriceStep } from "/utils/aug-price.js";
+import { requireApi } from "/utils/api-advice.js";
+import { singularityFromInfo } from "/utils/singularity.js";
 // Design: docs/aug-reset.md
 const NEUROFLUX = "NeuroFlux Governor";
 const RED_PILL = "The Red Pill";
@@ -80,8 +82,10 @@ export function setAugConfig(augConfig, priceStep = BASE_PRICE_STEP) {
  */
 export async function main(ns) {
 	ns.disableLog("ALL");
+	const resetInfo = ns.getResetInfo();
+	if (!requireApi(ns, "singularity", singularityFromInfo(resetInfo).available, resetInfo, loadConfig(ns))) return;
 	postIncomeMix(ns); // first: loadConfig weighs the money stats by where this run's money comes from (port 38)
-	setAugConfig(loadConfig(ns).augments, augPriceStep(ns.getResetInfo().ownedSF));
+	setAugConfig(loadConfig(ns).augments, augPriceStep(resetInfo.ownedSF));
 	const flags = ns.flags([["dry", false], ["all", false], ["no-neuroflux", false], ["reserve", 0], ["plan", false]]);
 	const cash = () => ns.getServerMoneyAvailable("home") - flags.reserve;
 	const money = (amount) => "$" + ns.format.number(amount);

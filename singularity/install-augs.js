@@ -1,6 +1,8 @@
 // Design: docs/aug-reset.md
 // @ts-check
 import { loadConfig } from "/utils/config.js";
+import { requireApi } from "/utils/api-advice.js";
+import { singularityFromInfo } from "/utils/singularity.js";
 const PLAN_FILE = "data/aug-plan.json";
 const RESET_LOG = "data/reset-log.json"; // one line per install, for singularity/reset-log.js (tuning the reset rule)
 const RESET_LOG_KEEP = 40;
@@ -44,6 +46,8 @@ const GANG_LEFTOVER = "gang/workers/spend-leftover.js";
  */
 /** @param {NS} ns */
 export async function main(ns) {
+	const resetInfo = ns.getResetInfo();
+	if (!requireApi(ns, "singularity", singularityFromInfo(resetInfo).available, resetInfo, loadConfig(ns))) return;
 	const flags = ns.flags([["force", false], ["keep-cash", false]]);
 	const afterReset = flags._[0];
 	if (afterReset !== undefined && !ns.fileExists(afterReset, "home")) {

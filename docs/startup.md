@@ -57,7 +57,8 @@
   script is left out with one summary line, checked through [`../utils/singularity.js`](../utils/singularity.js).
   Each mechanic's manager (gang, Bladeburner, darknet, purchased servers) starts only once its folder's ready check says there is work, so startup.js knows nothing of the mechanic.
   What each script needs (SF4, SF2, Formulas ...) is the `Requires` column of its folder README; startup.js only
-  repeats that in code through the ready checks.
+  repeats that in code through the ready checks. It also runs [`../tools/api-advice.js`](../tools/api-advice.js) every 10
+  minutes, which says once per BitNode run what is missing and what to do about it ([`api-advice.md`](api-advice.md)).
 - **`restartOnNewArgs`** swaps a running copy when the args change (for example the Go bot's opponent per
   stage), so two copies never fight over the same thing.
 

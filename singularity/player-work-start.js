@@ -1,5 +1,7 @@
 // Design: docs/player-work.md
 import { loadConfig } from "/utils/config.js";
+import { requireApi } from "/utils/api-advice.js";
+import { singularityFromInfo } from "/utils/singularity.js";
 import { notify } from "/utils/notify.js";
 import { pickCourse, isCourse } from "/utils/study.js";
 import { gangAccess } from "/utils/gang.js";
@@ -40,7 +42,10 @@ const GANG = "/singularity/workers/start-gang.js";
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	const { studying, playerFocus, createPrograms, gang } = loadConfig(ns);
+	const config = loadConfig(ns);
+	const resetInfo = ns.getResetInfo();
+	if (!requireApi(ns, "singularity", singularityFromInfo(resetInfo).available, resetInfo, config)) return;
+	const { studying, playerFocus, createPrograms, gang } = config;
 	const focus = playerFocus !== false;
 	const player = ns.getPlayer();
 	const current = ns.singularity.getCurrentWork();

@@ -23,6 +23,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`stocks.md`](stocks.md): how the game's market works, cost-aware longs, the cycle clock, 4S or estimates, rotation, cash for other buyers, measuring the trader, what is left (shorts).
 - [`go-bot.md`](go-bot.md): Monte Carlo search at 0GB, opponent rotation, Illuminati on 5x5.
 - [`gang.md`](gang.md): gang manager: combat gang by default, the game's exact formulas, per-member growth planning (earn or train, ascension cycles), territory outlook, equipment payback, and how to measure it.
+- [`api-advice.md`](api-advice.md): what the scripts tell you when an API or item a BitNode unlocks is missing (what, what they do meanwhile, what to do), once per run, with the audit of every fallback.
 - [`reminders.md`](reminders.md): what a run without the Singularity API is told to do by hand, and why it is a one-shot.
 - [`debug-report.md`](debug-report.md): why one-shots keep their last result on a port and one tool writes it to a file to paste.
 - [`bitnode-mults.md`](bitnode-mults.md): BitNode multipliers saved once per run and read at 0GB, 1 when unknown.

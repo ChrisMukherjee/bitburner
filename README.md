@@ -222,6 +222,7 @@ Which scripts need which BitNode, Source-File or item is not decided per folder:
 - **`(opt)`** means the script uses the feature when it is there and falls back when it is not (for example `Formulas (opt)`: exact numbers with Formulas.exe, estimates without). Several tags are separated by commas; a script needs all its hard tags.
 - A script that starts or reads another script's output lists that script's requirements too (`next-bitnode.js` starts a Singularity worker, so it is `SF4`). The capability helpers themselves are `none`: they are the check.
 - A new script must state its requirement here and in its folder README; see [`AGENTS.md`](AGENTS.md).
+- **When something is missing, the scripts say so.** [`tools/api-advice.js`](tools/api-advice.js) (started by `startup.js`) prints once per BitNode run which of these your run lacks, what the scripts do meanwhile and what to do (for example "Singularity API (SF4) is not available ... destroy BitNode 4 (The Singularity) for SF4.1"), worked out from your Source-Files and `bitnodePlan`; `status` keeps a `Missing ...` line for each. Set `missingApiAdvice.enabled` to `false` in `data/config.json` to silence it. Design and the fallback of every feature: [`docs/api-advice.md`](docs/api-advice.md).
 
 ## Ports
 
