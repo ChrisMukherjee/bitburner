@@ -1,7 +1,7 @@
 // utils/route-progress.js: the BitNode progress block of tools/status.js (hacking route, Bladeburner route, which one is active).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { describeNeeds, inviteAugs, hackingSegments, bladeburnerSegments, routeLines } from "/utils/route-progress.js";
+import { describeNeeds, inviteAugs, hackingSegments, bladeburnerSegments, routeLines, daemonLevelFor } from "/utils/route-progress.js";
 
 const fmt = { int: (n) => String(Math.round(n)), number: (n) => String(Math.round(n * 10) / 10), time: (ms) => `${Math.round(ms / 1000)}s`, money: (n) => "$" + n };
 const invite = [
@@ -32,14 +32,27 @@ test("hacking route: before Daedalus, the augs count, the Red Pill and the daemo
 	assert.match(daedalus.long, /^Daedalus not joined: invite needs augs installed 32\/35/);
 	assert.equal(daedalus.short, "Daedalus not joined (augs 32/35)");
 	assert.match(redPill.long, /The Red Pill not owned: needs 2500000 Daedalus rep/);
-	assert.match(daemon.long, /shows once The Red Pill is installed/);
+	assert.match(daemon.long, /not known until The Red Pill is installed/, "only an untabled BitNode has no level to show");
+});
+
+test("regression: the daemon line shows the level without a route estimate, same as with one (status and the startup screen agreed)", () => {
+	// A new run has no node-eta verdict; status then used to say "its hacking level shows once The Red Pill is installed"
+	for (const node of [1, 2, 6, 13]) {
+		const level = daemonLevelFor(node);
+		assert.ok(level > 0, `BitNode ${node} has a tabled daemon level`);
+		const withoutVerdict = hackingSegments(hack({ daemon: { exists: false, level, root: false } }), fmt)[2];
+		assert.match(withoutVerdict.long, new RegExp(`hacking 587 / ${level} `), "level and gap are shown");
+		assert.match(withoutVerdict.long, /the server appears once The Red Pill is installed/);
+	}
+	assert.equal(daemonLevelFor(1), 3000, "BitNode 1's daemon needs 3000 x difficulty 1");
+	assert.equal(daemonLevelFor(12), null, "BitNode 12 grows with its level, so it isn't tabled");
 });
 
 test("hacking route: joined Daedalus shows rep against the Red Pill with an ETA; the daemon level comes from the estimate", () => {
 	const [daedalus, redPill, daemon] = hackingSegments(hack({ daedalusJoined: true, daedalusRep: 1e6, repPerSecond: 1000, daemon: { exists: false, level: 6000, root: false } }), fmt);
 	assert.equal(daedalus.long, "Daedalus joined, 1000000 rep");
 	assert.match(redPill.long, /Daedalus rep 1000000 \/ 2500000 .*ETA ~1500s/);
-	assert.match(daemon.long, /hacking 587 \/ 6000 \(5413 to go\) \(it appears once The Red Pill is installed\)/);
+	assert.match(daemon.long, /hacking 587 \/ 6000 \(5413 to go\) \| the server appears once The Red Pill is installed/);
 });
 
 test("hacking route: Red Pill installed, daemon present with and without root", () => {
@@ -71,7 +84,7 @@ test("Bladeburner route: hold, stale reading and no reading yet", () => {
 	const stale = bladeburnerSegments({ state: "run", progress: progress({ time: Date.now() - 3600_000 }), hold: false, ago: () => "1 h ago" }, fmt);
 	assert.match(stale[0].long, /last reading 1 h ago/);
 	assert.match(bladeburnerSegments({ state: "off", progress: null, hold: false, ago: () => "" }, fmt)[0].long, /not running yet/);
-	assert.match(bladeburnerSegments({ state: "train", progress: null, hold: false, ago: () => "" }, fmt)[0].long, /state train/);
+	assert.match(bladeburnerSegments({ state: "train", progress: null, hold: false, ago: () => "" }, fmt)[0].long, /state train, Black Op progress shows once bb-pass\.js has posted a reading/);
 });
 
 test("routeLines: the active route is spelled out, the other is one line", () => {

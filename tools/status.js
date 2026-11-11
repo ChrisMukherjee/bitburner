@@ -8,7 +8,7 @@ import { hasSingularity } from "/utils/singularity.js";
 import { goOrder } from "/go/go-plan.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
 import { adviceSummary } from "/utils/api-advice.js";
-import { hackingSegments, bladeburnerSegments, routeLines } from "/utils/route-progress.js";
+import { hackingSegments, bladeburnerSegments, routeLines, daemonLevelFor } from "/utils/route-progress.js";
 
 /**
  * One-screen summary of the run, so you don't have to tail six logs.
@@ -162,7 +162,7 @@ export async function main(ns) {
 		redPillInstalled: resetInfo.ownedAugs.has(RED_PILL), redPillBought: !!plan?.queued?.includes(RED_PILL) && planFresh,
 		daemon: {
 			exists: daemonExists, root: daemonExists && ns.hasRootAccess(DAEMON),
-			level: daemonExists ? ns.getServerRequiredHackingLevel(DAEMON) : Number(verdict?.daemonLevel) || null,
+			level: daemonExists ? ns.getServerRequiredHackingLevel(DAEMON) : Number(verdict?.daemonLevel) || daemonLevelFor(node),
 		},
 	}, fmt);
 	const bladeburner = showBladeburner ? bladeburnerSegments({

@@ -9,14 +9,13 @@ import * as RM from "/bladeburner/route-model.js";
 import { augPriceStep } from "/utils/aug-price.js";
 import { staminaRegen, MIN_RATE_SPAN_MS } from "/bladeburner/ideal.js";
 import { loadConfig } from "/utils/config.js";
+import { daemonLevelFor } from "/utils/route-progress.js";
 
 // Every faction that sells augmentations (names from the game), to build the pool of augs the simulation can buy
 const ALL_FACTIONS = ["CyberSec", "NiteSec", "The Black Hand", "BitRunners", "Daedalus", "The Covenant", "Illuminati", "ECorp", "MegaCorp",
 	"Bachman & Associates", "Blade Industries", "NWO", "Clarke Incorporated", "OmniTek Incorporated", "Four Sigma", "KuaiGong International",
 	"Fulcrum Secret Technologies", "Tian Di Hui", "Netburners", "Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven",
 	"Slum Snakes", "Tetrads", "Silhouette", "Speakers for the Dead", "The Dark Army", "The Syndicate"];
-// WorldDaemonDifficulty per BitNode from bitburner-src v3.0.1 (BN12 grows with its level and is not listed)
-const WORLD_DAEMON_DIFFICULTY = { 1: 1, 2: 5, 3: 2, 4: 3, 5: 1.5, 6: 2, 7: 2, 8: 1, 9: 2, 10: 2, 11: 1.5, 13: 3, 14: 5, 15: 2 };
 // Faction reputation multiplier of the BitNode (game source)
 const BN_FACTION_REP = { 2: 0.5, 4: 0.75, 13: 0.6, 14: 0.2 };
 const COMBAT_STATS = ["strength", "defense", "dexterity", "agility"];
@@ -93,7 +92,7 @@ function estimate(ns) {
 	const lines = [`${new Date().toLocaleTimeString()}  BitNode ${node}`];
 
 	// Daemon requirement: the server once it exists, otherwise 3000 x the BitNode's difficulty
-	let required = 3000 * (WORLD_DAEMON_DIFFICULTY[node] ?? 1);
+	let required = daemonLevelFor(node) ?? 3000;
 	try { required = ns.getServer(WORLD).requiredHackingSkill; } catch { /* hidden until The Red Pill is installed */ }
 
 	// Measured hacking exp rate: samples of this run, kept on port 36 (trimmed to 30 minutes)

@@ -13,6 +13,21 @@
  * @typedef {{ money: number, installed: number, skills: Record<string, number> }} Have what the player has now
  */
 
+// WorldDaemonDifficulty per BitNode from bitburner-src v3.0.1 (BN12 grows with its level and is not listed)
+const WORLD_DAEMON_DIFFICULTY = { 1: 1, 2: 5, 3: 2, 4: 3, 5: 1.5, 6: 2, 7: 2, 8: 1, 9: 2, 10: 2, 11: 1.5, 13: 3, 14: 5, 15: 2 };
+
+/**
+ * The hacking level w0r1d_d43m0n needs in a BitNode (3000 x its difficulty) before the server exists, or null when the BitNode
+ * isn't tabled (BitNode 12). One source for tools/status.js, startup's status screen and bladeburner/node-eta.js, so they agree
+ * whether or not a route estimate has run yet.
+ * @param {number} node
+ * @returns {number | null}
+ */
+export function daemonLevelFor(node) {
+	const difficulty = /** @type {Record<number, number>} */ (WORLD_DAEMON_DIFFICULTY)[node];
+	return difficulty === undefined ? null : 3000 * difficulty;
+}
+
 /**
  * Daedalus' invite requirements (getFactionInviteRequirements) as text, each one with what the player has and "ok" once met.
  * Only the kinds Daedalus uses are spelled out.
@@ -93,11 +108,12 @@ export function hackingSegments(d, fmt) {
 	// 3. w0r1d_d43m0n
 	const level = d.daemon.level;
 	if (level === null) {
-		segments.push({ short: "w0r1d_d43m0n appears with The Red Pill", long: "w0r1d_d43m0n: its hacking level shows once The Red Pill is installed" });
+		// Only a BitNode whose daemon level isn't tabled (see daemonLevelFor) gets here
+		segments.push({ short: "w0r1d_d43m0n appears with The Red Pill", long: "w0r1d_d43m0n: hacking level not known until The Red Pill is installed and the server appears" });
 	} else {
 		const gap = level - d.hacking;
 		const verdict = gap <= 0 ? "ready" : `${fmt.int(gap)} to go`;
-		const root = d.daemon.exists ? ` | root ${d.daemon.root ? "yes" : "no (needs all 5 port openers)"}` : " (it appears once The Red Pill is installed)";
+		const root = d.daemon.exists ? ` | root ${d.daemon.root ? "yes" : "no (needs all 5 port openers)"}` : " | the server appears once The Red Pill is installed";
 		segments.push({ short: `w0r1d_d43m0n hacking ${fmt.int(d.hacking)}/${fmt.int(level)}`, long: `w0r1d_d43m0n: hacking ${fmt.int(d.hacking)} / ${fmt.int(level)} (${verdict})${root}` });
 	}
 	return segments;
@@ -111,7 +127,7 @@ export function hackingSegments(d, fmt) {
 export function bladeburnerSegments(d, fmt) {
 	const progress = d.progress;
 	if (!progress) {
-		const reason = d.state === "off" || !d.state ? "not running yet (bb-manage.js joins once the combat stats are trained)" : `state ${d.state}, no Black Op reading yet`;
+		const reason = d.state === "off" || !d.state ? "not running yet (bb-manage.js joins once the combat stats are trained)" : `state ${d.state}, Black Op progress shows once bb-pass.js has posted a reading`;
 		return [{ short: "no progress yet", long: `Bladeburner: ${reason}` }];
 	}
 	const note = d.hold ? " | on hold: the best chance is too low to earn rank" : "";

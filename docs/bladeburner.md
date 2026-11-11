@@ -157,7 +157,10 @@ already running. The wording lives in [`utils/route-progress.js`](../utils/route
 - **Hacking route:** Daedalus (installed augs against the invite's count, cash, hacking level or combat stats, each with what the player
   has), The Red Pill (Daedalus rep against its requirement with an ETA, then bought, then installed), `w0r1d_d43m0n` (hacking level
   against its requirement, and root). Before the Red Pill is installed the server doesn't exist, so the requirement is the
-  `daemonLevel` that `node-eta.js` posts in `plan`.
+  `daemonLevel` that `node-eta.js` posts in `plan`, or, while there is no fresh estimate (a new run, and the `status` that
+  `startup.js` prints when typed by hand), the same value from `daemonLevelFor(node)` in `route-progress.js` (3000 x the
+  BitNode's difficulty; `node-eta.js` uses that function too). So the line reads the same with or without an estimate; only
+  BitNode 12, which isn't tabled, says the level is unknown until the server appears.
 - **Bladeburner route:** Black Ops done of the total, rank against Operation Daedalus' 400,000, the next Black Op with its rank
   requirement and chance, and a note when the route is on hold. `bb-pass.js` posts these as `progress` on port 36 (the Black Ops run in
   order, so the next one's position is the count done). Operation Daedalus is the last, so it is done when all are.
