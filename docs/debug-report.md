@@ -15,6 +15,10 @@ which could be read in game and pasted into a chat. State here lives on ports, w
   the run (BitNode, Source-Files, home, factions), what is running, the last pass of every one-shot, `data/startup-why.txt`
   (why startup.js did not start something), `data/node-eta.txt`, `data/config.json`, and the raw content of every port.
 - Reads only, 5.5GB, run by hand when something looks wrong. `--full` lifts the length limits.
+- Workers (any script under a `workers/` folder) are listed one line per script: copies, threads and their first arguments
+  (the targets). A busy batcher runs thousands of copies with distinct arguments, and listing each one buried the report;
+  `--full` lists every copy. The file is rewritten only when the report runs, so an old `data/debug-report.txt` shows its
+  date on the first line.
 
 ## Why not a text file per script
 

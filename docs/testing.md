@@ -70,10 +70,22 @@ check that the test fails when its rule breaks, and on a script before trusting 
   [`../tests/support/fake-world.mjs`](../tests/support/fake-world.mjs): servers with RAM, a process table, files copied
   to servers, with the clock mocked (`t.mock.timers`) for waits. It checks what starts where and in what order, not the
   real RAM costs (every script is 2GB unless a test says otherwise).
-- Not covered yet: the batcher's main loop (target choice over time, launch timing against a real clock), the Go bot's
-  `main` loop (its plan order and move search are tested), the gang manager's `main` loop (its per-pass
-  decisions are tested; the stock trader's `main` runs a few ticks in a fake market), `bladeburner/bb-pass.js` and `node-eta.js`, player-work beyond the gym. These are mostly long
-  `main` functions; split a piece into a function a test can call when a bug shows up there.
+- Long `main` loops run unchanged against small simulators, with `Date.now` following a simulated clock, instead of
+  being split into testable pieces (which would mean rewriting working scripts):
+  - [`../tests/support/fake-hacking.mjs`](../tests/support/fake-hacking.mjs) runs the batcher for simulated minutes:
+    servers whose money and security follow the game's hack, grow and weaken formulas, and workers that land at
+    `max(landing time, start + duration)` as the real ones do. Tests check what must hold over time (every hack lands on
+    a prepped server, money comes back to max, one prep wave at a time, few dropped batches, retargeting drains without
+    killing, recovery from a desync, Formulas.exe bought mid-run, home's cores, a fresh BitNode's network). Every hack
+    succeeds and multipliers are 1, so it checks the loop's logic, not income figures.
+  - [`../tests/support/fake-player.mjs`](../tests/support/fake-player.mjs) runs player-work.js pass after pass (`--once`,
+    a simulated minute apart, as startup.js does): a player with a city, cash, levels, factions and one piece of work, the
+    game's invite and rival rules for Tian Di Hui and the city factions, and helpers that answer at once. Tests check the
+    order of the work, one city group and no rival, no work restarted every pass, the pass state and what an install
+    clears, focus, how often the helpers run, company work, the gang invite's crime, and the done gate.
+- Not covered yet: the Go bot's `main` loop (its plan order and move search are tested), the gang manager's `main` loop
+  (its per-pass decisions are tested; the stock trader's `main` runs a few ticks in a fake market),
+  `bladeburner/bb-pass.js` and `node-eta.js`. The simulators above are the model for testing those loops.
 - The Go search is random and time-boxed, so its tests use boards where one move is clearly right and check the move,
   not the win-chance figure.
 - RAM is not checked by the tests. The offline port of the game's RAM check needs the game's source and npm packages, so
@@ -98,11 +110,14 @@ caught 62 % of flips overall: over 80 % in the Bladeburner model and team, stock
 plan and aug filter; under 30 % in the reset rule, the batcher and player-work, whose long `main` loops, rate tracking and
 messages have no tests. Tests added then for the reset rule's untested branches (rates not measured, the `maxRunHours`
 guarantee, waiting for the Daedalus donation line, which resets the home-upgrade hold leaves alone) each fail with their
-condition flipped. One test was removed: it only checked that a default was above the old default.
+condition flipped. One test was removed: it only checked that a default was above the old default. The simulator tests
+added next took the batcher from 27 % to 78 % of its flips caught and player-work from 31 % to 72 % (every flip in each
+file); what is left is mostly log wording, the Bladeburner-route crime invites and the gang's gym step.
 
-**Current state:** about 440 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
+**Current state:** about 470 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
 step, home-upgrade hold, Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without
-Formulas.exe, RAM pool, startup.js stages and one-shots, gym and study choice, income curve, augment filter, BitNode route,
+Formulas.exe, RAM pool, the batcher's main loop in a hacking simulator, startup.js stages and one-shots, gym and study
+choice, player-work's passes in a player simulator, income curve, augment filter, BitNode route,
 Go plan order and move search, the gang manager's per-pass decisions, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
 state machine (with the wait for Stanek's Gift) and route model, the darknet's solvers, migration and storm rule, the program order, repo checks,
 and the two test tools. Tagged: 16 `regression:`, 21 `game:`, 5 `choice:`; the rest are rules.

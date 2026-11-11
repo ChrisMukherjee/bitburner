@@ -833,7 +833,7 @@ function hackedTotal(ns) {
  * the batcher started. getTotalScriptIncome can't be used: it only counts scripts still running,
  * and hack workers exit the moment they pay out, so it always read ~0.
  */
-function incomeRates(samples) {
+export function incomeRates(samples) {
 	const first = samples[0];
 	const last = samples[samples.length - 1];
 	// Keep the first sample (start of run), then drop old ones while the next still covers the window

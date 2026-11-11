@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeNs } from "./support/fake-ns.mjs";
-import { CONFIG, makePlan, pickPlan, stepTarget, newTargetState, placeOp, batchRamMs } from "/hack/batcher.js";
+import { CONFIG, makePlan, pickPlan, stepTarget, newTargetState, placeOp, batchRamMs, incomeRates } from "/hack/batcher.js";
 import { allocate, threadCapacity } from "/utils/ram-pool.js";
 
 const SCRIPT_RAM = { hack: 1.7, grow: 1.75, weaken: 1.75 };
@@ -141,4 +141,24 @@ test("allocate is all or nothing", () => {
 	const placed = allocate(pool, [{ type: "grow", threads: 7 }], SCRIPT_RAM);
 	assert.deepEqual(placed.map((entry) => [entry.host, entry.threads]), [["a", 5], ["b", 2]]);
 	assert.ok(pool.every((entry) => entry.freeRam < 1.75));
+});
+
+test("incomeRates: the recent rate covers the last incomeWindowMs (not the idle prep before it), sinceStart the whole run", () => {
+	const step = 10_000;
+	const window = CONFIG.incomeWindowMs;
+	// Nothing earned while prepping for 2 windows, then 100/s for 2 windows, sampled every 10 s like the status line
+	const samples = [];
+	for (let time = 0; time <= 4 * window; time += step) samples.push({ time, total: 100 * Math.max(0, time - 2 * window) / 1000 });
+	const kept = [samples[0]];
+	let rates;
+	for (const sample of samples.slice(1)) {
+		kept.push(sample);
+		rates = incomeRates(kept);
+	}
+	assert.equal(rates.recent, 100);
+	assert.equal(rates.sinceStart, (100 * 2 * window / 1000) / (4 * window / 1000));
+	assert.ok(kept.length <= window / step + 3, `old samples are dropped (${kept.length} kept)`);
+	assert.equal(kept[0].time, 0, "the first sample stays for sinceStart");
+	// Shorter than one window: recent is the run so far
+	assert.deepEqual(incomeRates([{ time: 0, total: 0 }, { time: step, total: 500 }]), { recent: 50, sinceStart: 50 });
 });

@@ -7,6 +7,7 @@ const PORTS = {
 	20: "darknet", 21: "stock influence", 22: "hacked total", 23: "faction goals", 24: "income rate", 25: "city plan",
 	26: "stock summary", 27: "target stats", 28: "gang summary", 29: "gang equipment", 30: "gang invite", 31: "batcher RAM claim",
 	32: "contract failures", 33: "one-shot gates", 34: "RAM reservations", 35: "player-work state", 36: "Bladeburner",
+	38: "income mix", 39: "crime-faction invite",
 };
 const FILES = ["data/startup-why.txt", "data/node-eta.txt", "data/config.json"]; // written by the scripts, read by hand otherwise
 const MAX_PORT_CHARS = 1500;
@@ -18,7 +19,9 @@ const REPORT_FILE = "data/debug-report.txt";
  * (or paste the terminal lines). It has what a running script's log and a one-shot's vanished log would have had:
  * the run (BitNode, Source-Files, home), what is running, why startup.js did not start something, the last result of every
  * one-shot pass, and the raw state on every port. Reads only; changes nothing.
- * Flags: --full prints no length limit per port.
+ * Short-lived workers (a `/workers/` path, e.g. the batcher's hundreds of weaken/grow/hack batches) are listed one line per
+ * script, with their copies, threads and first arguments; --full lists every copy.
+ * Flags: --full prints no length limit per port and every running copy.
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -36,7 +39,7 @@ export async function main(ns) {
 	lines.push(`city ${player.city}; factions: ${player.factions.join(", ") || "none"}`);
 
 	section("running on home");
-	for (const proc of ns.ps("home")) lines.push(`${proc.filename} ${proc.args.join(" ")} (x${proc.threads})`.trim());
+	lines.push(...processLines(ns.ps("home"), full === true));
 
 	section("last pass of each one-shot (port " + PASS_PORT + ")");
 	const passes = readPasses(ns);
@@ -70,4 +73,34 @@ export async function main(ns) {
 function ago(time) {
 	const seconds = Math.max(0, Math.round((Date.now() - time) / 1000));
 	return seconds < 120 ? `${seconds} s` : seconds < 7200 ? `${Math.round(seconds / 60)} min` : `${(seconds / 3600).toFixed(1)} h`;
+}
+
+/**
+ * One line per running script; workers (a `/workers/` path) one line per script with how many copies and threads, and the
+ * distinct first arguments (their targets), so a busy batcher doesn't fill the report with thousands of lines. Pure, for the tests.
+ * @param {{ filename: string, args: (string | number | boolean)[], threads: number }[]} procs
+ * @param {boolean} [full]  list every copy
+ * @returns {string[]}
+ */
+export function processLines(procs, full = false) {
+	const out = [];
+	/** @type {Map<string, { copies: number, threads: number, firsts: Set<string> }>} */
+	const workers = new Map();
+	for (const proc of procs) {
+		if (full || !proc.filename.includes("/workers/")) {
+			out.push(`${proc.filename} ${proc.args.join(" ")} (x${proc.threads})`.trim());
+			continue;
+		}
+		const entry = workers.get(proc.filename) ?? { copies: 0, threads: 0, firsts: new Set() };
+		entry.copies++;
+		entry.threads += proc.threads;
+		if (proc.args.length > 0) entry.firsts.add(String(proc.args[0]));
+		workers.set(proc.filename, entry);
+	}
+	for (const [name, entry] of workers) {
+		const firsts = [...entry.firsts];
+		const shown = firsts.slice(0, 5).join(", ") + (firsts.length > 5 ? `, +${firsts.length - 5} more` : "");
+		out.push(`${name}: ${entry.copies} running, ${entry.threads} threads${shown ? ` (${shown})` : ""}`);
+	}
+	return out;
 }
