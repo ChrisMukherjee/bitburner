@@ -38,8 +38,9 @@ const BLADEBURNERS = "Bladeburners"; // the faction, joinable from rank 25
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	if (!bladeburnerAccess(ns).available) {
-		ns.print("Bladeburner needs BitNode 6 or 7 or Source-File 6 or 7.");
+	const access = bladeburnerAccess(ns);
+	if (!access.available) {
+		ns.print(`No Bladeburner in this run: ${access.why}.`);
 		return;
 	}
 	const bb = ns.bladeburner;
@@ -62,7 +63,7 @@ export async function main(ns) {
 	const route = plan?.route ?? config.bladeburner.route;
 	if (route === "hacking") {
 		clearAction();
-		return setState("hold", `hold: the route is hacking (${plan?.route ? "estimate" : "config"})`);
+		return setState("hold", `hold: the route is hacking (${plan?.route ? plan.prior ? "first guess from the BitNode's multipliers" : "estimate" : "config"})`);
 	}
 
 	// Stanek's Gift first (`bladeburner.stanekFirst`, on by default in BitNode 13): with Source-File 7.3, joining installs

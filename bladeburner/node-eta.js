@@ -2,7 +2,7 @@
 // @ts-check
 import { readIncomeRate } from "/utils/income.js";
 import { hasSingularity } from "/utils/singularity.js";
-import { bladeburnerAccess } from "/utils/bladeburner.js";
+import { bladeburnerAccess, bladeburnerNodeMults } from "/utils/bladeburner.js";
 import { postPass } from "/utils/pass-log.js";
 import { readBladeburner, postBladeburner } from "/bladeburner/state.js";
 import * as RM from "/bladeburner/route-model.js";
@@ -27,6 +27,7 @@ const RUN_HOURS = 4;             // modelled length of a run
 const GYM_CHOICES = [1, 2, 3];   // gym hours per run the combat model tries
 const HISTORY_FILE = "data/node-eta-history.json";   // income vs multiplier across runs; survives resets, so it is a file
 const REPORT_FILE = "data/node-eta.txt";
+const PRIOR_MARGIN = 0.75;       // a first guess commits hacking only when hacking takes under 75 % of Bladeburner's modelled time
 const HOLD_BELOW = 0.3;          // hold Bladeburner under this best chance, resume only above RESUME_ABOVE
 const RESUME_ABOVE = 0.4;
 
@@ -82,8 +83,10 @@ function estimate(ns) {
 	const mult = player.mults.hacking || 1;
 	const exp = player.exp.hacking;
 	// The models need the multipliers the levels really grow with: the player's mults leave out the BitNode's level multiplier
-	// (hacking x0.35 in BitNode 6), so read it back from the live levels (route-model.js modelMults). The history keeps the raw mult.
-	const effective = RM.modelMults(player);
+	// (hacking x0.35 in BitNode 6), so read it back from the live levels (route-model.js modelMults), or take it from the BitNode's
+	// multipliers while the levels are too low to read (combat at the start of a run). The history keeps the raw mult.
+	const nodeMults = bladeburnerNodeMults(ns);
+	const effective = RM.modelMults(player, { hacking: nodeMults.hackingLevel ?? undefined, combat: nodeMults.combatLevel ?? undefined });
 	const hackMult = effective.hacking;
 	const now = Date.now();
 	const shared = readBladeburner(ns);
@@ -186,7 +189,8 @@ function estimate(ns) {
 	const fmtHours = (result) => !result ? "unknown" : result.reached && result.hours <= 400 ? `${result.hours.toFixed(0)} h (${result.runs} runs)`
 		: result.reached ? `over 400 h (${result.hours.toFixed(0)} h modelled: too uncertain to call an estimate)` : "not reached within 60 runs";
 	// persistence.routeRepResets (config.js): false = the old model, rep kept across installs
-	const repResets = loadConfig(ns).persistence?.routeRepResets !== false;
+	const config = loadConfig(ns);
+	const repResets = config.persistence?.routeRepResets !== false;
 	const repConfig = { facMult: player.mults.faction_rep || 1, bn: BN_FACTION_REP[node] ?? 1, timeShare: 0.7, favor, now: repNow,
 		donateFavor: ns.getFavorToDonate(), resetOnInstall: repResets };
 	const combatNow = effective.combat;
@@ -219,6 +223,7 @@ function estimate(ns) {
 	const skillsNow = { ...player.skills };
 	const rankSamples = Array.isArray(shared.rank) ? shared.rank : [];
 	let acts = null;
+	let live = false;   // acts come from bb-pass.js' readings (false: the first guess, or none)
 	let bladeSim = null;
 	let chanceNow = null;
 	let duty = 0.5;
@@ -244,6 +249,7 @@ function estimate(ns) {
 			calibrated = current && last.t - first.t > 30 * 60_000;
 		}
 		if (actData && Array.isArray(actData.rows) && actData.rows.length) {
+			live = true;
 			acts = RM.makeBladeburner(actData.rows.map((row) => ({ ...row, lv: actData.lv })));
 			chanceNow = RM.bestChanceNow(acts, skillsNow);
 			const bestThen = RM.bestChanceNow(acts, actData.lv).chance;
@@ -251,6 +257,11 @@ function estimate(ns) {
 			// Only a calibrated window (30 min of play) sets the duty: the first minutes (first actions at level 1, resting) read
 			// several times too low, and a low duty made the route look slow enough to be held before it was ever measured properly
 			if (calibrated && predicted > 0 && Number.isFinite(measured)) duty = Math.min(1, Math.max(0.05, measured / predicted));
+		} else if (config.bladeburner?.priorRoute !== false && nodeMults.rank > 0) {
+			// No readings yet: a first guess from the game's action formulas and this BitNode's multipliers (rank gain, skill cost,
+			// combat levels), so a BitNode that nerfs Bladeburner hard can go to hacking before any gym time is spent on measuring it
+			acts = RM.makeBladeburner(RM.priorRows(player.skills, nodeMults.rank, player.mults.bladeburner_success_chance || 1));
+			if (!shared.skillModel?.costs) skills.costMult = nodeMults.skillCost;
 		}
 		if (acts && income > 0) {
 			bladeSim = scenarios.map((scenario) => {
@@ -289,13 +300,14 @@ function estimate(ns) {
 			lines.push(`Hacking, ${scenario.name}: ${fmtHours(result)}${result.reached ? "" : `; after ${result.runs} runs hacking x${last.hackMult.toFixed(1)}`}`);
 		}
 	} else if (!installed || level < required) lines.push("Hacking: needs a measured exp rate and income first");
+	if (bladeSim && !live) lines.push(`Bladeburner first guess (no live readings yet): the game's action formulas at combat ${RM.JOIN_LEVEL}, this BitNode's rank x${nodeMults.rank.toFixed(2)} and skill cost x${nodeMults.skillCost.toFixed(2)}, combat levels x${(nodeMults.combatLevel ?? 1).toFixed(2)} (${nodeMults.known ? "this BitNode's multipliers" : "multipliers unknown without Source-File 5: no nerf assumed"}); it commits hacking only when hacking takes under ${PRIOR_MARGIN * 100} % of this time, otherwise Bladeburner trains and measures itself`);
 	if (bladeSim) {
 		for (const { scenario, result } of bladeSim) {
 			const last = result.log[result.log.length - 1];
 			lines.push(`Bladeburner, ${scenario.name}: ${fmtHours(result)}${result.reached ? "" : `; after ${result.runs} runs combat x${last.combat.map((value) => value.toFixed(0)).join("/")}, rank ${Math.round(last.rank || 0)}`} (gym ${result.gym} h per run)`);
 		}
-		lines.push(`Bladeburner calibration: the model predicts ${Number.isFinite(predicted) ? predicted.toFixed(1) : "?"} rank/h at full duty; measured ${Number.isFinite(measured) ? measured.toFixed(1) : "?"} rank/h${calibrated ? "" : " (window under 30 min: not yet reliable)"} => duty ${Math.round(duty * 100)}% ${calibrated ? "applied" : "assumed until 30 min of play are measured"}`);
-		lines.push(`Best action chance now ${Math.round((chanceNow?.chance ?? 0) * 100)}% (${chanceNow?.name ?? "n/a"}); rank ${Math.floor(rankNow)}/400000. Skill points modelled for Overclock (now ${skills.oc}) and Blade's Intuition (now ${skills.bi}); stamina ${stamina ? "modelled" : "not modelled yet (no reading)"}; not modelled: Black Op chances and rank gates (hurt), city population`);
+		if (live) lines.push(`Bladeburner calibration: the model predicts ${Number.isFinite(predicted) ? predicted.toFixed(1) : "?"} rank/h at full duty; measured ${Number.isFinite(measured) ? measured.toFixed(1) : "?"} rank/h${calibrated ? "" : " (window under 30 min: not yet reliable)"} => duty ${Math.round(duty * 100)}% ${calibrated ? "applied" : "assumed until 30 min of play are measured"}`);
+		if (live) lines.push(`Best action chance now ${Math.round((chanceNow?.chance ?? 0) * 100)}% (${chanceNow?.name ?? "n/a"}); rank ${Math.floor(rankNow)}/400000. Skill points modelled for Overclock (now ${skills.oc}) and Blade's Intuition (now ${skills.bi}); stamina ${stamina ? "modelled" : "not modelled yet (no reading)"}; not modelled: Black Op chances and rank gates (hurt), city population`);
 	} else if (blackOpsDone) lines.push("Bladeburner: every Black Op is done");
 	else lines.push(`Bladeburner: ${acts ? "needs measured income" : "no live readings yet (they appear after bb-pass.js has run once)"}`);
 	if ((hackSim || bladeSim) && !someFinish) {
@@ -316,28 +328,64 @@ function estimate(ns) {
 		const anyHours = Number.isFinite(hackHours) || Number.isFinite(bladeHours);
 		const scoreHack = anyHours ? hackHours : (Number.isFinite(needHack) ? needHack : Infinity);
 		const scoreBlade = anyHours ? bladeHours : (Number.isFinite(needBlade) ? needBlade : Infinity);
-		const best = scoreHack === Infinity && scoreBlade === Infinity ? (hackSim ? "hacking" : "combat") : scoreHack <= scoreBlade ? "hacking" : "combat";
-		route = best;
-		if ((previous === "hacking" || previous === "combat") && previous !== best) {
-			const keep = previous === "hacking" ? scoreHack : scoreBlade;
-			const other = previous === "hacking" ? scoreBlade : scoreHack;
-			if (Number.isFinite(keep) && !(other < 0.75 * keep)) route = previous;
-			if (!Number.isFinite(keep) && !Number.isFinite(other)) route = previous;
-		}
+		route = pickRoute(scoreHack, scoreBlade, { hasHack: !!hackSim, previous, guess: !live && !!acts });
 		const anyNumber = Number.isFinite(hackHours) || Number.isFinite(bladeHours);
-		lines.push(`RECOMMENDED ROUTE: ${route === "hacking" ? "hacking over several resets" : "Bladeburner (combat augs first)"}${anyNumber ? `, about ${Math.min(hackHours, bladeHours).toFixed(0)} h in the verdict scenario` : ": ETA unknown (no scenario finishes within 400 h at today's income); the route that needs the smaller income increase to become a 100 h route"}`);
+		lines.push(`RECOMMENDED ROUTE${live ? "" : " (first guess)"}: ${route === "hacking" ? "hacking over several resets" : "Bladeburner (combat augs first)"}${anyNumber ? `, about ${Math.min(hackHours, bladeHours).toFixed(0)} h in the verdict scenario` : ": ETA unknown (no scenario finishes within 400 h at today's income); the route that needs the smaller income increase to become a 100 h route"}`);
 	}
 	// Is Bladeburner worth the player's time right now? From the live chance rescaled to the current skills (hysteresis).
 	const wasHold = shared.plan?.hold === true;
-	const hold = !!(acts && chanceNow && chanceNow.chance < (wasHold ? RESUME_ABOVE : HOLD_BELOW));
-	lines.push(`Bladeburner "run" now: ${!acts ? "no data yet, it runs once to read the real chances" : hold ? `HOLD: best chance ${Math.round(chanceNow.chance * 100)}% is too low to earn rank; the player's time goes to faction rep and earning instead (resumes above ${RESUME_ABOVE * 100}%)` : `run: best chance ${Math.round(chanceNow.chance * 100)}%`}`);
+	const hold = !!(live && chanceNow && chanceNow.chance < (wasHold ? RESUME_ABOVE : HOLD_BELOW));
+	lines.push(`Bladeburner "run" now: ${!live ? "no data yet, it runs once to read the real chances" : hold ? `HOLD: best chance ${Math.round(chanceNow.chance * 100)}% is too low to earn rank; the player's time goes to faction rep and earning instead (resumes above ${RESUME_ABOVE * 100}%)` : `run: best chance ${Math.round(chanceNow.chance * 100)}%`}`);
 
 	// Commit a route only once both sides have been measured: with no readings yet, "hacking" would make bb-manage.js hold Bladeburner,
 	// so bb-pass.js would never read the chances and the combat route could never be evaluated. No route = the config route applies.
-	if (!acts && route) lines.push("Route not committed yet: Bladeburner has no live readings, so it trains, joins and measures first");
+	// The exception is a first guess that puts hacking clearly ahead (the BitNode nerfs Bladeburner): training only to measure a
+	// route that loses anyway is the waste it avoids. It stays a guess: re-checked every pass, and a clearly better Bladeburner
+	// guess lets it train and measure again.
+	const commit = committedRoute(route, live, !!acts);
+	const priorHacking = commit.prior;
+	if (!live && route && !priorHacking) lines.push("Route not committed yet: Bladeburner has no live readings, so it trains, joins and measures first");
+	if (priorHacking) lines.push("Route committed from the first guess: hacking, without training for Bladeburner (bladeburner.priorRoute false turns this off)");
 	postBladeburner(ns, {
 		eta: { stamp, samples },
-		plan: { route: acts ? route || undefined : undefined, hold, daemonLevel: required, time: now },
+		plan: { route: commit.route, prior: priorHacking || undefined, hold, daemonLevel: required, time: now },
 	});
 	return lines;
+}
+
+/**
+ * The route to recommend from the two routes' scores (hours, or the income increase each needs; Infinity = no estimate). One route
+ * at a time: flipping wastes the gym time, rank and faction rep already put into the committed one, so the other route must be
+ * 25 % better. `guess` (Bladeburner from the first guess, no live readings): it is no measurement, so it moves to hacking only by
+ * the same clear margin (PRIOR_MARGIN), else stays on Bladeburner, which then trains and measures. Pure, for the tests.
+ * @param {number} scoreHack
+ * @param {number} scoreBlade
+ * @param {{ hasHack: boolean, previous?: string, guess?: boolean }} options
+ * @returns {"hacking" | "combat"}
+ */
+export function pickRoute(scoreHack, scoreBlade, { hasHack, previous, guess = false }) {
+	const best = scoreHack === Infinity && scoreBlade === Infinity ? (hasHack ? "hacking" : "combat") : scoreHack <= scoreBlade ? "hacking" : "combat";
+	/** @type {"hacking" | "combat"} */
+	let route = best;
+	if (guess && previous !== "hacking" && !(scoreHack < PRIOR_MARGIN * scoreBlade)) route = "combat";
+	if ((previous === "hacking" || previous === "combat") && previous !== best) {
+		const keep = previous === "hacking" ? scoreHack : scoreBlade;
+		const other = previous === "hacking" ? scoreBlade : scoreHack;
+		if (Number.isFinite(keep) && !(other < 0.75 * keep)) route = previous;
+		if (!Number.isFinite(keep) && !Number.isFinite(other)) route = previous;
+	}
+	return route;
+}
+
+/**
+ * What goes into plan.route for bb-manage.js: the route once Bladeburner has live readings; before them only hacking from the
+ * first guess (training to measure a route that loses anyway is the waste it avoids), otherwise nothing, so the config route
+ * applies and Bladeburner trains, joins and measures. Pure, for the tests.
+ * @param {string} route  the recommendation ("" when every Black Op is done)
+ * @param {boolean} live  Bladeburner has live readings
+ * @param {boolean} guessed  a first guess was made (bladeburner.priorRoute on, multipliers allow rank)
+ */
+export function committedRoute(route, live, guessed) {
+	const prior = !live && guessed && route === "hacking";
+	return { route: live || prior ? route || undefined : undefined, prior };
 }

@@ -138,6 +138,7 @@ much play is left on the table.
 | Incite Violence (new in v3: +3 minutes of count growth for every action; chaos +10 and more in every city) | Not used | Correctly ignored: chaos only falls by about 0.36 an hour (Diplomacy takes about 1.5 % of it per minute), and above 50 it divides every chance by `sqrt(1 + chaos - 50)` |
 | Sleeves: support (team members that survive), Infiltrate Synthoids (counts) | No sleeve scripts yet | Out of scope here; counts are the late-game limit, so infiltrating sleeves are the lever to add with the sleeves folder |
 | Bonus time (`getBonusTime`), `nextUpdate`, automate console | Not used | Not relevant to a one-shot pass design |
+| BitNode multipliers: `BladeburnerRank` (every rank gain; 0 = no division), `BladeburnerSkillCost`, combat level multipliers | Live readings already include them; before readings the route estimate's first guess uses the saved multipliers (Source-File 5), and rank 0 means no Bladeburner | Handled (see "Route estimate") |
 | Rank, skill points (1 per 3 rank), Bladeburners faction (rank 25), rank to rep | Skill points spent by `bb-manage.js`, which also joins the faction as soon as the rank allows (the game joins by itself only at an install, and rep only grows while a member) | Handled |
 | Stanek's Gift vs The Blade's Simulacrum | `bladeburner.stanekFirst` | Handled (below) |
 | The Blade's Simulacrum (Bladeburner actions alongside other work) | Bought first and installed at once on this route; `player-work.js` then works alongside | Handled (below) |
@@ -255,13 +256,30 @@ is used only when it explains the data (3+ runs, R-squared 0.5+, slope under the
 and the verdict uses the flat-income one. A slope at the cap means income grew for other reasons (RAM, servers) and the fit would
 credit it to the multiplier, which makes hacking look far better than it is: a real history had x90 income for 7% more
 multiplier. A reliable fit adds a flat scenario to the report for comparison. The Bladeburner side is scaled from the live readings of
-`bb-pass.js` with the game's own formulas, and calibrated against the measured rank per hour. The readable report is
+`bb-pass.js` with the game's own formulas (a first guess from the formulas and the BitNode's multipliers before there are
+any, below), and calibrated against the measured rank per hour. The readable report is
 `data/node-eta.txt` (alias `eta`); the verdict is `plan` on the port.
 
 - **One route at a time.** The committed route changes only when the other is 25 % better by its own measure (hours when a
   scenario finishes, else the income it would need), since flipping wastes the gym time, rank and rep already spent.
-- **No route before readings.** Until `bb-pass.js` has posted live action readings no route is written (the config route
-  applies), otherwise "hacking" would hold Bladeburner and the combat route could never be measured.
+- **No route before readings, except a clear first guess for hacking.** Until `bb-pass.js` has posted live action readings
+  no measured route is written (the config route applies), otherwise "hacking" would hold Bladeburner and the combat route could
+  never be measured. Measuring costs the gym to combat 100, though, and in a BitNode that nerfs Bladeburner hard that time is
+  wasted on a route that loses anyway. So before the readings `node-eta.js` makes a first guess (`priorRows` in
+  `route-model.js`): every Contract and Operation at level 1 with its chance and time from the game's formulas at combat 100
+  (average new-city population, full stamina, no skills), its rank gain times the BitNode's `BladeburnerRank`, the skill cost
+  times `BladeburnerSkillCost`, and the gym time at the BitNode's combat level multipliers. It posts `hacking` (with
+  `plan.prior`, shown in `status` and the hold line as a first guess) only when hacking takes under 75 % of the guessed
+  Bladeburner time; otherwise nothing is posted and Bladeburner trains and measures as before. The guess is redone every pass
+  and gives way the same way a flip would (Bladeburner 25 % better). The multipliers come from `getBitNodeMultipliers`
+  (saved by `tools/save-bitnode-mults.js`, so they need Source-File 5); without them the guess assumes no nerf. Kill switch:
+  `bladeburner.priorRoute: false`. Rejected: a table of BitNode numbers in the scripts (the game's own multipliers say it, and
+  a table would drift from the game); committing either route from the guess (a guess for Bladeburner would skip the
+  measurement that calibrates it).
+- **No division where the BitNode gives no rank.** `utils/bladeburner.js` reports Bladeburner unavailable when the saved
+  multipliers give `BladeburnerRank` 0 (the game then refuses `joinBladeburnerDivision`) or the BitNode's advanced options
+  disable it, so nothing trains for a division that never opens. Without Source-File 5 only the join attempt can tell
+  (`bb-manage.js` posts `off`).
 - **Real levels.** The models start from the multipliers the levels really grow with: the player's own mults times the
   BitNode's level multiplier, read back from the live level and exp (`modelMults` in `route-model.js`, the same reading
   `buy-augs.js` uses after The Red Pill; no Source-File 5 needed). `player.mults` leaves the BitNode's multiplier out, so

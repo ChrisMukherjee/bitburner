@@ -3,7 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeNs } from "./support/fake-ns.mjs";
-import { bladeburnerAccess } from "/utils/bladeburner.js";
+import { bladeburnerAccess, bladeburnerNodeMults } from "/utils/bladeburner.js";
+import { pickRoute, committedRoute } from "/bladeburner/node-eta.js";
 import { GIFT, giftOpen, joiningClosesGift } from "/utils/stanek.js";
 import { loadConfig } from "/utils/config.js";
 import {
@@ -14,6 +15,7 @@ import { main as manage } from "/bladeburner/bb-manage.js";
 import {
 	skillAt, expFor, rawChance, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour,
 	projectRoute, incomeNeeded, DONATE_REP, fitIncomeExponent, levelFactor, modelMults, inviteGate, gateOpen, skillStart, spendSkills, ACTIONS,
+	priorRows, JOIN_LEVEL,
 } from "/bladeburner/route-model.js";
 
 const minutesAgo = (n) => Date.now() - n * 60_000;
@@ -76,6 +78,31 @@ test("game: Bladeburner API: BitNode 6 or 7, or Source-File 6 or 7", () => {
 	assert.equal(access(1, [6]), true);
 	assert.equal(access(1, [7]), true);
 	assert.equal(access(1, [4, 5]), false);
+});
+
+// Saved BitNode multipliers (tools/save-bitnode-mults.js, Source-File 5) for BitNode `node`
+const savedMults = (node, mults) => ({ "data/bitnode.txt": String(node), "data/bitnode-mults.json": JSON.stringify({ node, mults }) });
+
+test("game: no Bladeburner where the BitNode's multipliers give no rank or its options disable it", () => {
+	// joinBladeburnerDivision refuses at BladeburnerRank 0 (bitburner-src v3.0.0); the scripts used to train combat to 100 for it
+	const access = (node, files, options = {}) => bladeburnerAccess(fakeNs({ files, overrides: {
+		getResetInfo: () => ({ currentNode: node, ownedSF: new Map([[5, 1], [6, 1]]), lastAugReset: Date.now(), bitNodeOptions: options }),
+	} }));
+	const none = access(8, savedMults(8, { BladeburnerRank: 0 }));
+	assert.equal(none.available, false);
+	assert.match(none.why, /BladeburnerRank 0/);
+	assert.equal(access(15, savedMults(15, { BladeburnerRank: 0.2 })).available, true, "a nerf is not a ban");
+	assert.equal(access(8, {}).available, true, "no saved multipliers (no Source-File 5): no BitNode number decides, the join attempt does");
+	assert.equal(access(8, { ...savedMults(9, { BladeburnerRank: 0 }), "data/bitnode.txt": "8" }).available, true, "multipliers saved in another BitNode are ignored");
+	assert.equal(access(6, {}, { disableBladeburner: true }).available, false, "advanced option");
+});
+
+test("bladeburnerNodeMults: the saved multipliers, or no nerf assumed without them", () => {
+	const ns = (files) => fakeNs({ files, overrides: { getResetInfo: () => ({ currentNode: 15, ownedSF: new Map(), lastAugReset: 0 }) } });
+	const nerfed = bladeburnerNodeMults(ns(savedMults(15, { BladeburnerRank: 0.2, BladeburnerSkillCost: 3, StrengthLevelMultiplier: 0.7,
+		DefenseLevelMultiplier: 0.7, DexterityLevelMultiplier: 0.7, AgilityLevelMultiplier: 0.7, HackingLevelMultiplier: 0.8 })));
+	assert.deepEqual(nerfed, { rank: 0.2, skillCost: 3, combatLevel: 0.7, hackingLevel: 0.8, known: true });
+	assert.deepEqual(bladeburnerNodeMults(ns({})), { rank: 1, skillCost: 1, combatLevel: null, hackingLevel: null, known: false });
 });
 
 test("ready checks: the manager starts with the API, bb-pass.js plays only in state run", () => {
@@ -435,6 +462,63 @@ test("levelFactor is 1 where the level can't be read (low level, no exp, nonsens
 	assert.equal(levelFactor(undefined, 1e6, 1), 1);
 	assert.equal(levelFactor(500, 1e9, 0), 1);
 	assert.ok(Math.abs(levelFactor(gameLevel(1e9, 2), 1e9, 2) - 1) < 0.01, "no BitNode multiplier: 1");
+});
+
+test("modelMults uses the BitNode's known level multipliers while the levels are too low to read them back", () => {
+	// Start of a BitNode 10 run: combat 1, exp 0. The gym time to 100 used to be modelled at full speed (x1 instead of x0.4).
+	const player = { mults: { hacking: 1, strength: 1.2, defense: 1, dexterity: 1, agility: 1 }, skills: { hacking: 5, strength: 1, defense: 1, dexterity: 1, agility: 1 }, exp: {} };
+	assert.deepEqual(modelMults(player).combat, [1.2, 1, 1, 1], "unknown: as before");
+	const known = modelMults(player, { combat: 0.4, hacking: 0.8 });
+	assert.ok(Math.abs(known.combat[0] - 0.48) < 1e-9 && known.combat[1] === 0.4);
+	assert.equal(known.hacking, 0.8);
+	assert.equal(levelFactor(10, 1e3, 1, 0.4), 0.4, "the fallback where the level can't be read");
+});
+
+test("game: priorRows, the first guess, follows the game's formulas and scales with the BitNode's rank multiplier", () => {
+	const lv = { hacking: 50, strength: 5, defense: 5, dexterity: 5, agility: 5, charisma: 5, intelligence: 0 };
+	const rows = priorRows(lv);
+	assert.equal(rows.length, ACTIONS.length);
+	const tracking = rows.find((row) => row.name === "Tracking");
+	assert.equal(tracking.lv.agility, JOIN_LEVEL, "read at the join level, not the untrained stats");
+	assert.equal(tracking.lv.hacking, 50);
+	// v3.0.0: chance = competence x (1.25)^0.7 (average new-city population) / difficulty; time = ceil(difficulty / 10 / timeFactor)
+	assert.ok(Math.abs(tracking.chance - rawChance("Tracking", tracking.lv) * Math.pow(1.25, 0.7)) < 1e-9);
+	assert.equal(tracking.secs, 11);
+	assert.equal(tracking.gain, 0.3);
+	const nerfed = priorRows(lv, 0.2);
+	assert.ok(Math.abs(nerfed.find((row) => row.name === "Tracking").gain - 0.06) < 1e-12);
+	const full = { ...lv, strength: 200, defense: 200, dexterity: 200, agility: 200 };
+	const rate = (rankMult) => predictRankPerHour(makeBladeburner(priorRows(lv, rankMult)), full, 4);
+	assert.ok(rate(1) > 0);
+	assert.ok(Math.abs(rate(0.2) / rate(1) - 0.2) < 0.05, "a fifth of the rank: about a fifth of the rate");
+});
+
+test("choice: pickRoute: a first guess moves to hacking only when hacking clearly wins", () => {
+	// The first guess (no live readings) is no measurement: Bladeburner keeps training to measure itself unless hacking takes
+	// under 75 % of its modelled time
+	assert.equal(pickRoute(100, 500, { hasHack: true, guess: true }), "hacking", "BitNode 15-style nerf: skip the gym");
+	assert.equal(pickRoute(100, 120, { hasHack: true, guess: true }), "combat", "close: train and measure");
+	assert.equal(pickRoute(100, Infinity, { hasHack: true, guess: true }), "hacking", "Bladeburner never finishes on the guess");
+	assert.equal(pickRoute(Infinity, Infinity, { hasHack: true, guess: true }), "combat", "nothing finishes: measure");
+	assert.equal(pickRoute(100, 120, { hasHack: true }), "hacking", "measured: the faster route");
+	assert.equal(pickRoute(100, 90, { hasHack: true, previous: "hacking", guess: true }), "hacking", "a guess already on hacking keeps it within 25 %");
+	assert.equal(pickRoute(100, 70, { hasHack: true, previous: "hacking", guess: true }), "combat", "Bladeburner clearly better: back to measuring");
+});
+
+test("committedRoute: before live readings only a first-guess hacking route is posted", () => {
+	assert.deepEqual(committedRoute("hacking", false, true), { route: "hacking", prior: true });
+	assert.deepEqual(committedRoute("combat", false, true), { route: undefined, prior: false }, "the config route applies and it measures");
+	assert.deepEqual(committedRoute("hacking", false, false), { route: undefined, prior: false }, "bladeburner.priorRoute off: no guess");
+	assert.deepEqual(committedRoute("combat", true, false), { route: "combat", prior: false });
+	assert.deepEqual(committedRoute("", true, false), { route: undefined, prior: false }, "every Black Op done");
+});
+
+test("bb-manage: a first-guess hacking route holds Bladeburner before any gym", async () => {
+	const w = world({ skills: { hacking: 100, strength: 5, defense: 5, dexterity: 5, agility: 5 }, inDivision: false, income: 1e6,
+		post: { plan: { route: "hacking", prior: true, time: minutesAgo(1) } } });
+	await manage(w.ns);
+	assert.equal(w.state(), "hold", "not train");
+	assert.match(w.ns.portJson(BB_PORT).lines[0], /first guess from the BitNode's multipliers/);
 });
 
 test("projectRoute (hacking) takes longer when the BitNode level multiplier is counted", () => {

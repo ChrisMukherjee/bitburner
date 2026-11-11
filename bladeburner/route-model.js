@@ -17,16 +17,21 @@ const expFor = (level, mult) => Math.max(0, Math.exp((level / mult + 200) / 32) 
  * others), which `player.mults` leaves out; without this the models would see levels the player can't reach. Needs no Source-File 5.
  * 1 when the level is too low to read it through the game's rounding down, or the reading makes no sense.
  */
-function levelFactor(level, exp, mult) {
-    if (!(level >= 50) || !(exp > 0) || !(mult > 0)) return 1;
+function levelFactor(level, exp, mult, fallback = 1) {
+    if (!(level >= 50) || !(exp > 0) || !(mult > 0)) return fallback;
     const factor = level / (mult * (32 * Math.log(exp + 534.5) - 200));
-    return Number.isFinite(factor) && factor > 0.01 && factor < 100 ? factor : 1;
+    return Number.isFinite(factor) && factor > 0.01 && factor < 100 ? factor : fallback;
 }
 
-/** The multipliers the route models use: the player's own mults times the level multiplier the game applies on top (levelFactor). */
-function modelMults(player) {
+/**
+ * The multipliers the route models use: the player's own mults times the level multiplier the game applies on top (levelFactor).
+ * `known` ({ hacking, combat }, from the BitNode's multipliers when they are known) is used while the levels are too low to read
+ * the factor back: at the start of a run combat is near 1, and the gym time to 100 would otherwise be modelled at full speed.
+ */
+function modelMults(player, known = {}) {
     const own = (key) => player.mults?.[key] || 1;
-    const effective = (key) => own(key) * levelFactor(player.skills?.[key], player.exp?.[key], own(key));
+    const fallback = (key) => { const value = key === "hacking" ? known.hacking : known.combat; return value > 0 ? value : 1; };
+    const effective = (key) => own(key) * levelFactor(player.skills?.[key], player.exp?.[key], own(key), fallback(key));
     return { hacking: effective("hacking"), combat: ["strength", "defense", "dexterity", "agility"].map(effective) };
 }
 
@@ -47,6 +52,32 @@ const BY_NAME = new Map(ACTIONS.map(a => [a.name, a]));
 
 const competence = (a, lv) => STATS.reduce((t, s, i) => t + a.w[i] * Math.pow(Math.max(1, lv[s] ?? 1), a.dc[i]), 0);
 const timeFactor = (lv) => 0.5 * (Math.pow(lv.agility, 0.04) + Math.pow(lv.dexterity, 0.035) + lv.agility / 1e4 + lv.dexterity / 1e4);
+
+// First-guess readings (priorRows), bitburner-src v3.0.0: a new city holds 1e9 to 1.5e9 Synthoids, and success scales with
+// (population / 1e9)^0.7, so 1.25^0.7 on average; action time = difficulty / 10 / timeFactor; a new action's count is drawn between
+// its minimum and maximum (Contracts 25 or 5 to 150, Investigation and Undercover Operation 1 to 100, the others 1 to 150).
+const PRIOR_POPULATION = Math.pow(1.25, 0.7);
+const PRIOR_COUNT = { Tracking: 87, "Bounty Hunter": 77, Retirement: 77, Investigation: 50, "Undercover Operation": 50 };
+/** The combat level Bladeburner can be joined at (every combat stat). */
+const JOIN_LEVEL = 100;
+
+/**
+ * Readings for the rank model before Bladeburner has any (makeBladeburner takes them as it takes bb-pass.js' live rows): every
+ * Contract and Operation at level 1, its chance and time from the game's formulas at the levels the player joins with (combat
+ * stats raised to 100), its rank gain times the BitNode's rank multiplier. Not in it: city chaos, stamina (start full), skills.
+ * `skills` the player's levels; `rankMult` BladeburnerRank; `successMult` the player's bladeburner_success_chance.
+ */
+function priorRows(skills, rankMult = 1, successMult = 1) {
+    const lv = { ...skills };
+    for (const stat of ["strength", "defense", "dexterity", "agility"]) lv[stat] = Math.max(JOIN_LEVEL, lv[stat] ?? 1);
+    const intelligence = 1 + 0.75 * Math.pow(Math.max(0, lv.intelligence ?? 0), 0.8) / 600;
+    return ACTIONS.map((a) => ({
+        type: a.type, name: a.name, level: 1, maxLevel: 1, count: PRIOR_COUNT[a.name] ?? 75, lv,
+        chance: Math.min(1, competence(a, lv) * intelligence * PRIOR_POPULATION * successMult / a.base),
+        secs: Math.max(1, Math.ceil(a.base / 10 / timeFactor(lv))),
+        gain: a.rank * rankMult,
+    }));
+}
 
 /**
  * Bladeburner rank model. `rows` are the live readings written by bb-pass.js (bb-actions.json): per action the chance, level, count,
@@ -416,4 +447,4 @@ function fitIncomeExponent(points, cap = 3) {
     return { exponent: Math.min(cap, Math.max(0, raw)), raw, r2, reliable: raw >= 0 && raw < cap && r2 >= 0.5, runs: usable.length };
 }
 
-export { favorToRep, repToFavor, hoursToLevel, skillStart, spendSkills, RANK_PER_SKILL_POINT, levelFactor, modelMults, inviteGate, gateOpen, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };
+export { priorRows, JOIN_LEVEL, favorToRep, repToFavor, hoursToLevel, skillStart, spendSkills, RANK_PER_SKILL_POINT, levelFactor, modelMults, inviteGate, gateOpen, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };

@@ -426,6 +426,10 @@ export const DEFAULTS = {
 		// (1,250) and reset for it at once; once installed, player-work.js keeps working, training or committing crimes while
 		// bb-pass.js plays (docs/bladeburner.md, "The Blade's Simulacrum"). false = never bought by the scripts.
 		simulacrumFirst: true,
+		// priorRoute: before Bladeburner has live readings, node-eta.js makes a first guess from the game's action formulas and
+		// this BitNode's multipliers (rank gain, skill cost, combat levels); when hacking takes clearly less time (under 75 %),
+		// it picks hacking at once and no gym time is spent measuring Bladeburner. false = always train and measure first.
+		priorRoute: true,
 	},
 
 	// tools/status.js. routeProgress: the BitNode block shows how far each way out is (hacking: Daedalus, The Red Pill,

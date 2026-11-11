@@ -22,7 +22,8 @@ multipliers also cancel when ranking targets, because every target is scaled the
 ## Where a multiplier changes a decision
 
 1. **Done:** batcher's weaken guess before the first measurement (`ServerWeakenRate`); hacknet's price of a
-   first node without Formulas (`HacknetNodeMoney`).
+   first node without Formulas (`HacknetNodeMoney`); Bladeburner's first guess before any live readings and no division at
+   rank 0 (`BladeburnerRank`, `BladeburnerSkillCost`, the combat level multipliers; [`bladeburner.md`](bladeburner.md#route-estimate)).
 2. **Gating, done:** `mechanicGates` in the config maps a script to the multipliers it lives on; startup.js leaves it
    out while one is below `minMultiplier` (0.1) and says so once. Today: hacknet (`HacknetNodeMoney`) and the gang
    (`GangSoftcap`). The player's overrides win: `mechanicGates.force` lists scripts to start anyway and
