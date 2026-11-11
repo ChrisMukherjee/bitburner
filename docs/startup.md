@@ -48,6 +48,11 @@
 - **Runs off home when home is full.** Scripts that don't read or write files on their own server go to
   rooted servers (at most 65% of off-home RAM, the rest stays for the batcher). That is what makes it work
   from an 8GB home. `homeOnly` marks the ones that must stay.
+  A script that needs `CONFIG.heavyShare` (20%) of home's RAM or more (the gang manager, Bladeburner passes,
+  player-work) tries the other servers first and uses home only when none has room, so a capped home (the BN1
+  challenge) keeps room for the `homeOnly` scripts (stock trader, auto-reset) and for the reset planner that
+  auto-reset runs on home (31.6GB). Rejected: reserving that room on home instead; the batcher already keeps
+  `homeReservedRam` free, and moving the big scripts frees more than a reservation holds.
 - **Skips what can't run instead of failing.** Without the Singularity API every [`../singularity/`](../singularity/)
   script is left out with one summary line, checked through [`../utils/singularity.js`](../utils/singularity.js).
   Each mechanic's manager (gang, Bladeburner, darknet, purchased servers) starts only once its folder's ready check says there is work, so startup.js knows nothing of the mechanic.

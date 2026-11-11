@@ -1,0 +1,21 @@
+# Runs the test suite and the type check on every push and pull request, so a change that breaks a test is seen on
+# GitHub (a red cross on the commit) even when nobody ran `npm test` locally. See docs/testing.md.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The tests need no npm packages (bitburner-filesync is only for syncing to the game)
+      - name: npm test
+        run: npm test
+      - name: Type check (files with // @ts-check)
+        run: npx -y -p typescript@7.0.2 tsc -p jsconfig.json

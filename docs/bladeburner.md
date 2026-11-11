@@ -148,7 +148,10 @@ Open items: lowering an action's level when that alone makes it safe; counting t
 
 The `status` BitNode block says how far each way out is, so the player doesn't have to piece it together from the logs. The active
 route (`plan.route`, the verdict of [`node-eta.js`](../bladeburner/node-eta.js)) is spelled out and the other is one line; with no
-verdict yet both are spelled out. The wording lives in [`utils/route-progress.js`](../utils/route-progress.js).
+verdict yet both are spelled out, under a line saying what the player does meanwhile: `bb-manage.js` follows `bladeburner.route`
+(combat by default), so Bladeburner starts (hacking 10 and income, the gym, then actions) to get the live readings the estimate
+needs, and the faster route takes over once it has them. "Not chosen yet" read as if nothing was decided while the gym was
+already running. The wording lives in [`utils/route-progress.js`](../utils/route-progress.js).
 
 - **Hacking route:** Daedalus (installed augs against the invite's count, cash, hacking level or combat stats, each with what the player
   has), The Red Pill (Daedalus rep against its requirement with an ETA, then bought, then installed), `w0r1d_d43m0n` (hacking level

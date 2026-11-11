@@ -2,7 +2,9 @@
 
 **Decision:** test the decision logic outside the game with Node's built-in test runner (`node --test`), loading the
 game scripts exactly as they are synced, with a small fake `ns`. Run it with `npm test` from the repo root (Node 22 or later).
-No test framework, no build step, no npm packages.
+No test framework, no build step, no npm packages. GitHub runs the same command and the type check on every push and pull
+request ([`../.github/workflows/test.yml`](../.github/workflows/test.yml)), so a change nobody tested locally still shows a
+red cross on its commit.
 
 **Why:** most bugs found in game were logic slips (a rule that skipped a case, a setting not switched off on one route,
 a running class never upgraded), found hours later from logs. Pure decisions, given plain numbers, can be checked in
@@ -83,9 +85,14 @@ check that the test fails when its rule breaks, and on a script before trusting 
     game's invite and rival rules for Tian Di Hui and the city factions, and helpers that answer at once. Tests check the
     order of the work, one city group and no rival, no work restarted every pass, the pass state and what an install
     clears, focus, how often the helpers run, company work, the gang invite's crime, and the done gate.
-- Not covered yet: the Go bot's `main` loop (its plan order and move search are tested), the gang manager's `main` loop
-  (its per-pass decisions are tested; the stock trader's `main` runs a few ticks in a fake market),
-  `bladeburner/bb-pass.js` and `node-eta.js`. The simulators above are the model for testing those loops.
+  - [`../tests/support/fake-gang.mjs`](../tests/support/fake-gang.mjs) runs the gang manager for simulated hours, one
+    gang update at a time: respect, money, wanted level and experience through [`../gang/formulas.js`](../gang/formulas.js),
+    and the game's rules for recruiting, ascension, power, clashes with the other gangs (their own power gains too) and
+    deaths, with a seeded random number. Tests check creating the gang, recruiting the moment respect allows, the plan,
+    buy and log clocks, focus, cooling and its hysteresis, when clashes go on and off, deaths, and the equipment helper.
+- Not covered yet: the Go bot's `main` loop (its plan order and move search are tested; the stock trader's `main` runs a
+  few ticks in a fake market), `bladeburner/bb-pass.js` and `node-eta.js`. The simulators above are the model for
+  testing those loops.
 - The Go search is random and time-boxed, so its tests use boards where one move is clearly right and check the move,
   not the win-chance figure.
 - RAM is not checked by the tests. The offline port of the game's RAM check needs the game's source and npm packages, so
@@ -112,12 +119,14 @@ messages have no tests. Tests added then for the reset rule's untested branches 
 guarantee, waiting for the Daedalus donation line, which resets the home-upgrade hold leaves alone) each fail with their
 condition flipped. One test was removed: it only checked that a default was above the old default. The simulator tests
 added next took the batcher from 27 % to 78 % of its flips caught and player-work from 31 % to 72 % (every flip in each
-file); what is left is mostly log wording, the Bladeburner-route crime invites and the gang's gym step.
+file); what is left is mostly log wording, the Bladeburner-route crime invites and the gang's gym step. The gang
+simulator took the gang manager from 65 % to 77 % and found a bug: a member killed in a clash was never reported or
+counted when respect let the next update recruit a replacement before the plan looked.
 
-**Current state:** about 470 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
+**Current state:** about 480 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
 step, home-upgrade hold, Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without
 Formulas.exe, RAM pool, the batcher's main loop in a hacking simulator, startup.js stages and one-shots, gym and study
 choice, player-work's passes in a player simulator, income curve, augment filter, BitNode route,
-Go plan order and move search, the gang manager's per-pass decisions, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
+Go plan order and move search, the gang manager's per-pass decisions and its main loop in a gang simulator, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
 state machine (with the wait for Stanek's Gift) and route model, the darknet's solvers, migration and storm rule, the program order, repo checks,
-and the two test tools. Tagged: 16 `regression:`, 21 `game:`, 5 `choice:`; the rest are rules.
+and the two test tools. Tagged: 19 `regression:`, 21 `game:`, 5 `choice:`; the rest are rules. GitHub runs them and the type check on every push.

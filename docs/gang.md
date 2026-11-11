@@ -75,6 +75,7 @@ These are the facts the manager is built on; each was read from the source, not 
 
 - **Status** (`status`, port 28): money per second **against the ceiling** (every member on its best money task with no wanted penalty, at its current stats),
   respect per second, wanted penalty, land and clash state with the land outlook, and a line of members earning / training / warfare / cooling, ascensions, deaths and the main-stat average and weakest member.
+  Deaths are counted every update, before recruiting can fill the place (a gang with the respect to replace a member at once would otherwise never see the loss).
   Efficiency below ~70% at a full gang means members are training, at war or cooling; the third line says which.
 - **Log and report.** The manager appends a sample to `data/gang-log.json` every `gang.logMs` (5 minutes, a day kept) with milestones (first full gang, first clashes, all land).
   `gang-report` prints the latest sample, ascensions and deaths per hour, income and stat trend, land gained per hour and the hours left to all of it at that pace.

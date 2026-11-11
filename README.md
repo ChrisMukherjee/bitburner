@@ -27,7 +27,8 @@ Files the game writes (anything in `data/`) never come back to disk.
 `npm test` runs the automated tests in [`tests/`](tests/README.md) with Node 22 or later: the reset rule, the batcher's
 thread math, the gym and study choices, the config layers and repo checks (imports, README listings, aliases), outside
 the game with a fake `ns`. Run it after changing a script; it prints the name of anything that broke. The tests are
-`.mjs` files, so filesync never pushes them. `npm run test:changed` lists the tests a change edited (for its report),
+`.mjs` files, so filesync never pushes them. GitHub runs the tests and the type check on every push
+([`.github/workflows/test.yml`](.github/workflows/test.yml)), so a commit that breaks one shows a red cross. `npm run test:changed` lists the tests a change edited (for its report),
 and `npm run mutate -- <script>` shows which of a script's conditions no test would notice breaking. Why and how:
 [`docs/testing.md`](docs/testing.md).
 
