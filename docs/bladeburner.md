@@ -276,7 +276,16 @@ any, below), and calibrated against the measured rank per hour. The readable rep
   Bladeburner time; otherwise nothing is posted and Bladeburner trains and measures as before. The guess is redone every pass
   and gives way the same way a flip would (Bladeburner 25 % better). The multipliers come from `getBitNodeMultipliers`
   (saved by `tools/save-bitnode-mults.js`, so they need Source-File 5); without them the guess assumes no nerf. Kill switch:
-  `bladeburner.priorRoute: false`. Rejected: a table of BitNode numbers in the scripts (the game's own multipliers say it, and
+  `bladeburner.priorRoute: false`. A young run (under 30 minutes since the install) has no income or hacking exp rate
+  measured yet, and without them the hacking route cannot be simulated at all, so the guess had nothing to compare
+  Bladeburner with and defaulted to training (this is how a run spent the gym on Bladeburner, then switched to hacking at
+  rank 53 of 400,000). `node-eta.js` now records each run's peak exp rate next to its peak income in
+  `data/node-eta-history.json` and, while the run is young (or a figure is missing), starts from the last earlier run's
+  income and exp rate (`seedFromHistory` in `route-model.js`; income grows with the multiplier only through a reliable fit,
+  else flat). The report says when it did. Once the run has its own figures they replace the seed. Kill switch:
+  `bladeburner.priorHistory: false`. Needs one earlier run in the history; the first run ever still measures. Rejected:
+  reading `data/reset-log.json` (the history file already holds income per run with the multiplier and survives resets).
+  Rejected: a table of BitNode numbers in the scripts (the game's own multipliers say it, and
   a table would drift from the game); committing either route from the guess (a guess for Bladeburner would skip the
   measurement that calibrates it).
 - **No division where the BitNode gives no rank.** `utils/bladeburner.js` reports Bladeburner unavailable when the saved

@@ -436,6 +436,10 @@ export const DEFAULTS = {
 		// this BitNode's multipliers (rank gain, skill cost, combat levels); when hacking takes clearly less time (under 75 %),
 		// it picks hacking at once and no gym time is spent measuring Bladeburner. false = always train and measure first.
 		priorRoute: true,
+		// priorHistory: while a run is young (no income or exp rate measured yet), node-eta.js starts from the last run's peak income
+		// and exp rate (data/node-eta-history.json) so the hacking route can be simulated and the first guess has something to
+		// compare Bladeburner with. false = wait for this run's own readings.
+		priorHistory: true,
 	},
 
 	// tools/status.js. routeProgress: the BitNode block shows how far each way out is (hacking: Daedalus, The Red Pill,

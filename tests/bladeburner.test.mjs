@@ -15,7 +15,7 @@ import { main as manage } from "/bladeburner/bb-manage.js";
 import {
 	skillAt, expFor, rawChance, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour,
 	projectRoute, incomeNeeded, DONATE_REP, fitIncomeExponent, levelFactor, modelMults, inviteGate, gateOpen, skillStart, spendSkills, ACTIONS,
-	priorRows, JOIN_LEVEL,
+	priorRows, JOIN_LEVEL, seedFromHistory,
 } from "/bladeburner/route-model.js";
 
 const minutesAgo = (n) => Date.now() - n * 60_000;
@@ -870,4 +870,37 @@ test("bb-pass: scouting takes at most a fifth of the time; past that the safe ac
 	await play(busy.ns);
 	assert.deepEqual(busy.ns.called("bladeburner.startAction").at(-1), ["Contracts", "Tracking"], "over the cap: play the safe action");
 	assert.ok(busy.ns.portJson(BB_PORT).scoutShare < 0.25, "and the share comes back down");
+});
+
+// ---- seeding a young run from the last run (route-model.js seedFromHistory)
+test("seedFromHistory: a young run starts from the last earlier run's income and exp rate, never its own entry", () => {
+	const history = [
+		{ stamp: "a", mult: 2, income: 100, expRate: 10 },
+		{ stamp: "b", mult: 2, income: 500, expRate: 40 },
+		{ stamp: "now", mult: 2, income: 3, expRate: 1 },
+	];
+	const seed = seedFromHistory(history, "now", 2);
+	assert.equal(seed.income, 500, "the most recent earlier run, not the run in progress");
+	assert.equal(seed.expRate, 40);
+	assert.equal(seed.runs, 2);
+});
+
+test("seedFromHistory: income grows with the multiplier only through a reliable fit's exponent, else stays flat", () => {
+	const history = [{ stamp: "a", mult: 2, income: 100 }];
+	assert.equal(seedFromHistory(history, "now", 4).income, 100, "no exponent: flat, the conservative case");
+	assert.equal(seedFromHistory(history, "now", 4, 0).income, 100);
+	assert.ok(Math.abs(seedFromHistory(history, "now", 4, 1).income - 200) < 1e-9, "x2 multiplier with exponent 1: x2 income");
+	assert.equal(seedFromHistory(history, "now", 1, 1).income, 100, "a lower multiplier never lowers the seed below the measured run");
+});
+
+test("seedFromHistory: exp rate falls back to the latest run that recorded one; nothing usable gives null", () => {
+	const history = [{ stamp: "a", mult: 1, income: 10, expRate: 7 }, { stamp: "b", mult: 1, income: 20 }];
+	const seed = seedFromHistory(history, "now", 1);
+	assert.equal(seed.income, 20);
+	assert.equal(seed.expRate, 7, "older exp rate used when the newest run recorded none");
+	assert.equal(seedFromHistory([{ stamp: "a", mult: 1, income: 10 }], "now", 1).expRate === seed.expRate, false);
+	assert.ok(Number.isNaN(seedFromHistory([{ stamp: "a", mult: 1, income: 10 }], "now", 1).expRate));
+	assert.equal(seedFromHistory([], "now", 1), null);
+	assert.equal(seedFromHistory(undefined, "now", 1), null);
+	assert.equal(seedFromHistory([{ stamp: "now", mult: 1, income: 10 }, { stamp: "x", mult: 1, income: 0 }], "now", 1), null, "own entry and zero income do not count");
 });

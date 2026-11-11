@@ -26,6 +26,7 @@ const RUN_HOURS = 4;             // modelled length of a run
 const GYM_CHOICES = [1, 2, 3];   // gym hours per run the combat model tries
 const HISTORY_FILE = "data/node-eta-history.json";   // income vs multiplier across runs; survives resets, so it is a file
 const REPORT_FILE = "data/node-eta.txt";
+const YOUNG_RUN_MS = 30 * 60_000;   // within this a run's own income and exp rate are still ramping up
 const PRIOR_MARGIN = 0.75;       // a first guess commits hacking only when hacking takes under 75 % of Bladeburner's modelled time
 const HOLD_BELOW = 0.3;          // hold Bladeburner under this best chance, resume only above RESUME_ABOVE
 const RESUME_ABOVE = 0.4;
@@ -100,8 +101,8 @@ function estimate(ns) {
 	const old = shared.eta && shared.eta.stamp === stamp ? shared.eta : { stamp, samples: [] };
 	const samples = old.samples.filter((sample) => now - sample.t < 30 * 60_000 && sample.exp <= exp);
 	samples.push({ t: now, exp });
-	const rate = now - samples[0].t >= 2 * 60_000 ? (exp - samples[0].exp) / ((now - samples[0].t) / 1000) : NaN; // exp per second
-	const income = readIncomeRate(ns).perSecond;
+	let rate = now - samples[0].t >= 2 * 60_000 ? (exp - samples[0].exp) / ((now - samples[0].t) / 1000) : NaN; // exp per second
+	let income = readIncomeRate(ns).perSecond;
 	const money = ns.getServerMoneyAvailable("home");
 
 	// The Red Pill and Daedalus
@@ -164,8 +165,12 @@ function estimate(ns) {
 	if (!Array.isArray(history)) history = [];
 	if (income > 0 && level >= 10) {
 		const current = history.find((entry) => entry.stamp === stamp);
-		if (current) { if (income > current.income) { current.income = income; current.t = now; } current.mult = mult; }
-		else history.push({ stamp, t: now, mult, income });
+		const rateNow = Number.isFinite(rate) && rate > 0 ? rate : undefined;   // the exp rate too, so the next run can start from it (seedFromHistory)
+		if (current) {
+			if (income > current.income) { current.income = income; current.t = now; }
+			if (rateNow && !(rateNow <= current.expRate)) current.expRate = rateNow;
+			current.mult = mult;
+		} else history.push({ stamp, t: now, mult, income, expRate: rateNow });
 		history = history.slice(-30);
 		ns.write(HISTORY_FILE, JSON.stringify(history), "w");
 	}
@@ -190,6 +195,21 @@ function estimate(ns) {
 	// persistence.routeRepResets (config.js): false = the old model, rep kept across installs
 	const config = loadConfig(ns);
 	const repResets = config.persistence?.routeRepResets !== false;
+	// A young run has measured nothing yet (a reset empties income and the exp rate), so the hacking route could not be simulated
+	// and Bladeburner was the only route left to "measure", at the cost of the gym. Start from the last run's peak instead.
+	const seed = config.bladeburner?.priorHistory !== false ? RM.seedFromHistory(history, stamp, mult, incomeExponent) : null;
+	if (seed) {
+		const young = (now - info.lastAugReset) < YOUNG_RUN_MS;
+		const noIncome = !(income > 0), noRate = !(rate > 0);
+		if (noIncome || (young && seed.income > income)) {
+			lines.push(`Income $${ns.format.number(income > 0 ? income : 0)}/s this run is still ${noIncome ? "unmeasured" : "ramping up"}: using the last run's peak $${ns.format.number(seed.income)}/s for the estimate`);
+			income = seed.income;
+		}
+		if (Number.isFinite(seed.expRate) && (noRate || (young && seed.expRate > rate))) {
+			lines.push(`Hacking exp rate ${noRate ? "unmeasured" : "ramping up"}: using the last run's ${seed.expRate.toFixed(1)}/s for the estimate`);
+			rate = seed.expRate;
+		}
+	}
 	const repConfig = { facMult: player.mults.faction_rep || 1, bn: BN_FACTION_REP[node] ?? 1, timeShare: 0.7, favor, now: repNow,
 		donateFavor: ns.getFavorToDonate(), resetOnInstall: repResets };
 	const combatNow = effective.combat;

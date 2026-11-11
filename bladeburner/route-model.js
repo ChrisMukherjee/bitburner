@@ -447,4 +447,25 @@ function fitIncomeExponent(points, cap = 3) {
     return { exponent: Math.min(cap, Math.max(0, raw)), raw, r2, reliable: raw >= 0 && raw < cap && r2 >= 0.5, runs: usable.length };
 }
 
-export { priorRows, JOIN_LEVEL, favorToRep, repToFavor, hoursToLevel, skillStart, spendSkills, RANK_PER_SKILL_POINT, levelFactor, modelMults, inviteGate, gateOpen, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };
+/**
+ * Income and hacking exp rate to assume while the run is too young to have measured them (a reset empties both, so the first
+ * minutes read near zero and the hacking route could not be simulated, which left Bladeburner as the only route to "measure").
+ * Takes the most recent earlier run's peak income, grown with the multiplier only by a reliable fit's exponent (flat otherwise,
+ * the conservative case), and the exp rate that run measured. `history` is data/node-eta-history.json ({ stamp, mult, income,
+ * expRate? }). Returns null when no earlier run has an income. Pure.
+ * @param {any[]} history
+ * @param {string} stamp  this run's id (its own entry is not a past run)
+ * @param {number} mult  the hacking multiplier now
+ * @param {number} [exponent]  income ~ multiplier^exponent, NaN/0 = flat
+ * @returns {{ income: number, expRate: number, runs: number } | null}
+ */
+function seedFromHistory(history, stamp, mult, exponent = NaN) {
+    const past = (Array.isArray(history) ? history : []).filter((e) => e && e.stamp !== stamp && e.income > 0 && e.mult > 0);
+    if (past.length === 0) return null;
+    const last = past[past.length - 1];
+    const growth = Number.isFinite(exponent) && exponent > 0 && mult > 0 ? Math.max(1, (mult / last.mult) ** exponent) : 1;
+    const withRate = past.filter((e) => e.expRate > 0);
+    return { income: last.income * growth, expRate: withRate.length ? withRate[withRate.length - 1].expRate : NaN, runs: past.length };
+}
+
+export { seedFromHistory, priorRows, JOIN_LEVEL, favorToRep, repToFavor, hoursToLevel, skillStart, spendSkills, RANK_PER_SKILL_POINT, levelFactor, modelMults, inviteGate, gateOpen, fitIncomeExponent, AUG_STEP, GYM_EXP_PER_SECOND, skillAt, expFor, ACTIONS, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour, DONATE_REP, projectRoute, rawChance, incomeNeeded };
