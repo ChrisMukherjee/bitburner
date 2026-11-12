@@ -475,12 +475,13 @@ export const DEFAULTS = {
 	// Empty by default, since the route is each player's own plan: set it in data/config.json, e.g.
 	//   "bitnodeRoute": [{ "bitNode": 4, "level": 3 }, { "bitNode": 2, "level": 1 }, { "bitNode": 5, "level": 1 }]
 	bitnodeRoute: [],
-	// With bitnodeRoute empty: false only suggests the next BitNode (tools/status.js, the "ready" notice) and waits for
-	// you; true lets auto-destroy.js follow the suggestion by itself. Your own bitnodeRoute always wins.
+	// On by default: when bitnodeRoute is empty or done, auto-destroy.js follows the suggestion by itself. Set false
+	// (`autoroute off`) to only suggest the next BitNode (tools/status.js, the "ready" notice) and wait for you.
+	// Your own bitnodeRoute is always followed first.
 	// The suggestion walks bitnodePlan, the order docs/bitnode-order.md explains (every Source-File, from a new save to
 	// BitNode 12): the first tier with a level you don't own yet. Within a tier the BitNode the game's multipliers make
 	// easiest goes first (known with Source-File 5, otherwise the listed order). Replace the list to change the plan.
-	bitnodeRouteAuto: false,
+	bitnodeRouteAuto: true,
 	bitnodePlan: [
 		{ bitNode: 1, level: 1, tier: 1 },
 		{ bitNode: 1, level: 2, tier: 2 }, // before BitNode 4, which is harsh with only Source-File 1

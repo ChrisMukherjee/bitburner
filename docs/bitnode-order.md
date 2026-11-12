@@ -200,7 +200,7 @@ decides the next BitNode, and nothing is destroyed unless the conditions are met
 for `w0r1d_d43m0n`, or every Black Op done).
 
 - **Do nothing.** With `bitnodeRoute` empty the scripts only *suggest* the next BitNode from `bitnodePlan` (in `status`
-  and in the "ready" notice). Type `autoroute on` (sets `bitnodeRouteAuto`; `autoroute off` undoes it, `autoroute` shows which) to let auto-destroy follow the suggestion itself. The
+  and in the "ready" notice). Auto-destroy follows the suggestion itself by default (`bitnodeRouteAuto`); `autoroute off` makes it only a suggestion, `autoroute on` turns it back on, `autoroute` shows which. The
   suggestion is the first step with a level you don't own yet (counting the one this destroy gives), so it works from
   any save: one that did BitNode 4 before 1.2 is sent back for 1.2 first. Within a tier it picks the BitNode whose
   multipliers make it easiest when you own SF5, otherwise the listed order.
@@ -215,7 +215,7 @@ Lists replace the default, so copy the whole list from [`../config.js`](../confi
 tier numbers go first. Settings that should differ per BitNode go under `bitnodes` ([`config.md`](config.md)).
 
 Rejected: a fixed route in code. The right order depends on how far a save already is, so the plan is a list in the
-config that skips what you own, and the suggestion is advice unless you turn on `autoroute` (`bitnodeRouteAuto`). In that list,
+config that skips what you own, and the suggestion is followed by default and can be turned off with `autoroute off` (`bitnodeRouteAuto`). In that list,
 step 12 is one tier because its three BitNodes are interchangeable, and BitNode 12 has a target level because every
 entry needs one: 50 is the game's own marker (its challenge achievement), and a higher number keeps the suggestion going.
 

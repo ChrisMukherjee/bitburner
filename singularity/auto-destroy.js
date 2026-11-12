@@ -54,7 +54,7 @@ export async function main(ns) {
 		// Your bitnodeRoute, or the plan's suggestion only when bitnodeRouteAuto is on; otherwise a suggestion is just shown.
 		const nextBN = flags.bn > 0 ? flags.bn : (step && step.source !== "suggestion-only" ? step.bitNode : null);
 		if (nextBN === null) {
-			const hint = step ? ` The plan suggests BitNode ${step.bitNode} (${step.why}); set bitnodeRouteAuto to true to follow it by itself.` : "";
+			const hint = step ? ` The plan suggests BitNode ${step.bitNode} (${step.why}); run autoroute on (bitnodeRouteAuto) to follow it by itself.` : "";
 			if (!toldReady) notify(ns, "[daemon]", `${DAEMON} is ready, but there is no BitNode route to follow, so nothing is destroyed and the BitNode stays as it is (go for achievements first if you like).${hint} ` +
 				`When you want to move on, run: run /singularity/next-bitnode.js <n>  (n = the BitNode to enter, e.g. 5; with alias next-bitnode='run /singularity/next-bitnode.js' just: next-bitnode 5). ` +
 				`Or add entries to bitnodeRoute in data/config.json and this goes by itself.`, "warning", true);

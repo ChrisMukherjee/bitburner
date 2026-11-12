@@ -48,3 +48,8 @@ test("the help lists auto and the alias name players type", async () => {
 	assert.match(ns.terminal.join("\n"), /auto on \/ auto off/, "set-config with no args must mention the auto route");
 	assert.match(ns.terminal.join("\n"), /afk-route/);
 });
+
+test("choice: the auto route is on by default, so a fresh save follows the plan without being told", () => {
+	assert.equal(DEFAULTS.bitnodeRouteAuto, true, "automation is the default; autoroute off is the opt-out");
+	assert.equal(loadConfig(fakeNs()).bitnodeRouteAuto, true);
+});
