@@ -264,7 +264,10 @@ any, below), and calibrated against the measured rank per hour. The readable rep
 `data/node-eta.txt` (alias `eta`); the verdict is `plan` on the port.
 
 - **One route at a time.** The committed route changes only when the other is 25 % better by its own measure (hours when a
-  scenario finishes, else the income it would need), since flipping wastes the gym time, rank and rep already spent.
+  scenario finishes, else the income it would need), since flipping wastes the gym time, rank and rep already spent. The
+  committed route is also saved in `data/node-eta-route.json` (per BitNode run), because an install empties the port and a
+  fresh estimate would otherwise judge hacking by the stricter first-guess margin and send a hacking run back to measuring
+  Bladeburner after every install.
 - **No route before readings, except a clear first guess for hacking.** Until `bb-pass.js` has posted live action readings
   no measured route is written (the config route applies), otherwise "hacking" would hold Bladeburner and the combat route could
   never be measured. Measuring costs the gym to combat 100, though, and in a BitNode that nerfs Bladeburner hard that time is

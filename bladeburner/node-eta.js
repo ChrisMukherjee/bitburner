@@ -25,6 +25,7 @@ const WORLD = "w0r1d_d43m0n";
 const RUN_HOURS = 4;             // modelled length of a run
 const GYM_CHOICES = [1, 2, 3];   // gym hours per run the combat model tries
 const HISTORY_FILE = "data/node-eta-history.json";   // income vs multiplier across runs; survives resets, so it is a file
+const ROUTE_FILE = "data/node-eta-route.json";       // the committed route, so an install does not forget it
 const REPORT_FILE = "data/node-eta.txt";
 const YOUNG_RUN_MS = 30 * 60_000;   // within this a run's own income and exp rate are still ramping up
 const PRIOR_MARGIN = 0.75;       // a first guess commits hacking only when hacking takes under 75 % of Bladeburner's modelled time
@@ -58,7 +59,7 @@ export async function main(ns) {
 		return;
 	}
 	const home = ns.getHostname() === "home";
-	if (!home && ns.fileExists(HISTORY_FILE, "home")) ns.scp(HISTORY_FILE, ns.getHostname(), "home");
+	for (const file of [HISTORY_FILE, ROUTE_FILE]) if (!home && ns.fileExists(file, "home")) ns.scp(file, ns.getHostname(), "home");
 	const started = Date.now();
 	try {
 		const lines = estimate(ns);
@@ -69,7 +70,7 @@ export async function main(ns) {
 		ns.write(REPORT_FILE, `${new Date().toLocaleTimeString()}  route estimate failed: ${String(error && error.stack ? error.stack : error).slice(0, 600)}\n`, "w");
 		ns.tprint(`[bladeburner] route estimate failed: ${String(error).slice(0, 120)}`);
 	}
-	if (!home) ns.scp([REPORT_FILE, HISTORY_FILE].filter((file) => ns.fileExists(file)), "home");
+	if (!home) ns.scp([REPORT_FILE, HISTORY_FILE, ROUTE_FILE].filter((file) => ns.fileExists(file)), "home");
 }
 
 /** The whole estimate; returns the report lines and posts the plan. */
@@ -339,7 +340,14 @@ function estimate(ns) {
 	const finishes = (result) => result && result.reached && result.hours <= 400 ? result.hours : Infinity;
 	const hackHours = finishes(middle(hackSim));
 	const bladeHours = finishes(middle(bladeSim));
-	const previous = shared.plan?.route;
+	// The committed route survives an install: the port is emptied by the reset, and a fresh estimate would judge hacking by the
+	// 75 % first-guess margin instead of the 25 % a route in progress gets (data/node-eta-route.json, kept per BitNode run)
+	let kept = "";
+	try {
+		const saved = JSON.parse(ns.read(ROUTE_FILE) || "{}");
+		if (saved.node === info.lastNodeReset && (saved.route === "hacking" || saved.route === "combat")) kept = saved.route;
+	} catch { /* none yet */ }
+	const previous = shared.plan?.route ?? (kept || undefined);
 	let route = "";
 	if (!blackOpsDone) {
 		// One route at a time: flipping wastes the gym time, rank and faction rep already put into the committed one, so the other
@@ -365,6 +373,7 @@ function estimate(ns) {
 	const priorHacking = commit.prior;
 	if (!live && route && !priorHacking) lines.push("Route not committed yet: Bladeburner has no live readings, so it trains, joins and measures first");
 	if (priorHacking) lines.push("Route committed from the first guess: hacking, without training for Bladeburner (bladeburner.priorRoute false turns this off)");
+	if (commit.route && commit.route !== kept) ns.write(ROUTE_FILE, JSON.stringify({ node: info.lastNodeReset, route: commit.route }), "w");
 	postBladeburner(ns, {
 		eta: { stamp, samples },
 		plan: { route: commit.route, prior: priorHacking || undefined, hold, daemonLevel: required, time: now },
