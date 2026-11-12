@@ -35,10 +35,12 @@ test("the plan's suggestion takes the first open tier, easiest BitNode first whe
 	assert.equal(suggestedStep(inNode(2, [[1, 1], [5, 1]]), plan, null), null);
 });
 
-test("routeStep: your own route first; once it's done, no suggestion overrides it", () => {
+test("routeStep: your own route first; once it's done the plan takes over only with bitnodeRouteAuto", () => {
 	const config = { bitnodeRoute: [{ bitNode: 4, level: 1 }], bitnodePlan: [{ bitNode: 2, level: 1, tier: 1 }], bitnodeRouteAuto: true };
 	assert.equal(routeStep(inNode(1, [[1, 1]]), config, null).source, "route");
-	assert.equal(routeStep(inNode(4, [[1, 1]]), config, null), null);
+	const after = routeStep(inNode(4, [[1, 1]]), config, null);
+	assert.deepEqual([after.bitNode, after.source], [2, "suggested"], "auto on: a finished route hands over to the plan (was null)");
+	assert.equal(routeStep(inNode(4, [[1, 1]]), { ...config, bitnodeRouteAuto: false }, null), null, "auto off: you pick, as before");
 	const auto = routeStep(inNode(1, [[1, 1]]), { ...config, bitnodeRoute: [] }, null);
 	assert.deepEqual([auto.bitNode, auto.source], [2, "suggested"]);
 	assert.equal(routeStep(inNode(1, [[1, 1]]), { ...config, bitnodeRoute: [], bitnodeRouteAuto: false }, null).source, "suggestion-only");

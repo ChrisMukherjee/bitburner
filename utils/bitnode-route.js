@@ -59,14 +59,15 @@ export function suggestedStep(ns, plan, mults) {
 
 /**
  * Where to go next, in order of who decided: your bitnodeRoute (source "route"), else the plan's suggestion when
- * bitnodeRouteAuto is true ("suggested"), else only the suggestion for display with source "suggestion-only".
+ * bitnodeRouteAuto is true ("suggested", also after your route is done), else only the suggestion for display with source "suggestion-only".
  * { bitNode, level, source, why } or null. `mults` is bitnodeMults(ns) from utils/bitnode-mults.js.
  */
 /** @param {NS} ns */
 export function routeStep(ns, config, mults) {
 	const own = nextRouteStep(ns, config.bitnodeRoute ?? []);
 	if (own) return { ...own, source: "route", why: "your bitnodeRoute" };
-	if ((config.bitnodeRoute ?? []).length) return null; // your route is done: you pick, as before
+	// Your route is done: without auto you pick, as before; with auto the plan carries on from here.
+	if ((config.bitnodeRoute ?? []).length && !config.bitnodeRouteAuto) return null;
 	const suggestion = suggestedStep(ns, config.bitnodePlan, mults);
 	if (!suggestion) return null;
 	return { ...suggestion, source: config.bitnodeRouteAuto ? "suggested" : "suggestion-only" };

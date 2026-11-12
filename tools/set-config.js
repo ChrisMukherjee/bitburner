@@ -14,6 +14,9 @@ import { USER_CONFIG_FILE } from "/utils/config.js";
  *                                                     done in order, owned ones skipped
  *   run /tools/set-config.js route                    show the route
  *   run /tools/set-config.js route clear              empty the route (auto-destroy then waits for you)
+ *   run /tools/set-config.js auto on                 let auto-destroy follow the plan's next BitNode by itself
+ *                                                     (bitnodeRouteAuto); `auto off` goes back to only suggesting it;
+ *                                                     `auto` alone shows which it is. A route you set always wins
  *   run /tools/set-config.js skip darknet/dnet-manager.js   add a script startup.js never starts
  *   run /tools/set-config.js skip clear               start everything again
  *   run /tools/set-config.js challenge bn1            go for a challenge achievement (CHALLENGES in config.js);
@@ -63,6 +66,18 @@ export async function main(ns) {
 			mine.bitnodeRoute = steps;
 		}
 		save(ns, mine, `bitnodeRoute is now ${describeRoute(mine.bitnodeRoute)}. auto-destroy.js picks it up when it next starts: run /startup.js --restart or restart it.`);
+		return;
+	}
+	if (command === "auto") {
+		const state = describeAuto(mine, rest[0]);
+		if (state.error) {
+			ns.tprint(`ERROR ${state.error} Nothing changed.`);
+			return;
+		}
+		if (state.change !== undefined) {
+			mine.bitnodeRouteAuto = state.change;
+			save(ns, mine, state.text);
+		} else ns.tprint(state.text);
 		return;
 	}
 	if (command === "skip") {
@@ -157,6 +172,27 @@ function parseValue(raw) {
 	}
 }
 
+/**
+ * What `auto [on|off]` does: { text, change } where change is the new bitnodeRouteAuto value (undefined = just show),
+ * or { error }. Pure, so a test can run it without the game.
+ */
+export function describeAuto(mine, word) {
+	const route = mine.bitnodeRoute ?? DEFAULTS.bitnodeRoute;
+	const willBeOn = word === undefined ? (mine.bitnodeRouteAuto ?? DEFAULTS.bitnodeRouteAuto) : word === "on";
+	const note = route.length
+		? ` You have your own route (${describeRoute(route)}); it is followed first${willBeOn ? ", then the plan carries on once it is done" : ", then you pick"}.`
+		: " Your route is empty, so the plan decides.";
+	if (word === undefined) {
+		const on = willBeOn;
+		return { text: `Auto route is ${on ? "ON: auto-destroy enters the plan's next BitNode by itself" : "OFF: the plan's next BitNode is only suggested"}.${note} autoroute on / autoroute off changes it; afk-route <bitNode:level ...> sets your own route.` };
+	}
+	if (word === "on" || word === "off") {
+		const on = word === "on";
+		return { change: on, text: `Auto route ${on ? "ON: auto-destroy follows the plan's next BitNode by itself" : "OFF: the plan's next BitNode is only suggested"}.${note} Takes effect when auto-destroy.js next starts (run /startup.js --restart).` };
+	}
+	return { error: `"${word}" isn't on or off, e.g. autoroute on.` };
+}
+
 function describeRoute(route) {
 	return route.length ? route.map((step) => `BN${step.bitNode} level ${step.level}`).join(" -> ") : "empty (auto-destroy waits for you)";
 }
@@ -166,6 +202,8 @@ function help(ns, mine) {
 		"set-config: change data/config.json without an editor.",
 		"  route 4:3 2:1 5:1      BitNode route (bitNode:level), done in order, owned ones skipped",
 		"  route / route clear    show / empty the route",
+		"  auto on / auto off     let auto-destroy follow the plan's next BitNode by itself / only suggest it (auto shows which; alias autoroute)",
+		"                         your own route (afk-route) is followed first; with auto on the plan carries on after it",
 		"  skip <script...>       scripts startup.js never starts (skip clear to undo)",
 		`  challenge <name>       go for a challenge achievement (${Object.keys(CHALLENGES).join(", ")}); challenge clear to stop`,
 		"  set <path> <value>     any setting, e.g. set augments.wantStats hacking,rep",

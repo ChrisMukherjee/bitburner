@@ -200,13 +200,13 @@ decides the next BitNode, and nothing is destroyed unless the conditions are met
 for `w0r1d_d43m0n`, or every Black Op done).
 
 - **Do nothing.** With `bitnodeRoute` empty the scripts only *suggest* the next BitNode from `bitnodePlan` (in `status`
-  and in the "ready" notice). Set `bitnodeRouteAuto` to `true` to let auto-destroy follow the suggestion itself. The
+  and in the "ready" notice). Type `autoroute on` (sets `bitnodeRouteAuto`; `autoroute off` undoes it, `autoroute` shows which) to let auto-destroy follow the suggestion itself. The
   suggestion is the first step with a level you don't own yet (counting the one this destroy gives), so it works from
   any save: one that did BitNode 4 before 1.2 is sent back for 1.2 first. Within a tier it picks the BitNode whose
   multipliers make it easiest when you own SF5, otherwise the listed order.
 - **Set your own route.** `afk-route 4:3 2:1 5:1` stores `bitnodeRoute` in `data/config.json`: BitNode:level pairs, done
   in order. Source-Files you already have are skipped, so you can list the whole plan. `afk-route` alone shows it,
-  `afk-route clear` empties it. A route of your own always wins over the plan.
+  `afk-route clear` empties it. A route of your own is followed before the plan; with `autoroute on` the plan carries on once your route is done, and `afk-route` overrides it any time.
 - **Go now.** `next-bitnode 5` ends the BitNode (same checks) and enters BitNode 5 directly; use it for a one-off
   choice or an achievement run.
 
@@ -215,7 +215,7 @@ Lists replace the default, so copy the whole list from [`../config.js`](../confi
 tier numbers go first. Settings that should differ per BitNode go under `bitnodes` ([`config.md`](config.md)).
 
 Rejected: a fixed route in code. The right order depends on how far a save already is, so the plan is a list in the
-config that skips what you own, and the suggestion is advice unless you turn on `bitnodeRouteAuto`. In that list,
+config that skips what you own, and the suggestion is advice unless you turn on `autoroute` (`bitnodeRouteAuto`). In that list,
 step 12 is one tier because its three BitNodes are interchangeable, and BitNode 12 has a target level because every
 entry needs one: 50 is the game's own marker (its challenge achievement), and a higher number keeps the suggestion going.
 
