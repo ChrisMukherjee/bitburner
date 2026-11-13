@@ -62,6 +62,8 @@ alias list-backdoors='run /tools/list-backdoors.js';
 alias check-servers='run /tools/check-servers.js';
 alias darknet-phishing='run /darknet/dnet-manager.js';
 alias gang-report='run /gang/gang-report.js';
+alias sleeves='run /sleeves/sleeve-manager.js';
+alias sleeve-shop='run /sleeves/sleeve-shop.js';
 alias stock-trading='run /stocks/stock-trader.js';
 alias upgrade-home='run /singularity/upgrade-home-ram.js --once; run /singularity/upgrade-home-cores.js --once';
 alias auto-backdoor='run /singularity/auto-backdoor.js --once';
@@ -105,7 +107,7 @@ Below 64GB home (a fresh BitNode) it is in the `start` stage: only the home/prog
 the batcher, invites and backdoors, and [`player-work-start.js`](singularity/player-work-start.js) (study, the gang invite where a gang only needs that, create port openers, then crime for cash; a
 short pass every minute) run, so the batcher gets the free servers' RAM. From 64GB home [`player-work.js`](singularity/player-work.js)
 (study, faction and company work, Tian Di Hui and city factions) takes over the player, and the Go bot, hacknet,
-server buying and auto-destroy follow after the first home upgrades. The batcher
+server buying and auto-destroy follow after the first home upgrades. With the Sleeve API (BitNode 10 or Source-File 10) [`sleeves/`](sleeves/README.md) gives every sleeve a job each minute and buys sleeves and their augmentations (`sleeves` runs a pass now, `sleeve-shop` a buying pass). The batcher
 keeps at most a quarter of home (up to 64GB) free for typed commands.
 
 ### Settings for your point in the game
@@ -192,6 +194,7 @@ Each folder's README lists its scripts with flags and RAM cost, and links its de
 | [`singularity/`](singularity/README.md) | Player automation: study, programs, home upgrades, backdoors, factions, company work, augs, resets, next BitNode |
 | [`gang/`](gang/README.md) | Gang manager, growth planner and metrics report |
 | [`bladeburner/`](bladeburner/README.md) | Bladeburner: state manager, action pass and route estimate |
+| [`sleeves/`](sleeves/README.md) | Sleeve manager (jobs, training, shock and sync) and shop (sleeves, memory, augmentations) |
 | [`darknet/`](darknet/README.md) | Darknet crawler, password solvers, phishing and stasis links |
 | [`go/`](go/README.md) | IPvGO bot |
 | [`achievements/`](achievements/README.md) | Which achievements the scripts earn by themselves, which need a step, and how |
@@ -212,6 +215,7 @@ Which scripts need which BitNode, Source-File or item is not decided per folder:
 | `none` | Works in any run, on any home | |
 | `SF4` | Singularity API: BitNode 4, or Source-File 4 (RAM costs 16x at SF4.1, 4x at SF4.2, normal at SF4.3) | [`utils/singularity.js`](utils/singularity.js) |
 | `SF2` | Gang API: BitNode 2, or Source-File 2 (outside BitNode 2 the gang also needs karma -54,000) | [`utils/gang.js`](utils/gang.js) |
+| `SF10` | Sleeve API: BitNode 10, or Source-File 10 (buying sleeves and memory only works inside BitNode 10) | [`utils/sleeves.js`](utils/sleeves.js) |
 | `SF6/7` | Bladeburner API: BitNode 6 or 7, or Source-File 6 or 7 | [`utils/bladeburner.js`](utils/bladeburner.js) |
 | `SF5` | BitNode multipliers: BitNode 5, or Source-File 5 (also gives Formulas.exe and the Intelligence stat) | [`utils/sf5.js`](utils/sf5.js) |
 | `SF14.2` | IPvGO cheat API (`ns.go.cheat`): Source-File 14 level 2 | `ns.go.getCheatSuccessChance()` in [`go/anticheat.js`](go/anticheat.js) |
@@ -245,6 +249,7 @@ Which scripts need which BitNode, Source-File or item is not decided per folder:
 | 33 | One-shot gates (cash the next home upgrade or program needs, player-work done, for startup.js) |
 | 34 | RAM reservations (room kept free on a server for a script waiting to start; the batcher and share-manager leave it alone) |
 | 35 | player-work state between passes |
+| 40 | Sleeve summary for `status` (sleeves/sleeve-manager.js), 41 a sleeve worker's results, 42 sleeve augmentation values, 43 the game's crime stats (sleeves/) |
 | 36 | Bladeburner state, route estimate, Black Op progress, rank samples, efficiency figures, Black Op team plan and status lines (bladeburner/) |
 | 37 | Last pass of each one-shot, for the debug report ([`utils/pass-log.js`](utils/pass-log.js)) |
 | 38 | This run's money by source, for the augment weights ([`utils/income-mix.js`](utils/income-mix.js), posted by buy-augs.js) |

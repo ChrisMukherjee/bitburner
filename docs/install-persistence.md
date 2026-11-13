@@ -75,6 +75,7 @@ the next run goes, whatever pays for it, and the gang's progress doesn't depend 
   level. Needs a model of the Black Ops' chance against the stats first.
 - **Rep for faction work outside the route estimate.** The Bladeburners faction's and a gang faction's rep also restart each
   install (from new rank and new respect only); neither is modelled for buying their augments.
-- **Mechanics without scripts yet.** A corporation and sleeves keep everything through an install; whatever manages them
-  should value spending over the BitNode, not the run. Stanek's Gift loses its charge each install, so charging belongs early
+- **Mechanics without scripts yet.** A corporation keeps everything through an install; whatever manages it
+  should value spending over the BitNode, not the run. Sleeves are managed by [`../sleeves/`](../sleeves/README.md), which sets them back to work
+  after an install by itself (the first pass sees shock and sync and recovers or synchronizes first); cash left before an install is not yet spent on sleeve augmentations. Stanek's Gift loses its charge each install, so charging belongs early
   in a run.

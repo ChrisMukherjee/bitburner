@@ -144,10 +144,10 @@ counted when respect let the next update recruit a replacement before the plan l
 branches live in `route-model.js`). What is left is mostly log wording, the rank-per-second pricing of a waiting Black Op and
 model inputs that only change the figures. No script bug turned up; the tests only pin behaviour.
 
-**Current state:** about 565 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
+**Current state:** about 633 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
 step, home-upgrade hold, Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without
 Formulas.exe, RAM pool, the batcher's main loop in a hacking simulator, startup.js stages and one-shots, gym and study
 choice, player-work's passes in a player simulator, income curve, augment filter, BitNode route,
-Go plan order and move search, the gang manager's per-pass decisions and its main loop in a gang simulator, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
+Go plan order and move search, the gang manager's per-pass decisions and its main loop in a gang simulator, the sleeve planner and the sleeve manager and shop in a sleeve world, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
 state machine (with the wait for Stanek's Gift), route model, `bb-pass.js` and `node-eta.js` in a Bladeburner simulator, the Go bot's main loop in a Go simulator, the darknet's solvers, migration and storm rule, the program order, repo checks,
 and the two test tools. Tagged: 19 `regression:`, 21 `game:`, 5 `choice:`; the rest are rules. GitHub runs them and the type check on every push.

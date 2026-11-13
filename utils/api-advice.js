@@ -58,6 +58,12 @@ export const FEATURES = {
 		fallback: "Crime and the hacking core carry the run",
 		gain: "level 1 unlocks it, later levels raise gang multipliers",
 	},
+	sleeves: {
+		label: "Sleeve API (SF10)", sources: [10],
+		lacks: "no sleeves to manage (duplicate bodies that train, commit crimes, work for factions and companies and play Bladeburner while you do something else)",
+		fallback: "The player does all the work alone",
+		gain: "each level adds a sleeve; BitNode 10 itself also sells more sleeves, memory upgrades and sleeve augmentations",
+	},
 	bladeburner: {
 		label: "Bladeburner API (SF6/7)", sources: [6, 7],
 		lacks: "no Bladeburner division (ranks, skills, Black Ops as a way to end the BitNode)",

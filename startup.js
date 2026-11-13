@@ -10,6 +10,7 @@ import { singularityInfo } from "/utils/singularity.js";
 import { gangReady } from "/gang/ready.js";
 import { dnetReady } from "/darknet/ready.js";
 import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
+import { sleevesReady } from "/sleeves/ready.js";
 import { pservReady } from "/pserv/ready.js";
 import { bitnodeMultsReady } from "/utils/sf5.js";
 import { batcherReady, hackIsWorthless } from "/hack/ready.js";
@@ -63,6 +64,10 @@ export const SCRIPTS = [
 	// every 30 s while the state is "run"; player-work.js does the gym. One-shots, so their RAM is only held for a moment.
 	{ stage: "early", script: "bladeburner/bb-manage.js", oneShot: true, every: 180_000, ready: bladeburnerReady },
 	{ stage: "early", script: "bladeburner/bb-pass.js", oneShot: true, every: 30_000, ready: bladeburnerRunning },
+	// Sleeves (BitNode 10 or Source-File 10): every minute the manager gives each sleeve its job and the shop buys sleeves, memory
+	// and sleeve augmentations within the spending stage. One-shots, so their RAM is only held for a moment.
+	{ stage: "early", script: "sleeves/sleeve-manager.js", oneShot: true, every: 60_000, ready: sleevesReady },
+	{ stage: "early", script: "sleeves/sleeve-shop.js", oneShot: true, every: 60_000, ready: sleevesReady },
 	// The route estimate (hacking or Bladeburner, hold or run) every 5 minutes; needs the Singularity API for the augmentation data.
 	{ stage: "early", script: "bladeburner/node-eta.js", oneShot: true, every: 300_000, needsSF4: true, ready: bladeburnerReady },
 	// Both keep $1m back for TOR and the port openers, so they buy nothing in the first minutes anyway.

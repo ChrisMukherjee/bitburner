@@ -40,12 +40,13 @@ in the capability helpers, so each rule is still written once.
 | Formulas.exe | `batcher.js`, `hacknet-manager.js`, `target-stats.js`, `utils/targets.js` | estimates from measured numbers with a safety margin; switches on the moment the file appears (batcher checks every tick) | tool |
 | Intelligence (SF5) | `status.js`, Bladeburner chance model | the stat is 0: the line is hidden, the model's factor is 1 | none (nothing to do differently; SF5 is already advised for the multipliers) |
 | Gang (SF2) | `gang-manager.js`, the gang workers, `go-plan.js` | manager prints its reason and exits; `startup.js` only starts it when `gang/ready.js` says there is work | tool, manager exit |
+| Sleeves (SF10) | `sleeve-manager.js`, `sleeve-shop.js` | managers print their reason and exit; `startup.js` only starts them when `sleeves/ready.js` says the API works | tool, manager exit |
 | Bladeburner (SF6/7) | `bb-manage.js`, `bb-pass.js`, `node-eta.js` | the route stays hacking; manager exits | tool, manager exit |
 | TIX / 4S data | `stock-trader.js` | buys TIX itself once cash allows, waits with a terminal line; without 4S it forecasts from price history | none (it buys them by itself) |
 | Darknet (`DarkscapeNavigator.exe`) | `dnet-manager.js` | `startup.js` waits for the program; `buy-programs.js` buys it | none (bought automatically with the Singularity API; without it `reminders.js` lists it) |
 | IPvGO cheat (SF14.2) | `go/anticheat.js` | says it needs SF14.2 and stops | its own message |
 
-Stanek, sleeves and corporations have no scripts yet, so nothing depends on them.
+Stanek and corporations have no scripts yet, so nothing depends on them.
 
 ## Rejected
 

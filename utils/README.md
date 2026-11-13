@@ -14,6 +14,7 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`study.js`](study.js) | `pickCourse`: the free university course, or `studying.paidCourse` (Algorithms) once cash covers `paidSeconds` of its fee; `isCourse`. Design: [`docs/player-work.md`](../docs/player-work.md) | none | 0GB |
 | [`singularity.js`](singularity.js) | Whether this run can use the Singularity API | none | 1GB |
 | [`gyms.js`](gyms.js) | Gym tables (stats, gyms per city, cost) shared by player-work.js and start-gang.js | none | 0GB |
+| [`sleeves.js`](sleeves.js) | What this run can do with sleeves (BitNode 10 or Source-File 10; buying only in BitNode 10) | none | 1GB |
 | [`gang.js`](gang.js) | What this run can do with gangs; the one place with per-BitNode gang rules | none | 1GB |
 | [`pass-log.js`](pass-log.js) | `postPass`: a one-shot keeps the lines of its last pass on port 37 for the debug report. Design: [`docs/debug-report.md`](../docs/debug-report.md) | none | 0GB |
 | [`route-progress.js`](route-progress.js) | Text for the BitNode block of `status`: Daedalus invite needs with what the player has, The Red Pill rep, the daemon's level (`daemonLevelFor`, also used by `node-eta.js`), Black Ops done/total and the next one's chance, the active route in full and the other on one line. Pure functions. Design: [`docs/bladeburner.md`](../docs/bladeburner.md#progress-toward-ending-the-bitnode) | none | 0GB |

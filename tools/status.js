@@ -31,6 +31,7 @@ import { hackingSegments, bladeburnerSegments, routeLines, daemonLevelFor } from
  *   port 28  gang summary              (gang/gang-manager.js, every gang update; any mechanic
  *            manager listed in MECHANIC_PORTS posts ready-made lines the same way)
  *   port 36  Bladeburner state + lines (bladeburner/bb-manage.js and bb-pass.js, one-shots)
+ *   port 40  sleeve summary            (sleeves/sleeve-manager.js, one-shot)
  *   data/aug-plan.json   reset advice + rep rates, Red Pill rep/price and Daedalus invite needs
  *                        (buy-augs.js --plan, every 10 min via auto-reset.js)
  *   data/go-bonus.json   Go bonus history (go/go-bot.js)
@@ -42,7 +43,7 @@ const GOALS_PORT = 23;
 const CITY_PORT = 25;
 const STOCK_SUMMARY_PORT = 26;
 // Ports where mechanic managers post { time, title, script, lines }; add one per mechanic folder.
-const MECHANIC_PORTS = [28, 36];
+const MECHANIC_PORTS = [28, 36, 40];
 const PLAN_FILE = "data/aug-plan.json";
 const GO_FILE = "data/go-bonus.json";
 const REP_FILE = "data/status-rep.json";

@@ -150,7 +150,7 @@ for any other run where you want the Gift ([`bladeburner.md`](bladeburner.md)).
 
 ### Source-Files with no manager here yet
 
-- **SF10, sleeves and grafting:** no sleeve or grafting scripts; set sleeves to work by hand.
+- **SF10, sleeves and grafting:** [`../sleeves/`](../sleeves/README.md) gives every sleeve a job (shock and sync, training, karma, Bladeburner contracts, faction and company rep, cash crime) and buys sleeves, memory and sleeve augmentations; there are no grafting scripts.
 - **SF3, corporations:** no corporation scripts.
 - **SF9, hacknet servers:** SF9 replaces hacknet nodes with hacknet servers in every BitNode, and
   [`../hacknet/hacknet-manager.js`](../hacknet/hacknet-manager.js) only handles nodes that earn money: it stands down

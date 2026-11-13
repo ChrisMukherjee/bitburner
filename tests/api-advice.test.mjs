@@ -81,16 +81,16 @@ test("the tool lists what is missing, prints it once, and drops what the player 
 	const ns = run([], false);
 	await adviceTool(ns);
 	const saved = JSON.parse(ns.read(ADVICE_FILE));
-	assert.deepEqual(saved.items.map((item) => item.id), ["singularity", "multipliers", "formulas", "gang", "bladeburner"]);
-	assert.equal(ns.terminal.length, 5);
+	assert.deepEqual(saved.items.map((item) => item.id), ["singularity", "multipliers", "formulas", "gang", "sleeves", "bladeburner"]);
+	assert.equal(ns.terminal.length, 6);
 	await adviceTool(ns);
-	assert.equal(ns.terminal.length, 5, "a second pass in the same run prints nothing new");
+	assert.equal(ns.terminal.length, 6, "a second pass in the same run prints nothing new");
 	// Source-File 4 and Formulas.exe arrive: those lines go away from the list.
 	ns.write("Formulas.exe", "", "w");
 	ns.getResetInfo = () => ({ currentNode: 1, ownedSF: new Map([[4, 1]]), lastNodeReset: 7, ownedAugs: new Map(), bitNodeOptions: {} });
 	await adviceTool(ns);
-	assert.deepEqual(JSON.parse(ns.read(ADVICE_FILE)).items.map((item) => item.id), ["multipliers", "gang", "bladeburner"]);
-	assert.equal(ns.terminal.length, 5);
+	assert.deepEqual(JSON.parse(ns.read(ADVICE_FILE)).items.map((item) => item.id), ["multipliers", "gang", "sleeves", "bladeburner"]);
+	assert.equal(ns.terminal.length, 6);
 });
 
 test("the status line is the label and the recommendation", () => {

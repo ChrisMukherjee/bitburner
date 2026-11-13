@@ -405,6 +405,44 @@ export const DEFAULTS = {
 		],
 	},
 
+	// Sleeves (sleeves/; BitNode 10, or anywhere with Source-File 10). Design: docs/sleeves.md. enabled: false = never started.
+	// The manager gives each sleeve one job every pass (sleeves/plan.js): shock recovery, then synchronization, then training
+	// where a stat is missing, then the job the run needs most (the gang's karma, Bladeburner contracts, faction rep, company
+	// rep), else the best crime for cash. It never touches the player (player-work.js owns that).
+	//   shock / sync: a sleeve recovers once its shock reaches `enter` (%) and until it is at or below `exit`; it synchronizes
+	//                 once its sync is below `enter` and until it reaches `exit`. Work output is scaled by both.
+	//   train:        combat / hacking: the level to train to, or "auto" (the level this run's jobs need: Bladeburner's combat floor,
+	//                 the gang invite's combat stats, the study target); 0 = never train that stat.
+	//   crimeLadder:  [crime, least average combat level] for the cash crime while the game's crime stats aren't known (they need
+	//                 the Singularity API); with them the crime with the most money per second at the sleeve's success chance wins.
+	//                 minCrimeChance: a cash crime must succeed this often.
+	//   factionShare / companyShare: at most this share of the sleeves works for factions / companies at once.
+	//   bladeburner.contracts: contracts the sleeves take on, in order, while the Bladeburner state is "run".
+	//   buy:          sleeves (BitNode 10 only), memory upgrades (a higher memory lifts the sync a sleeve starts from) and sleeve
+	//                 augmentations (kept through installs), each within the `buying` stage for the current income:
+	//                 never below `reserve`, at most `maxFraction` of the cash per pass.
+	//   augments:     wantStats (STAT_GROUPS) and never: which sleeve augmentations are worth it, when stats can be read (Singularity
+	//                 at 1x or 4x RAM); otherwise the cheapest first.
+	sleeves: {
+		enabled: true,
+		shock: { enter: 25, exit: 2 },
+		sync: { enter: 90, exit: 100 },
+		train: { combat: "auto", hacking: "auto" },
+		crimeLadder: [["Shoplift", 0], ["Mug", 20], ["Homicide", 50]],
+		minCrimeChance: 0.5,
+		factionShare: 0.5,
+		companyShare: 0.25,
+		bladeburner: { contracts: ["Tracking", "Bounty Hunter", "Retirement"] },
+		buy: { sleeves: true, memory: true, augments: true },
+		augments: { wantStats: ["hacking", "combat", "charisma", "crime", "work", "rep"], never: [] },
+		buying: [
+			{ name: "early", minIncome: 0, reserve: 5e6, maxFraction: 0.10 },
+			{ name: "growing", minIncome: 1e5, reserve: 50e6, maxFraction: 0.10 },
+			{ name: "established", minIncome: 1e7, reserve: 500e6, maxFraction: 0.10 },
+			{ name: "late", minIncome: 1e8, reserve: 2e9, maxFraction: 0.05 },
+		],
+	},
+
 	// Bladeburner (bladeburner/). route: "combat" plays Bladeburner (gym, then actions) and leaves the player to it;
 	// "hacking" holds it so faction and company work get all the player's time. A route estimate posted on
 	// port 36 (plan.route) wins over this. Black Ops done = the BitNode can end without w0r1d_d43m0n.
