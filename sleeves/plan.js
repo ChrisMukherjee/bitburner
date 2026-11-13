@@ -27,7 +27,7 @@ export const BB_ROUTE_STATES = ["boot", "train", "run"];
 /**
  * @typedef {{ kind: string, [key: string]: any }} Candidate  what one sleeve could do (see `family`), best first
  * @typedef {{ index: number, shock: number, sync: number, memory: number, city: string,
- *   skills: Record<string, number>, mults?: Record<string, number>, task: { type: string, [key: string]: any } | null }} SleeveInfo
+ *   skills: any, mults?: any, task: { type: string, [key: string]: any } | null }} SleeveInfo
  */
 
 /** Which worker script carries a candidate out: recover.js, crime.js, train.js, work.js or blade.js. */
