@@ -41,7 +41,11 @@ export async function main(ns) {
 	}
 	const canBuy = sleevesBuyableFromInfo(info);
 	const stage = pickStage(rule.buying, readIncomeRate(ns).perSecond);
-	let budget = budgetFor(ns.getPlayer().money, stage);
+	const cash = ns.getPlayer().money;
+	let budget = budgetFor(cash, stage);
+	// A sleeve is permanent and the Covenant's price is far above any stage's share of the cash, so it may use more of it.
+	const sleeveShare = budgetFor(cash, { reserve: stage.reserve, maxFraction: rule.sleeveFraction ?? 1 });
+	let spent = 0;
 	let count = ns.sleeve.getNumSleeves();
 	const bought = [];
 
@@ -59,7 +63,7 @@ export async function main(ns) {
 			for (let index = 0; index < count; index++) memory.push({ index, memory: ns.sleeve.getSleeve(index).memory, cost: ns.sleeve.getMemoryUpgradeCost(index, 1) });
 		}
 		const sleeveCost = canBuy && rule.buy.sleeves ? ns.sleeve.getSleeveCost() : Infinity;
-		const next = nextPurchase({ budget, canBuy, buy: rule.buy, sleeveCost, memory, augs });
+		const next = nextPurchase({ budget, sleeveBudget: sleeveShare - spent, canBuy, buy: rule.buy, sleeveCost, memory, augs });
 		if (!next) break;
 		if (next.type === "sleeve") {
 			if (!ns.sleeve.purchaseSleeve().success) break;
@@ -79,6 +83,7 @@ export async function main(ns) {
 			bought.push(`${next.name} for sleeve #${next.index}`);
 		}
 		budget -= next.cost;
+		spent += next.cost;
 	}
 
 	const summary = bought.length ? `bought ${bought.length}: ${bought.slice(0, 4).join(", ")}${bought.length > 4 ? ", ..." : ""}` : `nothing bought (stage ${stage.name}, budget $${ns.format.number(budget)})`;

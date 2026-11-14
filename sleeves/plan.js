@@ -98,7 +98,7 @@ export function crimeChance(skills, mults, stats) {
 /**
  * The crime for cash: with the game's crime stats, the most money per second at this sleeve's chance (a failure pays nothing)
  * among the crimes that succeed at least `minChance` of the time (the likeliest one when none does); without them the last rung
- * of `ladder` the sleeve's average combat level reaches. Returns { crime, chance } (chance null when unknown).
+ * of `ladder` the sleeve's average combat level reaches. Returns { crime, chance, rate } (chance and rate in $/s are null when unknown).
  */
 export function pickCashCrime(sleeve, crimes, ladder, minChance) {
 	if (crimes && Object.keys(crimes).length) {
@@ -108,11 +108,11 @@ export function pickCashCrime(sleeve, crimes, ladder, minChance) {
 		});
 		const fit = rows.filter((row) => row.chance >= minChance);
 		const best = (fit.length ? fit : rows).reduce((top, row) => (fit.length ? row.rate > top.rate : row.chance > top.chance) ? row : top);
-		return { crime: best.crime, chance: best.chance };
+		return { crime: best.crime, chance: best.chance, rate: best.rate };
 	}
 	const average = combatAverage(sleeve.skills);
 	const rung = [...ladder].reverse().find(([, level]) => average >= level) ?? ladder[0];
-	return { crime: rung[0], chance: null };
+	return { crime: rung[0], chance: null, rate: null };
 }
 
 /**
@@ -198,27 +198,34 @@ export function planSleeves(state, config) {
 		}
 	}
 
-	// The jobs, best first, each for one sleeve.
-	const jobs = [];
+	// The jobs, each for one sleeve. "auto" orders them by value (jobValues) and drops the ones worth no more than cash crime;
+	// "fixed" keeps the order karma, Bladeburner, factions, companies, with factionShare and companyShare as caps.
+	const auto = rule.priority !== "fixed";
+	const values = jobValues(state, config);
+	const decay = rule.weights?.decay ?? 0.6;
+	/** @type {{ role: string, why: string, candidates: Candidate[], value: number }[]} */
+	let jobs = [];
 	if (state.invite?.applies && state.invite.crime && state.invite.gain === "karma") {
-		for (let at = 0; at < count; at++) jobs.push({ role: "karma", why: "karma for the gang", candidates: [{ kind: "crime", crime: "Homicide" }] });
+		for (let at = 0; at < count; at++) jobs.push({ role: "karma", why: "karma for the gang", candidates: [{ kind: "crime", crime: "Homicide" }], value: values.karma * decay ** at });
 	}
 	if (state.bb?.state === "run") {
 		const contracts = rule.bladeburner.contracts.map((contract) => ({ kind: "bb", action: "Take on contracts", contract }));
-		for (let at = 0; at < count; at++) jobs.push({ role: "bladeburner", why: "Bladeburner contracts", candidates: contracts });
+		for (let at = 0; at < count; at++) jobs.push({ role: "bladeburner", why: "Bladeburner contracts", candidates: contracts, value: values.bladeburner * decay ** at });
 	}
 	const joined = new Set(state.joined);
 	const factions = (config.factionWork?.order ?? [])
 		.filter((faction) => joined.has(faction) && faction !== state.playerFaction && state.goals?.[faction]?.rep > 0);
-	const factionSlots = Math.min(factions.length, Math.ceil(count * rule.factionShare));
+	const factionSlots = auto ? factions.length : Math.min(factions.length, Math.ceil(count * rule.factionShare));
 	for (const faction of factions.slice(0, factionSlots)) {
 		const types = [config.factionWork.workType, ...["hacking", "field", "security"].filter((type) => type !== config.factionWork.workType)];
-		jobs.push({ role: "faction", why: `${faction} rep`, candidates: types.map((work) => ({ kind: "faction", faction, work })) });
+		jobs.push({ role: "faction", why: `${faction} rep`, candidates: types.map((work) => ({ kind: "faction", faction, work })), value: values.faction });
 	}
 	const companies = (config.companyWork?.companies ?? []).map((entry_) => entry_.company).filter((company) => state.jobs[company]);
-	for (const company of companies.slice(0, Math.floor(count * rule.companyShare))) {
-		jobs.push({ role: "company", why: `${company} rep`, candidates: [{ kind: "company", company }] });
+	const companySlots = auto ? companies.length : Math.floor(count * rule.companyShare);
+	for (const company of companies.slice(0, companySlots)) {
+		jobs.push({ role: "company", why: `${company} rep`, candidates: [{ kind: "company", company }], value: values.company });
 	}
+	if (auto) jobs = jobs.filter((job) => job.value > Math.max(values.cash, 0)).sort((first, second) => second.value - first.value);
 
 	const left = [...free];
 	for (const job of jobs) {
@@ -234,6 +241,36 @@ export function planSleeves(state, config) {
 		plans.set(sleeve.index, entry(sleeve, "cash", why, [{ kind: "crime", crime }]));
 	}
 	return state.sleeves.map((sleeve) => plans.get(sleeve.index));
+}
+
+/**
+ * What each job is worth to this run, in one unit (relative value of a sleeve-hour), so the planner can hand sleeves to the best
+ * job instead of a fixed order. Each base weight (`sleeves.weights`) is scaled by what the run says:
+ *   karma        0 where the gang can't run (GangSoftcap below mechanicGates.minMultiplier), else the weight: karma is a gate
+ *   bladeburner  x BladeburnerRank (0 = no division), x 0.25 while the route estimate says hacking (the division is only held)
+ *   faction      x FactionWorkRepGain, x 0.5 on the Bladeburner route (it needs fewer augmentations)
+ *   company      the weight (the slowest rep there is)
+ *   cash         x CrimeMoney, times the share of the money the sleeve's crime would be next to the run's income (so cash is
+ *                worth little once hacking pays millions a second); half the weight where the crime stats or income are unknown
+ * Missing multipliers (no Source-File 5) read 1. Pure, 0GB.
+ */
+export function jobValues(state, config) {
+	const weights = config.sleeves.weights;
+	const mult = (name) => state.mults?.get?.(name) ?? 1;
+	const gates = config.mechanicGates;
+	const gangOk = !gates?.enabled || mult("GangSoftcap") >= gates.minMultiplier;
+	const combatRoute = state.bb?.route !== "hacking";
+	const first = state.sleeves?.[0];
+	const rate = first ? pickCashCrime(first, state.crimes, config.sleeves.crimeLadder, config.sleeves.minCrimeChance).rate : null;
+	const income = state.incomePerSecond ?? 0;
+	const share = rate === null || !(income >= 0) ? 0.5 : rate / (rate + income || 1);
+	return {
+		karma: gangOk ? weights.karma : 0,
+		bladeburner: weights.bladeburner * mult("BladeburnerRank") * (combatRoute ? 1 : 0.25),
+		faction: weights.faction * mult("FactionWorkRepGain") * (state.bb?.route === "combat" ? 0.5 : 1),
+		company: weights.company,
+		cash: weights.cash * mult("CrimeMoney") * 2 * share,
+	};
 }
 
 function entry(sleeve, role, why, candidates) {
@@ -256,13 +293,14 @@ export function budgetFor(cash, stage) {
  * The next purchase within `budget`, or null. A sleeve first (BitNode 10 only, while the game offers one), then a memory
  * upgrade for the sleeve with the lowest memory, then the sleeve augmentation with the most value per dollar (an augmentation
  * whose value is known to be 0 is never bought; unknown values count 1, so the cheapest goes first).
- * @param {{ budget: number, canBuy: boolean, buy: { sleeves: boolean, memory: boolean, augments: boolean }, sleeveCost: number,
+ * `sleeveBudget` (default: `budget`) is what a sleeve purchase may use: sleeves are permanent and their price is huge next to the stage's share of cash.
+ * @param {{ budget: number, sleeveBudget?: number, canBuy: boolean, buy: { sleeves: boolean, memory: boolean, augments: boolean }, sleeveCost: number,
  *   memory: { index: number, memory: number, cost: number }[], augs: { index: number, name: string, cost: number, value?: number }[] }} view
  * @returns {{ type: "sleeve", cost: number } | { type: "memory", index: number, cost: number } | { type: "aug", index: number, name: string, cost: number } | null}
  */
 export function nextPurchase(view) {
 	const { budget, canBuy, buy } = view;
-	if (canBuy && buy.sleeves && Number.isFinite(view.sleeveCost) && view.sleeveCost <= budget) return { type: "sleeve", cost: view.sleeveCost };
+	if (canBuy && buy.sleeves && Number.isFinite(view.sleeveCost) && view.sleeveCost <= (view.sleeveBudget ?? budget)) return { type: "sleeve", cost: view.sleeveCost };
 	if (canBuy && buy.memory) {
 		const [row] = view.memory.filter((item) => item.memory < 100 && item.cost <= budget).sort((first, second) => first.memory - second.memory);
 		if (row) return { type: "memory", index: row.index, cost: row.cost };

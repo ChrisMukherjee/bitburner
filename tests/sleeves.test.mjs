@@ -10,7 +10,7 @@ import { sleevesApiFromInfo, sleevesBuyableFromInfo } from "/utils/sleeves.js";
 import { GYMS, GYM_CASH_SECONDS } from "/utils/gyms.js";
 import { sleevesReady } from "/sleeves/ready.js";
 import {
-	planSleeves, crimeChance, pickCashCrime, needsRecovery, needsSync, trainingFor, combatTarget, pickStage, budgetFor, nextPurchase, sameTask, family,
+	planSleeves, jobValues, crimeChance, pickCashCrime, needsRecovery, needsSync, trainingFor, combatTarget, pickStage, budgetFor, nextPurchase, sameTask, family,
 } from "/sleeves/plan.js";
 import { main as manage, CONFIG as MANAGER_CONFIG } from "/sleeves/sleeve-manager.js";
 import { main as shop } from "/sleeves/sleeve-shop.js";
@@ -25,6 +25,10 @@ const state = (sleeves, extra = {}) => ({
 	sleeves, cash: 1e9, goals: null, playerFaction: "", joined: [], jobs: {}, invite: null, bb: { state: "off", trainFloor: 100 }, crimes: null, ...extra,
 });
 const planOf = (input, settings = config) => planSleeves(input, settings);
+/** The same config with the fixed job order (the caps factionShare and companyShare apply). */
+const fixed = { ...config, sleeves: { ...rule, priority: "fixed" } };
+/** BitNode multipliers as bitnodeMults(ns) gives them: the named ones, 1 for the rest. */
+const mults = (values) => ({ known: true, get: (name) => values[name] ?? 1 });
 
 test("default config: sleeves are on, with a kill switch and spending stages that ascend from income 0", () => {
 	assert.equal(DEFAULTS.sleeves.enabled, true);
@@ -150,7 +154,7 @@ test("jobs: factions with a rep goal get one sleeve each, never the faction the 
 	const [first, second, third] = config.factionWork.order;
 	const goals = Object.fromEntries([first, second, third].map((faction) => [faction, { rep: 1000 }]));
 	const sleeves = [sleeve(0), sleeve(1), sleeve(2), sleeve(3)];
-	const plan = planOf(state(sleeves, { goals, joined: [first, second, third], playerFaction: first }));
+	const plan = planOf(state(sleeves, { goals, joined: [first, second, third], playerFaction: first }), fixed);
 	const factions = plan.filter((entry) => entry.role === "faction").map((entry) => entry.candidates[0].faction);
 	assert.deepEqual(factions, [second, third], "the player's own faction is left to player-work.js");
 	assert.ok(factions.length <= Math.ceil(sleeves.length * rule.factionShare));
@@ -161,12 +165,58 @@ test("jobs: factions with a rep goal get one sleeve each, never the faction the 
 	assert.ok(notJoined.every((entry) => entry.role === "cash"), "an unjoined faction can't be worked for");
 });
 
-test("jobs: company work only where the player holds a job, at most companyShare of the sleeves", () => {
+test("jobs: company work only where the player holds a job; with priority fixed, at most companyShare of the sleeves", () => {
 	const company = config.companyWork.companies[0].company;
 	const sleeves = [0, 1, 2, 3].map((index) => sleeve(index));
-	const plan = planOf(state(sleeves, { jobs: { [company]: "Software Engineer" } }));
+	const plan = planOf(state(sleeves, { jobs: { [company]: "Software Engineer" } }), fixed);
 	assert.equal(plan.filter((entry) => entry.role === "company").length, Math.min(1, Math.floor(sleeves.length * rule.companyShare)));
-	assert.ok(planOf(state(sleeves)).every((entry) => entry.role === "cash"), "no job, no company work");
+	assert.ok(planOf(state(sleeves), fixed).every((entry) => entry.role === "cash"), "no job, no company work");
+});
+
+test("priority auto: the most valuable job is filled first, with each further sleeve on it worth `decay` of the one before", () => {
+	const input = state([sleeve(0), sleeve(1), sleeve(2)], { invite: { applies: true, crime: "Homicide", gain: "karma", gym: 0 }, bb: { state: "run", trainFloor: 100, route: "combat" } });
+	const values = jobValues(input, config);
+	const expected = [];
+	for (let at = 0; at < 3; at++) expected.push(["karma", values.karma * rule.weights.decay ** at], ["bladeburner", values.bladeburner * rule.weights.decay ** at]);
+	const order = expected.sort((a, b) => b[1] - a[1]).slice(0, 3).map(([role]) => role).sort();
+	assert.deepEqual(planOf(input).map((entry) => entry.role).sort(), order, "sleeves go to the three best-valued job instances");
+	assert.deepEqual(planOf(input, fixed).map((entry) => entry.role), ["karma", "karma", "karma"], "fixed: karma takes every free sleeve");
+});
+
+test("priority auto: a BitNode multiplier of 0 removes the job (no Bladeburner rank, a gang that can't run)", () => {
+	const bb = { state: "run", trainFloor: 100, route: "combat" };
+	assert.equal(planOf(state([sleeve(0)], { bb, mults: mults({ BladeburnerRank: 0 }) }))[0].role, "cash");
+	assert.equal(planOf(state([sleeve(0)], { bb, mults: mults({}) }))[0].role, "bladeburner");
+	const invite = { applies: true, crime: "Homicide", gain: "karma", gym: 0 };
+	assert.equal(planOf(state([sleeve(0)], { invite, mults: mults({ GangSoftcap: config.mechanicGates.minMultiplier / 2 }) }))[0].role, "cash", "no gang here, so no karma for it");
+	assert.equal(planOf(state([sleeve(0)], { invite, mults: mults({}) }))[0].role, "karma");
+});
+
+test("priority auto: Bladeburner held on a hacking route is worth less, and rep counts for less on the Bladeburner route", () => {
+	const base = state([sleeve(0)], { mults: mults({}) });
+	const hacking = jobValues({ ...base, bb: { state: "run", route: "hacking" } }, config);
+	const combat = jobValues({ ...base, bb: { state: "run", route: "combat" } }, config);
+	assert.ok(hacking.bladeburner < combat.bladeburner);
+	assert.ok(combat.faction < hacking.faction);
+	assert.equal(jobValues({ ...base, mults: mults({ FactionWorkRepGain: 2 }) }, config).faction, jobValues(base, config).faction * 2, "scaled by the multiplier");
+});
+
+test("priority auto: cash crime is worth less the more the run already earns, so company work can win a sleeve", () => {
+	const company = config.companyWork.companies[0].company;
+	const crimes = { Mug: { difficulty: 1, time: 4000, money: 36e3, weights: { dexterity: 1 } } };
+	const poor = state([sleeve(0)], { crimes, jobs: { [company]: "x" }, incomePerSecond: 0 });
+	const rich = { ...poor, incomePerSecond: 1e9 };
+	assert.ok(jobValues(rich, config).cash < jobValues(poor, config).cash);
+	assert.equal(planOf(poor)[0].role, "cash", "next to no income, cash crime beats company rep");
+	assert.equal(planOf(rich)[0].role, "company", "next to a huge income it is worth nothing, so rep wins");
+	assert.equal(planOf(state([sleeve(0), sleeve(1), sleeve(2)], { ...rich, sleeves: [sleeve(0), sleeve(1), sleeve(2)] })).filter((entry) => entry.role === "company").length, 1, "with 3 sleeves too (the fixed share would round to none)");
+});
+
+test("priority auto: unknown multipliers and an unknown crime rate fall back to the base weights", () => {
+	const values = jobValues(state([sleeve(0)]), config);
+	assert.equal(values.karma, rule.weights.karma);
+	assert.equal(values.cash, rule.weights.cash, "half the weight, doubled: the base weight");
+	assert.equal(values.faction, rule.weights.faction);
 });
 
 test("a sleeve already doing a job keeps it (the job goes to it, not to the lowest-numbered sleeve)", () => {
@@ -281,7 +331,7 @@ test("manager: a shocked sleeve recovers, a healthy one commits a crime, the sum
 	assert.equal(summary.title, "Sleeves");
 	assert.equal(summary.oneShot, true);
 	assert.match(summary.lines[0], /^2 sleeves: 1 recover, 1 cash$/);
-	assert.equal(summary.lines.length, 3, "a summary line and one per sleeve");
+	assert.equal(summary.lines.length, 4, "a summary line, the job values and one line per sleeve");
 	const workers = sim.ns.called("exec").length;
 	await manage(sim.ns);
 	assert.equal(sim.ns.called("exec").length, workers, "sleeves already doing their job are left alone: no worker starts");
@@ -332,6 +382,17 @@ test("shop in BitNode 10: buys a sleeve first, then memory, within the budget of
 	assert.ok(spent <= budget, `spent $${spent} of a $${budget} budget`);
 	assert.ok(sim.calls("upgradeMemory").length > 0, "what is left goes to memory");
 	assert.ok(sim.ns.toasts.some((line) => /bought sleeve #1/.test(line)));
+});
+
+test("shop: a sleeve may use `sleeveFraction` of the cash above the reserve, far more than the stage's maxFraction share", async () => {
+	const cash = 1e9;
+	const sim = sleeveWorld({ node: 10, sleeves: [{}], money: cash, sleeveCost: 0.5 * cash, memoryCost: 1e12 });
+	assert.ok(0.5 * cash > cash * rule.buying[0].maxFraction, "the price is above the stage's usual share");
+	await shop(sim.ns);
+	assert.equal(sim.calls("purchaseSleeve").length, 1, "bought, though it is over the stage's share");
+	const none = sleeveWorld({ node: 10, sleeves: [{}], money: cash, sleeveCost: 0.5 * cash, memoryCost: 1e12, files: { "data/config.json": JSON.stringify({ sleeves: { sleeveFraction: 0.1 } }) } });
+	await shop(none.ns);
+	assert.equal(none.calls("purchaseSleeve").length, 0, "with sleeveFraction at the stage's share it waits for more cash");
 });
 
 test("shop with Source-File 10 outside BitNode 10: no sleeves or memory are bought, only augmentations (cheapest first without stats)", async () => {

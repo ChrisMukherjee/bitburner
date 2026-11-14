@@ -409,6 +409,11 @@ export const DEFAULTS = {
 	// The manager gives each sleeve one job every pass (sleeves/plan.js): shock recovery, then synchronization, then training
 	// where a stat is missing, then the job the run needs most (the gang's karma, Bladeburner contracts, faction rep, company
 	// rep), else the best crime for cash. It never touches the player (player-work.js owns that).
+	//   priority:     "auto" gives sleeves to the most valuable jobs (sleeves/plan.js jobValues: the weights below, scaled by this
+	//                 BitNode's multipliers, the route, the run's income and the crime stats) and drops jobs worth no more than cash
+	//                 crime; "fixed" uses the order karma, Bladeburner, factions, companies with factionShare and companyShare as caps.
+	//   weights:      a job's base value (karma is a gate, so the highest); decay: each further sleeve on the same job (karma,
+	//                 Bladeburner contracts) is worth this much of the one before, so the jobs share the sleeves.
 	//   shock / sync: a sleeve recovers once its shock reaches `enter` (%) and until it is at or below `exit`; it synchronizes
 	//                 once its sync is below `enter` and until it reaches `exit`. Work output is scaled by both.
 	//   train:        combat / hacking: the level to train to, or "auto" (the level this run's jobs need: Bladeburner's combat floor,
@@ -416,15 +421,20 @@ export const DEFAULTS = {
 	//   crimeLadder:  [crime, least average combat level] for the cash crime while the game's crime stats aren't known (they need
 	//                 the Singularity API); with them the crime with the most money per second at the sleeve's success chance wins.
 	//                 minCrimeChance: a cash crime must succeed this often.
-	//   factionShare / companyShare: at most this share of the sleeves works for factions / companies at once.
+	//   factionShare / companyShare: with priority "fixed", at most this share of the sleeves works for factions / companies.
 	//   bladeburner.contracts: contracts the sleeves take on, in order, while the Bladeburner state is "run".
 	//   buy:          sleeves (BitNode 10 only), memory upgrades (a higher memory lifts the sync a sleeve starts from) and sleeve
 	//                 augmentations (kept through installs), each within the `buying` stage for the current income:
 	//                 never below `reserve`, at most `maxFraction` of the cash per pass.
+	//   sleeveFraction: a sleeve (Covenant, BitNode 10) may use this share of the cash above the stage's reserve instead of maxFraction:
+	//                 it is permanent and costs $10t and up, far more than a tenth of the cash for most of a run.
 	//   augments:     wantStats (STAT_GROUPS) and never: which sleeve augmentations are worth it, when stats can be read (Singularity
 	//                 at 1x or 4x RAM); otherwise the cheapest first.
 	sleeves: {
 		enabled: true,
+		priority: "auto",
+		sleeveFraction: 1,
+		weights: { karma: 100, bladeburner: 50, faction: 20, company: 6, cash: 10, decay: 0.6 },
 		shock: { enter: 25, exit: 2 },
 		sync: { enter: 90, exit: 100 },
 		train: { combat: "auto", hacking: "auto" },

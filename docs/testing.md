@@ -144,7 +144,7 @@ counted when respect let the next update recruit a replacement before the plan l
 branches live in `route-model.js`). What is left is mostly log wording, the rank-per-second pricing of a waiting Black Op and
 model inputs that only change the figures. No script bug turned up; the tests only pin behaviour.
 
-**Current state:** about 633 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
+**Current state:** about 638 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
 step, home-upgrade hold, Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without
 Formulas.exe, RAM pool, the batcher's main loop in a hacking simulator, startup.js stages and one-shots, gym and study
 choice, player-work's passes in a player simulator, income curve, augment filter, BitNode route,

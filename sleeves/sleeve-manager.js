@@ -6,8 +6,10 @@ import { adviseMissing } from "/utils/api-advice.js";
 import { sleevesApiFromInfo } from "/utils/sleeves.js";
 import { singularityFromInfo } from "/utils/singularity.js";
 import { postPass } from "/utils/pass-log.js";
-import { bladeburnerState, trainFloor } from "/bladeburner/state.js";
-import { planSleeves, family, pickCashCrime, SUMMARY_PORT, RESULT_PORT, CRIME_STATS_PORT } from "/sleeves/plan.js";
+import { bladeburnerState, trainFloor, bladeburnerPlan } from "/bladeburner/state.js";
+import { bitnodeMults } from "/utils/bitnode-mults.js";
+import { readIncomeRate } from "/utils/income.js";
+import { planSleeves, jobValues, family, pickCashCrime, SUMMARY_PORT, RESULT_PORT, CRIME_STATS_PORT } from "/sleeves/plan.js";
 
 // Ports read from other scripts (see docs/NETSCRIPT.md).
 const GOALS_PORT = 23;        // faction rep goals (singularity/workers/faction-goals.js)
@@ -65,7 +67,8 @@ export async function main(ns) {
 		goals: fresh(ns, GOALS_PORT, GOALS_MAX_AGE_MS)?.goals ?? null,
 		playerFaction: String(peekJson(ns, PLAYER_WORK_PORT)?.lastGoalFaction ?? ""),
 		invite: fresh(ns, INVITE_PORT, INVITE_MAX_AGE_MS),
-		bb: { state: bladeburnerState(ns), trainFloor: trainFloor(ns) },
+		bb: { state: bladeburnerState(ns), trainFloor: trainFloor(ns), route: bladeburnerPlan(ns)?.route },
+		mults: bitnodeMults(ns), incomePerSecond: readIncomeRate(ns).perSecond,
 		crimes,
 	};
 	const plan = planSleeves(state, config);
@@ -98,6 +101,10 @@ export async function main(ns) {
 	const roles = plan.map((entry) => entry.role);
 	const tally = [...new Set(roles)].map((role) => `${roles.filter((item) => item === role).length} ${role}`).join(", ");
 	lines.unshift(`${count} sleeve${count === 1 ? "" : "s"}: ${tally}`);
+	if (config.sleeves.priority !== "fixed") {
+		const values = jobValues(state, config);
+		lines.push(`job values: ${Object.entries(values).map(([role, value]) => `${role} ${Math.round(value * 10) / 10}`).join(", ")}`);
+	}
 	for (const entry of plan) {
 		const sleeve = sleeves[entry.sleeve];
 		lines.push(`#${entry.sleeve} ${entry.why} (shock ${Math.round(sleeve.shock)}%, sync ${Math.round(sleeve.sync)}%)`);
