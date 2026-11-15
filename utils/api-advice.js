@@ -64,6 +64,12 @@ export const FEATURES = {
 		fallback: "The player does all the work alone",
 		gain: "each level adds a sleeve; BitNode 10 itself also sells more sleeves, memory upgrades and sleeve augmentations",
 	},
+	grafting: {
+		label: "Grafting API (SF10)", sources: [10],
+		lacks: "no grafting (augmentations installed at once for money and an hour or two in New Tokyo, no faction rep or install needed)",
+		fallback: "Augmentations come from faction rep and installs only",
+		gain: "level 1 unlocks it (BitNode 10 itself has it too)",
+	},
 	bladeburner: {
 		label: "Bladeburner API (SF6/7)", sources: [6, 7],
 		lacks: "no Bladeburner division (ranks, skills, Black Ops as a way to end the BitNode)",

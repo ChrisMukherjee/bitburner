@@ -10,6 +10,8 @@ import { GYM_STATS, GYMS, GYM_CITY, GYM_CASH_SECONDS } from "/utils/gyms.js";
 import { startHelper } from "/utils/start-helper.js";
 import { postGate } from "/singularity/ready.js";
 import { bladeburnerAccess, simulacrumInstalled } from "/utils/bladeburner.js";
+import { graftingApiFromInfo } from "/utils/grafting.js";
+import { pickGraft } from "/singularity/graft-plan.js";
 import { bladeburnerState, bladeburnerPlan, trainFloor, combatRoute } from "/bladeburner/state.js";
 import { routeFocus, postRouteFocus, pickGoalFaction } from "/utils/route-focus.js";
 import { daemonLevelFor } from "/utils/route-progress.js";
@@ -19,6 +21,8 @@ import { daemonLevelFor } from "/utils/route-progress.js";
 const GOALS_PORT = 23; // singularity/workers/faction-goals.js: rep goal per faction
 const PLAN_PORT = 25;  // singularity/workers/city-plan.js: which city factions still sell something wanted
 const GANG_PORT = 30;  // gang/workers/invite.js: crime or gym for the gang invite (BitNode 2)
+const GRAFT_PORT = 46; // singularity/workers/graft-scan.js: the augmentations worth grafting (docs/grafting.md)
+const NEW_TOKYO = "New Tokyo";
 const CRIME_INVITE_PORT = 39; // singularity/workers/crime-invites.js: the crime-faction invite to work on (Bladeburner route)
 const AUG_PLAN_FILE = "data/aug-plan.json"; // buy-augs.js --plan: rep rates for the goals helper
 // What one pass leaves for the next (goals, city plan, what was started or announced), so a
@@ -55,6 +59,11 @@ const CONFIG = {
 	gangImports: ["utils/gang.js", "utils/gang-karma.js"],
 	crimeInviteHelper: "singularity/workers/crime-invites.js",
 	crimeInviteImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
+	graftScanHelper: "singularity/workers/graft-scan.js",
+	graftScanImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
+	graftStartHelper: "singularity/workers/graft-start.js",
+	graftStartImports: [],
+	graftTryMs: 30 * 60_000,   // an augmentation the game refused to graft is left alone this long
 	idleCrimeHelper: "singularity/workers/start-crime.js",
 	idleCrimeImports: ["utils/notify.js"],
 	gangRefreshMs: 2 * 60_000, // re-check the gang invite needs (and the best crime, as the stats grow) this often
@@ -87,6 +96,8 @@ const CONFIG = {
  *      singularity/workers/crime-invites.js every 2 minutes: the crime with the most karma (or kills) per minute,
  *      then the flight to the faction's city once nothing else is missing (and a stay there for the invite); the combat
  *      levels go to the gym in step 4's gap.
+ *   2c. Grafting (BitNode 10 or Source-File 10, docs/grafting.md): the augmentations no joined faction sells, when they are worth it; with nothing
+ *      else to do (step 4's gap), any wanted one. A graft in progress is never interrupted.
  *   3. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
  *      below its real rep goal, from singularity/workers/faction-goals.js on port 23: the highest rep needed
  *      among the augments worth buying there (utils/aug-filter.js) that this run can afford and reach
@@ -229,6 +240,17 @@ async function onePass(ns, state) {
 		}
 	} else state.crimeInvite = null;
 
+	// Grafting candidates (BitNode 10 or Source-File 10): asked again every refresh, and right after a graft ends.
+	if (config.grafting?.enabled !== false && graftingApiFromInfo(ns.getResetInfo())) {
+		const grafting = ns.singularity.getCurrentWork()?.type === "GRAFTING";
+		if (state.wasGrafting && !grafting) state.graftAt = 0;
+		state.wasGrafting = grafting;
+		if (Date.now() - (state.graftAt ?? 0) >= CONFIG.refreshMs) {
+			const fresh = await runHelper(ns, CONFIG.graftScanHelper, CONFIG.graftScanImports, GRAFT_PORT);
+			if (fresh) Object.assign(state, { graft: fresh, graftAt: Date.now() });
+		}
+	} else state.graft = null;
+
 	const trip = travelStep(ns, state, player);
 	player = ns.getPlayer(); // a join or flight above changes factions, city and money
 	state.holdCity = !!trip.hold; // waiting here for an invite: the gym doesn't fly away
@@ -275,6 +297,7 @@ function loadState(ns, resetAt) {
 		plan: null, planAt: 0, lastAnnounced: "", cityDone: false, cityMessage: "",
 		gang: null, gangAt: 0, gangDone: false, gangCrime: false, gangGym: false, holdCity: false,
 		crimeInvite: null, crimeInviteAt: 0, inviteCrime: false, travelDone: false,
+		graft: null, graftAt: 0, graftTry: null, wasGrafting: false,
 	};
 	if (saved?.resetAt !== resetAt) return state;
 	const { planGroups, resetAt: _, ...rest } = saved;
@@ -298,6 +321,11 @@ export function workStep(ns, state, player) {
 	const joined = new Set(player.factions);
 	let current = ns.singularity.getCurrentWork();
 	const { factionWork, companyWork, studying } = state.config;
+
+	// A graft in progress is never interrupted: the game does not give its money back.
+	if (current?.type === "GRAFTING") {
+		return { message: `[graft] grafting ${current.augmentation}; every other step waits`, done: false };
+	}
 
 	if (state.studyStarted && !state.studyAnnounced && hacking >= state.studyLevel) {
 		notify(ns, "[study]", `hacking ${hacking} reached. Faction or company work takes over; with none to do, the cash crime does (studying.idleCrime).`, "success");
@@ -374,6 +402,9 @@ export function workStep(ns, state, player) {
 		if (message) return { message: alongside ? `${message} (Bladeburner keeps playing)` : message, done };
 	}
 	current = stopInviteCrime(ns, state, current, crimeInvite);
+	// 2c. Grafting what no joined faction sells (the work below can't get it), when it pays.
+	const unreachable = graftStep(ns, state, player, false);
+	if (unreachable) return { message: unreachable, done };
 	// 3. Faction work.
 	if (goalFaction) {
 		const already = current?.type === "FACTION" && current.factionName === goalFaction;
@@ -389,6 +420,9 @@ export function workStep(ns, state, player) {
 	}
 	// 4. Company work, filling the gaps.
 	if (companies.length === 0) {
+		// Nothing needs the player: graft the best thing there is.
+		const graft = graftStep(ns, state, player, true);
+		if (graft) return { message: graft, done };
 		if (invite && (!current || ["CLASS", "CRIME"].includes(current.type))) {
 			const message = gangStep(ns, state, player, current, invite);
 			if (message) return { message, done };
@@ -415,6 +449,29 @@ export function workStep(ns, state, player) {
 	return { message: `[company-work] ${target.company}: ${ns.format.number(rep)} / ${ns.format.number(companyWork.repNeeded)} rep`, done };
 }
 
+
+/**
+ * Starts grafting the best augmentation worth it (singularity/graft-plan.js), flying to New Tokyo first when the player has the
+ * money for both. Returns the log line, or null when nothing is grafted now. `idle`: nothing else needs the player.
+ * The graft itself is started by a one-shot (the Grafting API costs RAM); the next pass sees the work running.
+ */
+export function graftStep(ns, state, player, idle) {
+	const rule = state.config.grafting;
+	if (rule?.enabled === false || !state.graft?.candidates?.length || state.holdCity) return null;
+	const tried = new Set(state.graftTry && Date.now() - state.graftTry.at < CONFIG.graftTryMs ? [state.graftTry.name] : []);
+	const pick = pickGraft({ candidates: state.graft.candidates, cash: player.money, plannedCost: state.graft.plannedCost, idle, rule: rule ?? {}, tried });
+	if (!pick) return null;
+	if (player.city !== NEW_TOKYO) {
+		if (player.money < pick.cost + CONFIG.travelCost || !ns.singularity.travelToCity(NEW_TOKYO)) return null;
+	}
+	if (startHelper(ns, CONFIG.graftStartHelper, CONFIG.graftStartImports, pick.name, state.focus) === 0) {
+		return `[graft] no room for ${CONFIG.graftStartHelper} (${ns.format.ram(ns.getScriptRam(CONFIG.graftStartHelper))}); trying again next pass`;
+	}
+	state.graftTry = { name: pick.name, at: Date.now() };
+	const message = `grafting ${pick.name}: $${ns.format.number(pick.cost)}, about ${Math.round(pick.hours * 60)} minutes${idle ? "" : " (no joined faction sells it)"}`;
+	notify(ns, "[graft]", message, "info");
+	return `[graft] ${message}`;
+}
 
 /**
  * Trains the lowest combat stat in the gym until every one reaches the floor (Bladeburner's bladeburner/state.js

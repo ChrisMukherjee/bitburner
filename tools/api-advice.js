@@ -6,6 +6,7 @@ import { singularityFromInfo } from "/utils/singularity.js";
 import { bitnodeMultsFromInfo } from "/utils/sf5.js";
 import { gangApiFromInfo } from "/utils/gang.js";
 import { sleevesApiFromInfo } from "/utils/sleeves.js";
+import { graftingApiFromInfo } from "/utils/grafting.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
 
 /**
@@ -27,6 +28,7 @@ export async function main(ns) {
 		formulas: ns.fileExists("Formulas.exe", "home"),
 		gang: gangApiFromInfo(info),
 		sleeves: sleevesApiFromInfo(info),
+		grafting: graftingApiFromInfo(info),
 		bladeburner: bladeburnerAccess(ns),
 	};
 	const missing = missingList(info, have, { plan: config.bitnodePlan, tor: ns.hasTorRouter() });

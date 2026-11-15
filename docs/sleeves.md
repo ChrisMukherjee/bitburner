@@ -55,7 +55,7 @@ otherwise ([`api-advice.md`](api-advice.md)).
 If the game refuses a job (a faction another sleeve works for, a work type the faction lacks, Bladeburner not joined), the manager tries
 the job's next candidate, and then falls back to the cash crime in the same pass, so a sleeve is never idle because of a refusal.
 
-**Buying** ([`../sleeves/sleeve-shop.js`](../sleeves/sleeve-shop.js)): in BitNode 10 a sleeve first (the Covenant's `purchaseSleeve`, up to the game's limit of 8 in all; it may use `sleeves.sleeveFraction` of the cash above the reserve, since it is permanent and priced far above a stage's share), then memory upgrades for the
+**Buying** ([`../sleeves/sleeve-shop.js`](../sleeves/sleeve-shop.js)): in BitNode 10 a sleeve first (the Covenant's `purchaseSleeve`: five at most, $10t, $100t, $1q, $10q and $100q, on top of the three Source-File 10 gives, so eight in all; it may use `sleeves.sleeveFraction` of the cash above the reserve, since it is permanent and priced far above a stage's share), then memory upgrades for the
 lowest-memory sleeve (memory sets the sync a sleeve starts from), then sleeve augmentations with the most value per dollar. Source-File
 10 outside BitNode 10 gives its sleeves free and sells nothing, so only augmentations are bought there. Spending follows the same
 stage idea as the gang and hacknet ([`../utils/spending.js`](../utils/spending.js)): the stage comes from the measured income
@@ -66,6 +66,52 @@ becomes cheapest first). Sleeve augmentations are kept through installs ([`insta
 `singularity/install-augs.js` runs the shop with `--spend-all [--reserve n]` just before an install (after the home upgrades, stock
 access and gang equipment): the whole cash above the reserve may go, not only the stage's share. Skipped where the Sleeve API does
 not work or `sleeves.enabled` is false, and with `persistence.spendLeftover` off.
+
+## Holding BitNode 10 for the Covenant's sleeves
+
+Facts from the game's source (v3.0.0, `SleeveCovenantPurchases.tsx`): `purchaseSleeve` works only inside BitNode 10, only as a member
+of The Covenant (invite: hacking and every combat skill 850, 20 installed augmentations, $75b), and costs $10t x 10^(sleeves bought
+so far), five at most. The count is kept for good (`sleevesFromCovenant` survives installs and BitNode destroys; the number of
+sleeves is Source-File 10's level, up to 3 (one in BitNode 10 itself), plus those bought). Memory upgrades are also BitNode 10 only.
+So a sleeve not bought before the BitNode ends costs another BitNode 10 run to get.
+
+**Decision.** [`../sleeves/sleeve-shop.js`](../sleeves/sleeve-shop.js) ends every BitNode 10 pass by asking
+[`../utils/sleeve-hold.js`](../utils/sleeve-hold.js) whether the next sleeve is worth keeping the BitNode open for, and posts the answer
+on port 45. The test uses live numbers only: the game's price for the next sleeve, the cash on hand, the measured income
+([`../utils/income.js`](../utils/income.js)) and the age of this BitNode run. The wait to afford it (missing cash over income) is
+held for when it is at most `sleeves.hold.runShare` (1) times the time this run has already taken, because the alternative is a whole
+new BitNode 10 run, which takes about as long again and meets the same price. Each sleeve is judged at its own price, so the first
+is held for early and the $1q+ ones only once income is large; nothing is held for when the Covenant is out of reach (not a member
+and hacking or a combat skill under 850), when income has not been measured, or when all five are bought.
+
+**What obeys it** (all default on; `sleeves.hold.enabled: false` turns every one off):
+
+- [`../singularity/auto-destroy.js`](../singularity/auto-destroy.js) waits ("holding BitNode 10 for a Covenant sleeve ...", one toast) instead of destroying
+  `w0r1d_d43m0n`, on the Black Ops ending too. `--no-hold` ignores it for one run. The shop buys the sleeve on its next pass once it
+  is affordable and the hold ends by itself.
+- [`../singularity/auto-reset.js`](../singularity/auto-reset.js) skips an install once the cash on hand has reached `sleeves.hold.progress` (half) of the price and it is
+  still short: the reset would wipe it. Short of half-way the install's gains win; at the price the install's `--spend-all` shop pass
+  buys the sleeve first. The reset that installs The Red Pill is never held, since the BitNode can't end without it.
+- [`../utils/spending.js`](../utils/spending.js) `getBudget` (hacknet and server managers) keeps the price out of the budget from the same half-way point; before it, investing in
+  income shortens the wait.
+
+**Without the API or in other BitNodes** nothing posts, so nothing is held: the decision only exists in BitNode 10 with the Sleeve API.
+A stale post (older than 10 minutes, a stopped shop) is ignored.
+
+**Rejected.** A fixed number of hours or a target sleeve count (the right wait depends on the run and the income); holding when the
+Covenant is far away (nothing here trains toward its 850 skills, and a hold that cannot end would stall the route); making the
+reset rule value the wipe exactly (an install's gain is the reset rule's job, so only the half-way line is added).
+
+**Open.** Nothing trains or works toward the Covenant's invite on purpose: hacking 850 comes with the run, combat 850 comes from
+Bladeburner or the gym, so a run with neither gets no hold. Five sleeves in all means more BitNode 10 runs after level 3, which the
+plan (levels only) cannot ask for: run `next-bitnode 10` by hand once income allows $1q and up.
+
+## The BN10 challenge
+
+`challenge bn10` (see [`challenges.md`](challenges.md)) sets `sleeves.manage: false` (the manager gives no sleeve a job, so none gains
+experience) and `sleeves.buy.augments: false` while in BitNode 10. The game checks, at the destroy, that no sleeve holds an
+augmentation or experience; owning idle sleeves is allowed, so the shop still buys sleeves and memory and the hold above still works.
+It is the cheapest in the first BitNode 10 run (see [`bitnode-order.md`](bitnode-order.md#challenge-achievements)).
 
 ## RAM
 
@@ -95,5 +141,5 @@ server with room ([`../utils/start-helper.js`](../utils/start-helper.js)). Worke
   scale and which jobs drop out. Built so far: the measured karma rate only caps how many sleeves grind karma. Not built: measuring
   the other jobs' real rates (rep per hour) from successive passes, which would replace the weights and the decay.
 - **A hardcoded crime table.** The game's own stats are read where Singularity is cheap, and a ladder by combat level covers the rest.
-- **Open:** sleeves do not use `Support main sleeve` or grafting; the cost of sleeves bought in BitNode 10
-  (the Covenant, up to $100q) means the shop usually waits for the late game there.
+- **Open:** sleeves do not use `Support main sleeve` (grafting is the player's, see [`grafting.md`](grafting.md)); the cost of sleeves bought in BitNode 10
+  (the Covenant, up to $100q) means the shop usually waits for the late game there, and the BitNode now waits for it (see above).

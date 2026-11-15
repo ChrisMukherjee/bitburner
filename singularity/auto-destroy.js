@@ -6,6 +6,7 @@ import { nukeAllServers } from "/utils/nuke-all.js";
 import { notify } from "/utils/notify.js";
 import { blackOpsDone } from "/bladeburner/state.js";
 import { routeStep } from "/utils/bitnode-route.js";
+import { sleeveHoldReason } from "/utils/sleeve-hold.js";
 
 const DAEMON = "w0r1d_d43m0n";
 const DESTROYER = "singularity/next-bitnode.js";
@@ -34,17 +35,22 @@ const LOOP_MS = 60_000;
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	const flags = ns.flags([["bn", 0], ["dry", false]]);
+	const flags = ns.flags([["bn", 0], ["dry", false], ["no-hold", false]]);
 	const config = loadConfig(ns);
 	const resetInfo = ns.getResetInfo();
 	if (!requireApi(ns, "singularity", singularityFromInfo(resetInfo).available, resetInfo, config)) return;
 
 	let lastWaiting = "";
 	let toldReady = false;
+	let toldHold = false;
 	while (true) {
-		const waiting = waitingOn(ns);
+		// BitNode 10's Covenant sells sleeves nowhere else, so while the next one is worth the wait the BitNode stays open
+		// (the sleeve shop decides, utils/sleeve-hold.js; `--no-hold` or `sleeves.hold.enabled: false` skips it).
+		const waiting = (flags["no-hold"] ? "" : sleeveHoldReason(ns, config.sleeves?.hold)) || waitingOn(ns);
 		if (waiting) {
 			if (waiting !== lastWaiting) ns.print(`[daemon] waiting: ${waiting}`);
+			if (waiting.startsWith("holding") && !toldHold) notify(ns, "[daemon]", `${waiting}. The BitNode stays open until it is bought or the wait stops being worth it (--no-hold or sleeves.hold.enabled false skips this).`, "info");
+			toldHold = waiting.startsWith("holding");
 			lastWaiting = waiting;
 			await ns.sleep(LOOP_MS);
 			continue;

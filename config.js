@@ -412,6 +412,14 @@ export const DEFAULTS = {
 		],
 	},
 
+	// Grafting (singularity/player-work.js step 2c and the idle gap, singularity/graft-plan.js; BitNode 10, or anywhere with
+	// Source-File 10). Design: docs/grafting.md. enabled: false = never grafts.
+	//   maxFraction: a graft may cost at most this share of the cash; and only cash beyond the reset's planned purchases
+	//                (data/aug-plan.json cost) times `safety` counts, since the planned buys are cheaper per augment.
+	//   minValue:    the least the reset rule's value of an augment (augValue, ln of its multipliers) must be.
+	// While the player has other work only augments no joined faction sells are grafted; with nothing else to do, any.
+	grafting: { enabled: true, maxFraction: 0.5, safety: 1.25, minValue: 0.05 },
+
 	// Sleeves (sleeves/; BitNode 10, or anywhere with Source-File 10). Design: docs/sleeves.md. enabled: false = never started.
 	// The manager gives each sleeve one job every pass (sleeves/plan.js): shock recovery, then synchronization, then training
 	// where a stat is missing, then the job the run needs most (the gang's karma, Bladeburner contracts, faction rep, company
@@ -438,8 +446,16 @@ export const DEFAULTS = {
 	//                 it is permanent and costs $10t and up, far more than a tenth of the cash for most of a run.
 	//   augments:     wantStats (STAT_GROUPS) and never: which sleeve augmentations are worth it, when stats can be read (Singularity
 	//                 at 1x or 4x RAM); otherwise the cheapest first.
+	//   manage:       false = the manager gives no sleeve a job (an idle sleeve gains no experience: the BN10 challenge needs that).
+	//   hold:         BitNode 10 is the only place the Covenant sells sleeves (5, from $10t to $100q, kept for good), so while the next
+	//                 one can be afforded within `runShare` x the time this run has taken (live price, cash and measured income; the
+	//                 alternative is another whole BitNode 10 run), auto-destroy.js keeps the BitNode open, and once the cash has
+	//                 reached `progress` of the price, auto-reset.js skips installs that would wipe it and the hacknet and server
+	//                 managers leave it alone. enabled: false = destroy as soon as the daemon allows. Design: docs/sleeves.md.
 	sleeves: {
 		enabled: true,
+		manage: true,
+		hold: { enabled: true, runShare: 1, progress: 0.5 },
 		priority: "auto",
 		sleeveFraction: 1,
 		weights: { karma: 100, bladeburner: 50, faction: 20, company: 6, cash: 10, decay: 0.6, karmaHours: 2 },
@@ -546,7 +562,7 @@ export const DEFAULTS = {
 		{ bitNode: 1, level: 3, tier: 5 },
 		{ bitNode: 2, level: 1, tier: 6 }, // gangs
 		{ bitNode: 6, level: 1, tier: 7 }, // Bladeburner: its Black Ops end BitNodes 10, 9 and 13 without hacking
-		{ bitNode: 10, level: 3, tier: 8 }, // sleeves; The Covenant sells more only inside BitNode 10
+		{ bitNode: 10, level: 3, tier: 8 }, // sleeves; The Covenant sells more only inside BitNode 10 (each run is held open while the next one is worth the wait, sleeves.hold); `challenge bn10` on 10.1
 		{ bitNode: 7, level: 3, tier: 9 }, // The Blade's Simulacrum free at level 3
 		{ bitNode: 3, level: 3, tier: 10 }, // corporations; the full API free at level 3
 		{ bitNode: 9, level: 3, tier: 11 }, // hacknet servers; a 128GB home start from level 2
@@ -594,6 +610,17 @@ export const CHALLENGES = {
 					// Home never passes 128GB, so let the "late" scripts start there (they wait for room if home is full).
 					startupStages: { late: 128 },
 				},
+			},
+		},
+	},
+	"bn10": {
+		achievement: "BN10: Challenge",
+		rule: "destroy BitNode 10 with no sleeve holding an augmentation or any experience (owning idle sleeves is fine)",
+		settings: {
+			bitnodes: {
+				// No jobs (work, training and crime give experience) and no sleeve augmentations; buying sleeves and memory
+				// is allowed, so the Covenant hold in BitNode 10 still works.
+				"10": { sleeves: { manage: false, buy: { augments: false } } },
 			},
 		},
 	},

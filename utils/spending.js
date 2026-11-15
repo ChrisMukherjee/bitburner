@@ -1,5 +1,6 @@
 // @ts-check
 import { readIncomeRate } from "/utils/income.js";
+import { readSleeveHold, sleeveSaving } from "/utils/sleeve-hold.js";
 
 /**
  * Shared spending policy for the hacknet and pserv managers.
@@ -24,7 +25,8 @@ export function getCash(ns) {
 export function getBudget(ns, policy) {
 	assertValidPolicy(policy);
 	const cash = getCash(ns);
-	const aboveReserve = cash - policy.reserve;
+	// Cash being saved for a Covenant sleeve (BitNode 10, utils/sleeve-hold.js) is not spent here.
+	const aboveReserve = cash - Math.max(policy.reserve, sleeveSaving(readSleeveHold(ns), cash));
 	return Math.max(0, Math.min(cash * policy.maxFraction, aboveReserve));
 }
 

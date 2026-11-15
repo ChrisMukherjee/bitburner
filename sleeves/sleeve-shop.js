@@ -8,6 +8,7 @@ import { sleevesApiFromInfo, sleevesBuyableFromInfo } from "/utils/sleeves.js";
 import { singularityFromInfo } from "/utils/singularity.js";
 import { readIncomeRate } from "/utils/income.js";
 import { postPass } from "/utils/pass-log.js";
+import { sleeveHold, postSleeveHold, covenantAccess } from "/utils/sleeve-hold.js";
 import { pickStage, budgetFor, nextPurchase, AUG_VALUE_PORT } from "/sleeves/plan.js";
 
 const SCRIPT = "sleeves/sleeve-shop.js";
@@ -89,7 +90,19 @@ export async function main(ns) {
 		spent += next.cost;
 	}
 
-	const summary = bought.length ? `bought ${bought.length}: ${bought.slice(0, 4).join(", ")}${bought.length > 4 ? ", ..." : ""}` : `nothing bought (stage ${stage.name}, budget $${ns.format.number(budget)})`;
+	// Whether the next sleeve is worth keeping this BitNode open for (utils/sleeve-hold.js; auto-destroy, auto-reset and the spenders read it).
+	let holdNote = "";
+	if (canBuy) {
+		const player = ns.getPlayer();
+		const decision = sleeveHold({
+			cost: rule.buy.sleeves ? ns.sleeve.getSleeveCost() : Infinity, cash: player.money, income: readIncomeRate(ns).perSecond,
+			runMs: Date.now() - info.lastNodeReset, access: covenantAccess(player), canBuy,
+		}, rule.hold);
+		postSleeveHold(ns, { ...decision, progress: rule.hold?.progress });
+		if (decision.hold) holdNote = ` Holding BitNode 10: ${decision.reason}.`;
+	}
+
+	const summary = (bought.length ? `bought ${bought.length}: ${bought.slice(0, 4).join(", ")}${bought.length > 4 ? ", ..." : ""}` : `nothing bought (stage ${stage.name}, budget $${ns.format.number(budget)})`) + holdNote;
 	postPass(ns, SCRIPT, [summary]);
 	ns.print(`${TAG} ${summary}`);
 }

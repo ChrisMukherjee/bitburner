@@ -1,6 +1,9 @@
 // Design: docs/aug-reset.md
 // @ts-check
 import { notify } from "/utils/notify.js";
+import { loadConfig } from "/utils/config.js";
+import { sleeveHoldsReset } from "/utils/sleeve-hold.js";
+const RED_PILL = "The Red Pill";
 const TAG = "[auto-reset]";
 const CONFIG = {
 	checkMinutes: 10,
@@ -71,7 +74,12 @@ export async function main(ns) {
 			seen = new Set([...(seen ?? []), ...ready]);
 			// resetSince is set by the planner when the advice first turned RESET this run, so only this check announces it.
 			if (plan.decision.reset && plan.resetSince >= askedAt) notify(ns, TAG, `Reset advice is now RESET: ${plan.decision.reason}`, "success");
-			if (plan.decision.reset) {
+			// In BitNode 10, cash saved for a Covenant sleeve (utils/sleeve-hold.js) is not thrown away by an install, except the one
+			// that brings The Red Pill: without it the BitNode can't end.
+			const saving = plan.decision.reset && !ready.includes(RED_PILL) ? sleeveHoldsReset(ns, loadConfig(ns).sleeves?.hold, ns.getServerMoneyAvailable("home")) : "";
+			if (saving) {
+				ns.print(`[auto-reset] holding the reset: ${saving}`);
+			} else if (plan.decision.reset) {
 				if (flags.dry) {
 					ns.print("[auto-reset] would reset now (--dry, not doing it)");
 				} else if (Date.now() < holdUntil) {

@@ -13,7 +13,9 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`sf5.js`](sf5.js) | Whether this run can read the BitNode multipliers (BitNode 5 or Source-File 5), and the ready check for startup.js | none | 1GB |
 | [`study.js`](study.js) | `pickCourse`: the free university course, or `studying.paidCourse` (Algorithms) once cash covers `paidSeconds` of its fee; `isCourse`. Design: [`docs/player-work.md`](../docs/player-work.md) | none | 0GB |
 | [`singularity.js`](singularity.js) | Whether this run can use the Singularity API | none | 1GB |
+| [`grafting.js`](grafting.js) | What this run can do with grafting (BitNode 10 or Source-File 10) | none | 0GB |
 | [`gyms.js`](gyms.js) | Gym tables (stats, gyms per city, cost) shared by player-work.js and start-gang.js | none | 0GB |
+| [`sleeve-hold.js`](sleeve-hold.js) | Keeping BitNode 10 open for the Covenant's sleeves: the game's price ladder, the Covenant check, the hold decision (affordable within the time the run has taken), the saving rule and port 45. Design: [`docs/sleeves.md`](../docs/sleeves.md#holding-bitnode-10-for-the-covenants-sleeves) | none | 0GB |
 | [`sleeves.js`](sleeves.js) | What this run can do with sleeves (BitNode 10 or Source-File 10; buying only in BitNode 10) | none | 1GB |
 | [`gang.js`](gang.js) | What this run can do with gangs; the one place with per-BitNode gang rules | none | 1GB |
 | [`gang-karma.js`](gang-karma.js) | `karmaNeededFromInfo`: the karma a gang needs (split from gang.js so sleeves/sleeve-manager.js does not pay for its Gang API calls) | none | 0GB |
@@ -31,6 +33,6 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`income.js`](income.js) | Real money income rate on port 24; use it instead of `ns.getTotalScriptIncome` | none | 0GB |
 | [`income-mix.js`](income-mix.js) | `postIncomeMix`: this run's money by source on port 38; `loadConfig` weighs the money augment stats by it. Only buy-augs.js imports it. Design: [`docs/aug-reset.md`](../docs/aug-reset.md) | none | 1GB |
 | [`income-curve.js`](income-curve.js) | Income history and growth forecast for the reset rule and faction goals. Design: [`docs/aug-reset.md`](../docs/aug-reset.md) | none | 0GB |
-| [`spending.js`](spending.js) | Spending stages and budgets | none | 0.6GB |
+| [`spending.js`](spending.js) | Spending stages and budgets; keeps cash saved for a Covenant sleeve (BitNode 10, see `sleeve-hold.js`) out of the budget | none | 0.6GB |
 | [`notify.js`](notify.js) | Toast, terminal and log alerts | none | 0GB |
 | [`start-helper.js`](start-helper.js) | Starts a one-shot helper on home or a rooted server; reserves room for it when none has any. Design: [`docs/ram.md`](../docs/ram.md) | none | 2.6GB |

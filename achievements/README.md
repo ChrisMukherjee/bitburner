@@ -56,8 +56,10 @@ strong BitNode.
 
 - **Corporation set** (create a corporation, lobbying, production multiplier 1000, 3000 employees, Real Estate):
   there is no `corp/` folder yet, so this is a project. Do not do it in BN3 if you want the BN3 challenge.
-- **You and what army (8 sleeves):** needs Source-File 10 level 3 and the extra sleeves. No sleeve scripts yet; the
-  BN10 challenge forbids sleeves in that run.
+- **You and what army (8 sleeves):** needs Source-File 10 level 3 and all five Covenant sleeves ($10t up to $100q, BitNode 10 only,
+  kept for good). [`sleeves/`](../sleeves/README.md) buys them and keeps BitNode 10 open while the next one is worth the wait
+  ([`docs/sleeves.md`](../docs/sleeves.md#holding-bitnode-10-for-the-covenants-sleeves)); the last two need large income, so
+  expect a late extra BitNode 10 run. The BN10 challenge run (no sleeve experience) is a different run.
 - **Wretched hive (-1m karma):** a long crime farm.
 - **While(true); (freeze and reload):** manual, reload using "reload and kill all".
 - **Too many options:** leave the game on the Bitverse screen for an hour.
@@ -101,7 +103,7 @@ The per-BitNode challenge rules, and which default scripts break them:
 | BN6, BN7 | no Bladeburner division | `bladeburner/` is the default route in BN6 |
 | BN8 | no 4S market data | `stocks/stock-trader.js` buys 4S |
 | BN9 | no hacknet nodes or servers | `hacknet/hacknet-manager.js` |
-| BN10 | no sleeves | none (no sleeve scripts) |
+| BN10 | no sleeve augmentations or experience (owning idle sleeves is fine) | the sleeve manager and shop; `challenge bn10` switches them off in BitNode 10 (best on 10.1, see [`docs/bitnode-order.md`](../docs/bitnode-order.md#challenge-achievements)) |
 | BN12 | destroy BN12 50 times | none |
 | BN13 | no Stanek's Gift | none (no Stanek scripts) |
 | BN14 | no moves or cheating via the IPvGO APIs | the Go bot |

@@ -9,6 +9,7 @@ change a script, so they don't undo a choice that was made on purpose.
 
 - [`batcher.md`](batcher.md): just-in-time multi-target batching, target ranking, Formulas.exe optional.
 - [`xp-farm.md`](xp-farm.md): spare RAM into weaken threads for hacking XP, yields to share (except while the route waits for hacking exp).
+- [`grafting.md`](grafting.md): when the player grafts augmentations (BitNode 10 or Source-File 10): never interrupt, only what the factions do not sell while busy, anything when idle, budget beyond the reset's planned buys
 - [`route-focus.md`](route-focus.md): what the hacking route waits for right now (invite level, Red Pill rep, daemon level), posted on port 44, so the spare RAM, the player's faction pick, the gang invite and the sleeves follow it.
 - [`startup.md`](startup.md): one priority list, stages from home RAM, running off home, skipping what can't run.
 - [`config.md`](config.md): one settings file with presets and per-player overrides, instead of per-BitNode copies.
@@ -30,7 +31,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`bitnode-mults.md`](bitnode-mults.md): BitNode multipliers saved once per run and read at 0GB, 1 when unknown.
 - [`challenges.md`](challenges.md): challenge achievements as named config overrides; the home RAM and core cap for BN1.
 - [`bladeburner.md`](bladeburner.md): state manager, action pass, route estimate, gym via player-work, state on a port.
-- [`sleeves.md`](sleeves.md): sleeve manager: one job per sleeve from the run's state (shock and sync, training, the gang's karma, Bladeburner contracts, faction and company rep, cash crime), refusals fall back, buying sleeves, memory and augmentations by spending stage, and why the work is split into small workers.
+- [`sleeves.md`](sleeves.md): sleeve manager: one job per sleeve from the run's state (shock and sync, training, the gang's karma, Bladeburner contracts, faction and company rep, cash crime), refusals fall back, buying sleeves, memory and augmentations by spending stage, keeping BitNode 10 open while the next Covenant sleeve is worth the wait, the BN10 challenge, and why the work is split into small workers.
 - [`install-persistence.md`](install-persistence.md): what an augmentation install keeps per mechanic (gang, Bladeburner, favor, stock access...) and what the scripts do with it.
 
 ## Writing one

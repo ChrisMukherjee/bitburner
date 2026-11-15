@@ -26,7 +26,7 @@ from the game's source at version 3.0.0 and its in-game BitNode guides ([Sources
 | 5 | BN1.3 | +28% instead of +24%. No more home RAM: every SF1 level gives the same 32GB start | The cheapest clear in the game, and the bonus covers almost every later run |
 | 6 | BN2.1 | Gangs everywhere (outside BitNode 2 a gang needs -54,000 karma); +24% crime success, crime money and charisma | In BitNode 2 a gang needs no karma and its faction offers The Red Pill. Gang money buys the NeuroFlux levels its 15,000-hacking finish takes |
 | 7 | BN6.1 | Bladeburner everywhere; +8% combat | Finishing every Black Op ends a BitNode with no hacking at all: the way out of BitNodes 10, 9 and 13. BitNode 6 has no Bladeburner penalties |
-| 8 | BN10.1 to 10.3, in a row | One sleeve per level, and grafting | Sleeves speed up karma and Bladeburner. The Covenant sells up to 5 more sleeves ($10t up to $100q) only inside BitNode 10, so three runs give three chances |
+| 8 | BN10.1 to 10.3, in a row | One sleeve per level, and grafting | Sleeves speed up karma and Bladeburner. The Covenant sells up to 5 more sleeves ($10t up to $100q) only inside BitNode 10, so three runs give three chances. The scripts keep each run open while the next sleeve is worth the wait ([`sleeves.md`](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves)); the challenge (no sleeve experience or augmentations) goes on the first of these runs |
 | 9 | BN7.1 to 7.3, in a row | +8/12/14% Bladeburner stamina, analysis and success chance; at 7.3 The Blade's Simulacrum free on joining Bladeburner ($150b otherwise) | With the Simulacrum, Bladeburner runs alongside other work. Sleeves and SF6 soften BitNode 7's 60% rank gain and 2x skill costs |
 | 10 | BN3.1 to 3.3, in a row | Corporations everywhere ($150b to start one outside BitNode 3); at 3.3 the full corporation API (the Office and Warehouse APIs cost $50b each otherwise) | Hacking pays 0.8% of BitNode 1 there and augmentations cost 3x, but a corporation can start on government seed money and Bladeburner has no penalty |
 | 11 | BN9.1 to 9.3, in a row | Hacknet servers everywhere; from 9.2 a 128GB home at every start; at 9.3 a highly upgraded hacknet server at every start | Hacking pays 0.1% of BitNode 1 there and there are no purchased servers, so it comes after Bladeburner. The 128GB start then helps every run after |
@@ -81,7 +81,7 @@ judgment, each with a fallback:
 
 - **BitNode 10 before 3.** The last three Covenant sleeves cost $1q, $10q and $100q and sell only inside BitNode 10,
   and the guide says the last one needs "a batcher or a corporation". Sleeves come first here because they help every
-  step after; a sleeve still missing after 10.3 costs one more BitNode 10 run later. Fallback: BitNode 3 before 10, so
+  step after; a sleeve still missing after 10.3 costs one more BitNode 10 run later (`next-bitnode 10` by hand: the plan counts Source-File levels, which stop at 3). Fallback: BitNode 3 before 10, so
   a corporation can pay for them.
 - **BitNode 2.1 before 6.1.** Both guides call BitNode 2 a good early BitNode, and players report finishing it in
   under two days with a gang (community). If your BitNode 2 run stalls short of 15,000 hacking, do 6.1 first: SF6 then
@@ -150,7 +150,7 @@ for any other run where you want the Gift ([`bladeburner.md`](bladeburner.md)).
 
 ### Source-Files with no manager here yet
 
-- **SF10, sleeves and grafting:** [`../sleeves/`](../sleeves/README.md) gives every sleeve a job (shock and sync, training, karma, Bladeburner contracts, faction and company rep, cash crime) and buys sleeves, memory and sleeve augmentations; there are no grafting scripts.
+- **SF10, sleeves and grafting:** [`../sleeves/`](../sleeves/README.md) gives every sleeve a job (shock and sync, training, karma, Bladeburner contracts, faction and company rep, cash crime) and buys sleeves, memory and sleeve augmentations. Grafting (the player grafts augmentations for money and an hour or two in New Tokyo, no rep needed) is a step of player-work.js: [`grafting.md`](grafting.md).
 - **SF3, corporations:** no corporation scripts.
 - **SF9, hacknet servers:** SF9 replaces hacknet nodes with hacknet servers in every BitNode, and
   [`../hacknet/hacknet-manager.js`](../hacknet/hacknet-manager.js) only handles nodes that earn money: it stands down
@@ -182,11 +182,19 @@ scripts break each challenge is in [`../achievements/README.md`](../achievements
 | 6, 7 | Never join the Bladeburner division | An extra run late in the order: 6,000 hacking at 35% hacking level |
 | 8 | No 4S market data | BitNode 8.3 (step 15), if your trading works without 4S |
 | 9 | No hacknet nodes or servers | BitNode 9.3 (step 11), finishing through the Black Ops |
-| 10 | No sleeves | An extra BitNode 10 run after step 8, finishing through the Black Ops |
+| 10 | No sleeve holds an augmentation or experience (owning idle sleeves is fine) | BitNode 10.1, the first run of step 8, with `challenge bn10`, finishing through the Black Ops; `challenge clear` before 10.2 |
 | 12 | Destroy BitNode 12 50 times | Step 18, which the plan runs to level 50 |
 | 13 | No Stanek's Gift | An extra run at the end, since the Gift is BitNode 13's main help |
 | 14 | No Go moves or cheats through the API | BitNode 14.3 (step 13): stop the Go bot and play by hand, or not at all |
 | 15 | Never call `dnet.heartbleed` | BitNode 15.3 (step 14), without the darknet scripts, which use it |
+
+**Why the BitNode 10 challenge goes on the first run.** The achievement counts any destroy of BitNode 10 where no sleeve has
+an augmentation or experience, and it ignores what the sleeves cost. At 10.1 you own one sleeve (Source-File 10 gives one per level,
+and BitNode 10 itself one more than you own), so a run without them gives up the least; at 10.2 and 10.3 there are two and three
+to put to work, plus any Covenant sleeves bought, which is what those runs are for. `challenge bn10` stops the manager giving jobs
+and the shop buying augmentations in BitNode 10, but still buys sleeves and memory (idle sleeves are allowed, and they stay for
+good), so the hold in [`sleeves.md`](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves) works in that run too.
+The same run also needs SF6 (step 7) for the Black Ops way out.
 
 When you pick the next BitNode yourself on the BitVerse screen, its advanced options can switch a mechanic off for one
 run (gangs, corporations, Bladeburner, 4S market data, hacknet servers, or sleeves' experience and augmentations) or cap

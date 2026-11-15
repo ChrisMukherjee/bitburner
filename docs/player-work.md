@@ -25,6 +25,12 @@ step (Daedalus' invite needing level, Daedalus rep for The Red Pill, the daemon'
 left alone, and while hacking exp is what binds, step 3 works for the joined faction whose augments are worth the most per missing rep
 (`value` from the goals helper) instead of the first in `factionWork.order`. `routeFocus.enabled: false` restores the old order.
 
+## Grafting
+
+Where the Grafting API works (BitNode 10 or Source-File 10) the player also grafts augmentations: a step before faction work for the
+ones no joined faction sells, and in the gap when nothing else needs the player. A graft in progress is never interrupted. Rules and
+reasons: [`grafting.md`](grafting.md).
+
 ## Alongside Bladeburner
 
 While Bladeburner plays (state `run`), any work started here would cancel its action, so nothing is started; a flight still

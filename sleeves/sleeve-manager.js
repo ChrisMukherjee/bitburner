@@ -43,6 +43,7 @@ export async function main(ns) {
 	ns.disableLog("ALL");
 	const config = loadConfig(ns);
 	if (config.sleeves?.enabled === false) return;
+	if (config.sleeves?.manage === false) return; // no jobs, no experience (the BN10 challenge)
 	const info = ns.getResetInfo();
 	if (!sleevesApiFromInfo(info)) {
 		adviseMissing(ns, "sleeves", info, config);
