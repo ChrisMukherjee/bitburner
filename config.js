@@ -433,7 +433,9 @@ export const DEFAULTS = {
 	//   shock / sync: a sleeve recovers once its shock reaches `enter` (%) and until it is at or below `exit`; it synchronizes
 	//                 once its sync is below `enter` and until it reaches `exit`. Work output is scaled by both.
 	//   train:        combat / hacking: the level to train to, or "auto" (the level this run's jobs need: Bladeburner's combat floor,
-	//                 the gang invite's combat stats, the study target); 0 = never train that stat.
+	//                 the gang invite's combat stats, the study target); 0 = never train that stat. charisma: "auto" trains it
+	//                 (Leadership, else Management, at the study university) while the player holds a company job, to the level
+	//                 where a charisma point buys as much job rep per exp as a hacking point (charismaMax caps it).
 	//   crimeLadder:  [crime, least average combat level] for the cash crime while the game's crime stats aren't known (they need
 	//                 the Singularity API); with them the crime with the most money per second at the sleeve's success chance wins.
 	//                 minCrimeChance: a cash crime must succeed this often.
@@ -461,7 +463,7 @@ export const DEFAULTS = {
 		weights: { karma: 100, bladeburner: 50, faction: 20, company: 6, cash: 10, decay: 0.6, karmaHours: 2 },
 		shock: { enter: 25, exit: 2 },
 		sync: { enter: 90, exit: 100 },
-		train: { combat: "auto", hacking: "auto" },
+		train: { combat: "auto", hacking: "auto", charisma: "auto", charismaMax: 500 },
 		crimeLadder: [["Shoplift", 0], ["Mug", 20], ["Homicide", 50]],
 		minCrimeChance: 0.5,
 		factionShare: 0.5,

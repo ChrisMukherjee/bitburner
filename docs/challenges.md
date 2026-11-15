@@ -38,7 +38,7 @@ upgrades: startup's one-shots and `install-augs.js`'s `--spend-all` buy before a
 
 ## BN10: no sleeve experience or augmentations
 
-`bn10` is a different kind: instead of capping a purchase it switches a manager off. In BitNode 10 it sets `sleeves.manage: false` (no job, so no experience: [`../sleeves/sleeve-manager.js`](../sleeves/sleeve-manager.js) returns at once) and `sleeves.buy.augments: false` (the shop buys none). The game checks both at the destroy; owning sleeves is allowed, so sleeves and memory are still bought and [the hold](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves) works. An augmentation install keeps a sleeve's experience and augmentations (only the BitNode's end resets them), so anything a sleeve gains during the run counts and the manager stays off for all of it. Rejected: letting sleeves work early and stop later (nothing wipes their experience in between).
+`bn10` (steps: [`../achievements/bn10-challenge.md`](../achievements/bn10-challenge.md)) is a different kind: instead of capping a purchase it switches a manager off. In BitNode 10 it sets `sleeves.manage: false` (no job, so no experience: [`../sleeves/sleeve-manager.js`](../sleeves/sleeve-manager.js) returns at once) and `sleeves.buy.augments: false` (the shop buys none). The game checks both at the destroy; owning sleeves is allowed, so sleeves and memory are still bought and [the hold](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves) works. An augmentation install keeps a sleeve's experience and augmentations (only the BitNode's end resets them), so anything a sleeve gains during the run counts and the manager stays off for all of it. Rejected: letting sleeves work early and stop later (nothing wipes their experience in between).
 
 ## Current state
 

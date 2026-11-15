@@ -23,6 +23,15 @@ otherwise ([`api-advice.md`](api-advice.md)).
    `GYM_CASH_SECONDS` of it, as the player does ([`../utils/gyms.js`](../utils/gyms.js)); a city with no gym means a flight, only with the
    cash for it. Hacking below the study target (`studying.hackLevel`) studies at the configured university (the sleeve's experience is
    shared with the player scaled by sync, so it also helps the player's own level).
+   **Charisma** is trained only by a sleeve that is about to work for a company (a job the player holds at `companyWork.companies`),
+   after the jobs are handed out: Leadership (the best; Management at half the fee) at the study university, once cash covers
+   `studying.paidSeconds` of its fee, until the sleeve reaches `charismaTarget`, then it takes the job. A job's rep rate weights
+   hacking and charisma by the position's effectiveness points (`JOB_EFFECTIVENESS`, from the game's position data, per field), and
+   a skill's level is mult x (32 ln(exp + 534.5) - 200), so a point of effectiveness buys eff x mult / (exp + 534.5) per exp. The
+   target is where charisma buys as much as the sleeve's hacking level does (a charisma-heavy field such as Business asks for far
+   more than Software), capped by `train.charismaMax` (500); `train.charisma` takes a number or 0 to switch it off. Rejected: a
+   fixed charisma level (the right one depends on the field and the sleeve), and training it for the faction work (hacking work
+   barely uses it).
 3. **Jobs, one sleeve each, best value first** (`sleeves.priority: "auto"`, the default; `"fixed"` is the old order karma, Bladeburner,
    factions, companies with `factionShare` and `companyShare` as caps). Each job has a value in one unit, the worth of a sleeve-hour
    (`jobValues` in [`../sleeves/plan.js`](../sleeves/plan.js)): a base weight (`sleeves.weights`) scaled by what the run says. Sleeves go

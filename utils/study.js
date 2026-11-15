@@ -9,7 +9,12 @@ const CLASS_NAMES = {
 	"Data Structures": "DATASTRUCTURES",
 	"Networks": "NETWORKS",
 	"Algorithms": "ALGORITHMS",
+	"Management": "MANAGEMENT",
+	"Leadership": "LEADERSHIP",
 };
+
+/** The courses that train charisma (Rothman and the other universities teach them; they cost money like the paid hacking course). */
+export const CHARISMA_COURSES = ["Management", "Leadership"];
 
 /**
  * The course to take now: the paid one (`studying.paidCourse`, e.g. "Algorithms", several times the exp of the free

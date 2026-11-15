@@ -10,7 +10,7 @@ import { sleevesApiFromInfo, sleevesBuyableFromInfo } from "/utils/sleeves.js";
 import { GYMS, GYM_CASH_SECONDS } from "/utils/gyms.js";
 import { sleevesReady } from "/sleeves/ready.js";
 import {
-	planSleeves, jobValues, crimeChance, pickCashCrime, needsRecovery, needsSync, trainingFor, combatTarget, pickStage, budgetFor, nextPurchase, sameTask, family, karmaSlots,
+	planSleeves, jobValues, crimeChance, pickCashCrime, needsRecovery, needsSync, trainingFor, combatTarget, pickStage, budgetFor, nextPurchase, sameTask, family, karmaSlots, charismaTarget, charismaTraining, JOB_EFFECTIVENESS,
 } from "/sleeves/plan.js";
 import { main as manage, CONFIG as MANAGER_CONFIG } from "/sleeves/sleeve-manager.js";
 import { main as shop } from "/sleeves/sleeve-shop.js";
@@ -167,7 +167,7 @@ test("jobs: factions with a rep goal get one sleeve each, never the faction the 
 
 test("jobs: company work only where the player holds a job; with priority fixed, at most companyShare of the sleeves", () => {
 	const company = config.companyWork.companies[0].company;
-	const sleeves = [0, 1, 2, 3].map((index) => sleeve(index));
+	const sleeves = [0, 1, 2, 3].map((index) => sleeve(index, { skills: { ...ALL_TRAINED, charisma: 500 } })); // charisma at the cap: no course first
 	const plan = planOf(state(sleeves, { jobs: { [company]: "Software Engineer" } }), fixed);
 	assert.equal(plan.filter((entry) => entry.role === "company").length, Math.min(1, Math.floor(sleeves.length * rule.companyShare)));
 	assert.ok(planOf(state(sleeves), fixed).every((entry) => entry.role === "cash"), "no job, no company work");
@@ -204,12 +204,13 @@ test("priority auto: Bladeburner held on a hacking route is worth less, and rep 
 test("priority auto: cash crime is worth less the more the run already earns, so company work can win a sleeve", () => {
 	const company = config.companyWork.companies[0].company;
 	const crimes = { Mug: { difficulty: 1, time: 4000, money: 36e3, weights: { dexterity: 1 } } };
-	const poor = state([sleeve(0)], { crimes, jobs: { [company]: "x" }, incomePerSecond: 0 });
+	const sleeves = [0, 1, 2].map((index) => sleeve(index, { skills: { ...ALL_TRAINED, charisma: 500 } })); // charisma at the cap: no course first
+	const poor = state([sleeves[0]], { crimes, jobs: { [company]: "x" }, incomePerSecond: 0 });
 	const rich = { ...poor, incomePerSecond: 1e9 };
 	assert.ok(jobValues(rich, config).cash < jobValues(poor, config).cash);
 	assert.equal(planOf(poor)[0].role, "cash", "next to no income, cash crime beats company rep");
 	assert.equal(planOf(rich)[0].role, "company", "next to a huge income it is worth nothing, so rep wins");
-	assert.equal(planOf(state([sleeve(0), sleeve(1), sleeve(2)], { ...rich, sleeves: [sleeve(0), sleeve(1), sleeve(2)] })).filter((entry) => entry.role === "company").length, 1, "with 3 sleeves too (the fixed share would round to none)");
+	assert.equal(planOf(state(sleeves, { ...rich, sleeves })).filter((entry) => entry.role === "company").length, 1, "with 3 sleeves too (the fixed share would round to none)");
 });
 
 test("priority auto: unknown multipliers and an unknown crime rate fall back to the base weights", () => {
@@ -471,4 +472,73 @@ test("shop --spend-all: everything above the reserve may go, not just the stage'
 	const kept = sleeveWorld({ ...common, args: ["--spend-all", "--reserve", String(cash * 0.5)] });
 	await shop(kept.ns);
 	assert.equal(kept.calls("purchaseSleeveAug").length, 1, "the reserve is never spent");
+});
+
+// --- charisma for company work ---
+
+const withJob = (extra = {}) => state([], { jobs: { [config.companyWork.companies[0].company]: "Software Engineer" }, ...extra });
+const hacker = (hacking, extra = {}) => sleeve(0, { skills: { ...ALL_TRAINED, hacking, charisma: 1 }, ...extra });
+
+test("charisma target: none without a company job; with one it grows with the sleeve's hacking level and stops at charismaMax", () => {
+	assert.equal(charismaTarget(hacker(500), state([]), config), 0, "no job at a company, no use for charisma");
+	const low = charismaTarget(hacker(100), withJob(), config);
+	const high = charismaTarget(hacker(300), withJob(), config);
+	assert.ok(high > low, "a higher hacking level makes a charisma point worth more");
+	assert.equal(charismaTarget(hacker(5000), withJob(), config), rule.train.charismaMax, "capped");
+	const never = { ...config, sleeves: { ...rule, train: { ...rule.train, charisma: 0 } } };
+	assert.equal(charismaTarget(hacker(500), withJob(), never), 0, "0 = never");
+	const fixedLevel = { ...config, sleeves: { ...rule, train: { ...rule.train, charisma: 80 } } };
+	assert.equal(charismaTarget(hacker(500), state([]), fixedLevel), 80, "a number is used as it is");
+});
+
+test("game: charisma target balances the exp each skill buys (level = mult x (32 ln(exp + 534.5) - 200))", () => {
+	const [hackEff, chaEff] = JOB_EFFECTIVENESS[config.companyWork.field];
+	const target = charismaTarget(hacker(400), withJob(), config);
+	const expPlus = (level) => Math.exp((level + 200) / 32);
+	// Unit mults: gain per exp of a skill is eff / (exp + 534.5); at the target both are within one level of equal.
+	const hackGain = hackEff / expPlus(400);
+	const chaGain = chaEff / expPlus(target);
+	const chaGainNext = chaEff / expPlus(target + 1);
+	assert.ok(chaGain >= hackGain * 0.97 && chaGainNext <= hackGain * 1.03, `cha ${chaGain} vs hack ${hackGain} at level ${target}`);
+	assert.ok(charismaTarget(hacker(400), withJob(), { ...config, companyWork: { ...config.companyWork, field: "Business" } }) > target, "a charisma-heavy field wants more of it");
+});
+
+test("charisma course: Leadership with the cash for its fee, Management with half of it, nothing below; the flight needs $1m", () => {
+	const fee = config.studying.paidPerSecond * config.studying.paidSeconds;
+	const pick = (cash, sl = hacker(400)) => charismaTraining(sl, withJob({ cash }), config)?.course ?? null;
+	assert.equal(pick(fee), "Leadership");
+	assert.equal(pick(fee / 2), "Management");
+	assert.equal(pick(fee / 2 - 1), null);
+	assert.equal(pick(fee, hacker(400, { skills: { ...ALL_TRAINED, hacking: 400, charisma: 500 } })), null, "already at the target");
+	assert.equal(charismaTraining(hacker(400), withJob({ cash: fee }), config).travel, null, "in the study city already");
+	assert.equal(charismaTraining(hacker(400, { city: "Volhaven" }), withJob({ cash: 2e6 }), config).travel, config.studying.city, "flies to the study city with the cash");
+	assert.equal(charismaTraining(hacker(400, { city: "Volhaven" }), withJob({ cash: 9e5 }), config)?.travel ?? "none", "none", "no flight with less than $1m");
+});
+
+test("jobs: a sleeve about to work for a company trains charisma first, and the job stays for it", () => {
+	const fixedRule = { ...config, sleeves: { ...rule, priority: "fixed" } };
+	const team = (task) => [0, 1, 2, 3].map((index) => hacker(400, { index, task: index === 2 ? task : null }));
+	const plan = planOf(withJob({ cash: 1e9, sleeves: team(null) }), fixedRule); // companyShare 0.25 of 4 sleeves: one company job
+	const chaTrain = plan.filter((entry) => entry.role === "train" && /charisma/.test(entry.why));
+	assert.equal(chaTrain.length, 1, "one sleeve for the company job, in its charisma course");
+	assert.equal(chaTrain[0].candidates[0].course, "Leadership");
+	assert.equal(plan.filter((entry) => entry.role === "company").length, 0);
+	const running = planOf(withJob({ cash: 1e9, sleeves: team({ type: "CLASS", classType: "LEADERSHIP", location: "Rothman University" }) }), fixedRule);
+	assert.deepEqual([running[2].role, running[2].keep], ["train", true], "the sleeve already in the course keeps it, and the job is not handed to a lower-numbered sleeve");
+	assert.equal(running.filter((entry) => /charisma/.test(entry.why)).length, 1);
+});
+
+test("regression: a charisma course and a hacking course are not the same task (paid/free hacking courses are)", () => {
+	const leadership = { type: "CLASS", classType: "LEADERSHIP" };
+	const hackingClass = { type: "CLASS", classType: "ALGORITHMS" };
+	assert.equal(sameTask(leadership, { kind: "class", course: "Algorithms" }), false);
+	assert.equal(sameTask(hackingClass, { kind: "class", course: "Leadership" }), false);
+	assert.equal(sameTask(hackingClass, { kind: "class", course: "Computer Science" }), true, "the free and paid hacking courses are not swapped back and forth");
+	assert.equal(sameTask(leadership, { kind: "class", course: "Management" }), true);
+});
+
+test("sameTask: infiltrating is told apart from contracts", () => {
+	const infiltrate = { kind: "bb", action: "Infiltrate Synthoids" };
+	assert.equal(sameTask({ type: "INFILTRATE" }, infiltrate), true);
+	assert.equal(sameTask({ type: "BLADEBURNER", actionName: "Tracking" }, infiltrate), false);
 });

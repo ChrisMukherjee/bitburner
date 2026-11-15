@@ -1,7 +1,7 @@
 // Design: docs/sleeves.md
 // @ts-check
 import { GYMS, GYM_CITY, GYM_CASH_SECONDS, GYM_STATS } from "/utils/gyms.js";
-import { pickCourse } from "/utils/study.js";
+import { pickCourse, CHARISMA_COURSES } from "/utils/study.js";
 
 /**
  * The decisions of the sleeve manager, as pure functions of plain values (0GB), so `npm test` covers them and the
@@ -22,6 +22,11 @@ const COMBAT = ["strength", "defense", "dexterity", "agility"];
 const MAX_SKILL_LEVEL = 975; // the game's divisor in a crime's success chance
 const GANG_INVITE_COMBAT = 30; // the combat level a combat gang's invite needs (docs/gang.md)
 const MIN_TRAVEL_CASH = 1e6; // a flight costs $200k; not worth it with less cash than this
+// How a job's rep rate depends on skills (v3.0.0 CompanyPositions metadata: calculateJobPerformance weights hacking and charisma by
+// these effectiveness points, over 975), averaged over each field's positions: [hacking, charisma].
+export const JOB_EFFECTIVENESS = {
+	Software: [76.25, 23.75], IT: [83.75, 16.25], Business: [12.5, 87.5], Security: [8.75, 21.25], Agent: [13.3, 16.7],
+};
 const INFILTRATE = "Infiltrate Synthoids"; // the sleeve-only Bladeburner action that adds action counts
 export const BB_ROUTE_STATES = ["boot", "train", "run"];
 
@@ -52,7 +57,9 @@ export function sameTask(task, candidate) {
 		case "crime": return task.type === "CRIME" && task.crimeType === candidate.crime;
 		case "gym": return task.type === "CLASS" && String(task.classType).toLowerCase().startsWith("gym") === true &&
 			gymStatOf(task.classType) === candidate.stat;
-		case "class": return task.type === "CLASS" && !String(task.classType).toLowerCase().startsWith("gym");
+		case "class": // a course of the same kind (hacking or charisma) keeps running, so paid and free courses do not flap
+			return task.type === "CLASS" && !String(task.classType).toLowerCase().startsWith("gym") &&
+				CHARISMA_COURSES.some((course) => isChaClass(task.classType, course)) === CHARISMA_COURSES.includes(candidate.course);
 		case "faction": return task.type === "FACTION" && task.factionName === candidate.faction && task.factionWorkType === candidate.work;
 		case "company": return task.type === "COMPANY" && task.companyName === candidate.company;
 		case "bb":
@@ -60,6 +67,11 @@ export function sameTask(task, candidate) {
 			return task.type === "BLADEBURNER" && (candidate.contract ? task.actionName === candidate.contract : true);
 		default: return false;
 	}
+}
+
+/** True when the running class (the game's name, "LEADERSHIP") is the charisma course. */
+function isChaClass(classType, course) {
+	return String(classType).toUpperCase() === course.toUpperCase();
 }
 
 /** The gym stat key ("str"...) a running gym class trains, from the class name the game reports ("GYMSTRENGTH"). */
@@ -144,6 +156,41 @@ export function combatTarget(state, rule) {
 export function hackingTarget(config) {
 	const rule = config.sleeves.train.hacking;
 	return typeof rule === "number" ? rule : (config.studying?.hackLevel ?? 0);
+}
+
+/**
+ * The charisma a sleeve should train to, 0 for none. Only while the player holds a job at one of `companyWork.companies` (a sleeve
+ * can then work for that company, and charisma is part of its rep rate: JOB_EFFECTIVENESS for `companyWork.field`). A skill's
+ * exp-to-level curve is level = mult x (32 ln(exp + 534.5) - 200), so a point of effectiveness buys eff x mult / (exp + 534.5) per
+ * exp; charisma is trained until that equals what the sleeve's hacking level buys, i.e. exp_cha + 534.5 =
+ * (effC x multC) / (effH x multH) x (exp_hack + 534.5). At most `train.charismaMax`. `train.charisma`: "auto" or a number (0 = never).
+ */
+export function charismaTarget(sleeve, state, config) {
+	const rule = config.sleeves.train;
+	if (typeof rule.charisma === "number") return rule.charisma;
+	const eff = JOB_EFFECTIVENESS[config.companyWork?.field];
+	if (!eff || !(config.companyWork?.companies ?? []).some((entry_) => state.jobs?.[entry_.company])) return 0;
+	const multH = sleeve.mults?.hacking ?? 1;
+	const multC = sleeve.mults?.charisma ?? 1;
+	const hackExp = Math.exp(((sleeve.skills.hacking ?? 0) / multH + 200) / 32);
+	const chaExp = (eff[1] * multC) / (eff[0] * multH) * hackExp;
+	return Math.min(rule.charismaMax ?? 500, Math.max(0, Math.floor(multC * (32 * Math.log(chaExp) - 200))));
+}
+
+/**
+ * Charisma training for a sleeve that would work for a company, or null: the courses cost money, like the paid hacking course
+ * (Leadership, the dearest and best, once cash covers `studying.paidSeconds` of its fee, else Management at half), at the study
+ * university. Used after the jobs are handed out: only a sleeve with a company job trains charisma, and goes back to the job
+ * once it reaches charismaTarget.
+ * @returns {Candidate | null}
+ */
+export function charismaTraining(sleeve, state, config) {
+	const target = charismaTarget(sleeve, state, config);
+	if (!(target > 0) || (sleeve.skills.charisma ?? 0) >= target) return null;
+	const { university, city, paidPerSecond = 960, paidSeconds = 600 } = config.studying;
+	const course = state.cash >= paidPerSecond * paidSeconds ? "Leadership" : state.cash >= paidPerSecond / 2 * paidSeconds ? "Management" : "";
+	if (!course || (sleeve.city !== city && state.cash < MIN_TRAVEL_CASH)) return null;
+	return { kind: "class", university, course, travel: sleeve.city === city ? null : city };
 }
 
 /**
@@ -246,7 +293,10 @@ export function planSleeves(state, config) {
 	for (const job of jobs) {
 		if (!left.length) break;
 		// A sleeve already doing the job's first option keeps it; else the lowest-numbered free sleeve takes it.
-		const at = Math.max(0, left.findIndex((sleeve) => sameTask(sleeve.task, job.candidates[0])));
+		// (a sleeve training charisma for the company counts as doing it, so the job is not handed to another sleeve meanwhile)
+		const doing = (sleeve) => sameTask(sleeve.task, job.candidates[0]) ||
+			(job.role === "company" && sleeve.task?.type === "CLASS" && CHARISMA_COURSES.some((course) => isChaClass(sleeve.task.classType, course)));
+		const at = Math.max(0, left.findIndex(doing));
 		const [sleeve] = left.splice(at, 1);
 		plans.set(sleeve.index, entry(sleeve, job.role, job.why, job.candidates));
 	}
@@ -254,6 +304,13 @@ export function planSleeves(state, config) {
 		const { crime, chance } = pickCashCrime(sleeve, state.crimes, rule.crimeLadder, rule.minCrimeChance);
 		const why = chance === null ? `${crime} for cash` : `${crime} for cash (${Math.round(chance * 100)}% chance)`;
 		plans.set(sleeve.index, entry(sleeve, "cash", why, [{ kind: "crime", crime }]));
+	}
+	// A sleeve about to work for a company trains charisma first where that pays (charismaTraining).
+	for (const planned of [...plans.values()]) {
+		if (planned.role !== "company") continue;
+		const sleeve = state.sleeves[planned.sleeve];
+		const train = charismaTraining(sleeve, state, config);
+		if (train) plans.set(sleeve.index, entry(sleeve, "train", `charisma below ${charismaTarget(sleeve, state, config)} before ${planned.why}`, [train]));
 	}
 	return state.sleeves.map((sleeve) => plans.get(sleeve.index));
 }

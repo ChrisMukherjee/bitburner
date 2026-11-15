@@ -103,7 +103,7 @@ The per-BitNode challenge rules, and which default scripts break them:
 | BN6, BN7 | no Bladeburner division | `bladeburner/` is the default route in BN6 |
 | BN8 | no 4S market data | `stocks/stock-trader.js` buys 4S |
 | BN9 | no hacknet nodes or servers | `hacknet/hacknet-manager.js` |
-| BN10 | no sleeve augmentations or experience (owning idle sleeves is fine) | the sleeve manager and shop; `challenge bn10` switches them off in BitNode 10 (best on 10.1, see [`docs/bitnode-order.md`](../docs/bitnode-order.md#challenge-achievements)) |
+| BN10 | no sleeve augmentations or experience (owning idle sleeves is fine) | the sleeve manager and shop; `challenge bn10` switches them off in BitNode 10 (best on 10.1; steps in [`bn10-challenge.md`](bn10-challenge.md)) |
 | BN12 | destroy BN12 50 times | none |
 | BN13 | no Stanek's Gift | none (no Stanek scripts) |
 | BN14 | no moves or cheating via the IPvGO APIs | the Go bot |
