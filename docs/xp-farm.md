@@ -14,8 +14,10 @@
   long. The pick moves up the list as hacking level makes weaken times shorter. It falls back to joesguns. Weaken pays XP when it finishes and
   needs no prepared target. It reuses [`../hack/workers/weaken.js`](../hack/workers/weaken.js) with no land time.
 - **Idle RAM only.** It keeps free the larger of `xpFarm.headroom` of the network and the batcher's claim.
-- **Share wins during faction work.** Both want the same spare RAM; while share-manager runs and the player does
-  faction work, the farm stands down (rep gain is worth more than XP then). Without the Singularity API it never
+- **Share wins during faction work, unless the route waits for hacking exp.** Both want the same spare RAM; while share-manager runs and the player does
+  faction work, the farm stands down (rep gain is worth more than XP then). While Daedalus' invite or w0r1d_d43m0n only waits for
+  hacking level ([`route-focus.md`](route-focus.md), `spareRamGoesToShare`), the farm keeps the RAM and share-manager yields: the farm
+  out-earns the player's own exp, and the level was growing slowest exactly during faction work. Without the Singularity API it never
   stands down.
 
 ## Alternatives

@@ -4,5 +4,5 @@ Shares spare RAM for faction reputation. No design note of its own; the worker p
 
 | Script | What it does | Flags | Requires | RAM |
 | --- | --- | --- | --- | --- |
-| [`share-manager.js`](share-manager.js) | Fills RAM the batcher isn't using with share workers, only during faction work; leaves free the RAM the batcher claims on port 31 | `--no-home`, `--always`, `--headroom N`, `--max-threads N` | SF4 (or `--always`) | 5.75GB (13.25GB at SF4.1, 7.25GB at SF4.2) |
+| [`share-manager.js`](share-manager.js) | Fills RAM the batcher isn't using with share workers, only during faction work (not while the hacking route waits for hacking exp and the XP farm runs, [`docs/route-focus.md`](../docs/route-focus.md)); leaves free the RAM the batcher claims on port 31 | `--no-home`, `--always`, `--headroom N`, `--max-threads N` | SF4 (or `--always`) | 5.85GB (13.35GB at SF4.1, 7.35GB at SF4.2) |
 | [`workers/share.js`](workers/share.js) | One `ns.share()` call, then exits | none | none | 4GB |

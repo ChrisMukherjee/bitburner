@@ -18,7 +18,7 @@ otherwise ([`api-advice.md`](api-advice.md)).
    are scaled by shock and sync, and an install sets sleeves back to synchronizing or recovering, so this comes first. Both have
    hysteresis so a sleeve does not flip between work and recovery every pass.
 2. **Training** where a stat is missing. The combat target comes from the run: Bladeburner's floor (`trainFloor`) while it is the
-   route (state boot, train or run on port 36), the gym level the gang invite asks for (port 30), else 0; `train.combat` in the
+   route (state boot, train or run on port 36), the gym level the gang invite asks for (port 30), else 0; the gang invite counts only while the route has no clear next step (`gangInviteOpen`, port 44, [`route-focus.md`](route-focus.md)): on the hacking route its gym and Homicide would only take sleeves from rep; `train.combat` in the
    config replaces it with a number. The lowest combat stat goes to the best gym its city has, the better one only with cash for
    `GYM_CASH_SECONDS` of it, as the player does ([`../utils/gyms.js`](../utils/gyms.js)); a city with no gym means a flight, only with the
    cash for it. Hacking below the study target (`studying.hackLevel`) studies at the configured university (the sleeve's experience is
@@ -27,12 +27,17 @@ otherwise ([`api-advice.md`](api-advice.md)).
    factions, companies with `factionShare` and `companyShare` as caps). Each job has a value in one unit, the worth of a sleeve-hour
    (`jobValues` in [`../sleeves/plan.js`](../sleeves/plan.js)): a base weight (`sleeves.weights`) scaled by what the run says. Sleeves go
    to the highest-valued job instances, and jobs worth no more than cash crime are dropped, so the leftover sleeves earn cash.
-   - *Karma for the gang* (weight 100, it is a gate): while the invite's missing need is karma (`gain` "karma" on port 30), Homicide.
+   - *Karma for the gang* (weight 100, it is a gate): while (and `gangInviteOpen`) the invite's missing need is karma (`gain` "karma" on port 30), Homicide.
      Sleeve crimes count toward the player's karma, and Homicide wins on karma at any chance (3 karma in 3 seconds, a failure still
      gives a quarter), the same result [`../gang/workers/invite.js`](../gang/workers/invite.js) reaches for the player. Worth 0 where
-     the gang can't run (`GangSoftcap` below `mechanicGates.minMultiplier`).
+     the gang can't run (`GangSoftcap` below `mechanicGates.minMultiplier`). Once a karma rate per sleeve-hour is measured (the karma
+     drop between passes while sleeves grind it, smoothed; the summary on port 40 keeps the last sample), only as many sleeves take
+     it as finish the karma still missing within `weights.karmaHours` (2), at least one; the rest go to other jobs.
    - *Bladeburner contracts* (50) while the state is `run`, in `sleeves.bladeburner.contracts` order. x `BladeburnerRank` (0 = no
-     division), x 0.25 while the route estimate says hacking.
+     division), x 0.25 while the route estimate says hacking, x the share of passes where counts are left (1 - `freeShare` from
+     bb-pass.js on port 36).
+   - *Infiltrate Synthoids* (the Bladeburner weight x `freeShare`): the sleeve-only action that adds action counts. Worth little while
+     contracts still have counts, and takes over the Bladeburner sleeves once every safe action's counts are used up.
    - *Faction rep* (20): each joined faction in `factionWork.order` with a rep goal above 0 (port 23), except the faction the player
      grinds now (`lastGoalFaction` on port 35), one sleeve each. x `FactionWorkRepGain`, x 0.5 on the Bladeburner route. Work types
      are tried in order (`factionWork.workType` first), since the game refuses types a faction does not offer.
@@ -57,7 +62,10 @@ stage idea as the gang and hacknet ([`../utils/spending.js`](../utils/spending.j
 (`sleeves.buying`), at most `maxFraction` of the cash per pass and never below `reserve`. An augmentation's value is the shared rule in
 [`../utils/aug-filter.js`](../utils/aug-filter.js) over `sleeves.augments.wantStats`; it needs the Singularity API, so it is only asked
 for where its RAM is 1x or 4x. Without it the cheapest augmentation goes first (an unknown value counts as 1, so value per dollar
-becomes cheapest first). Sleeve augmentations are kept through installs ([`install-persistence.md`](install-persistence.md)).
+becomes cheapest first). Sleeve augmentations are kept through installs ([`install-persistence.md`](install-persistence.md)), so
+`singularity/install-augs.js` runs the shop with `--spend-all [--reserve n]` just before an install (after the home upgrades, stock
+access and gang equipment): the whole cash above the reserve may go, not only the stage's share. Skipped where the Sleeve API does
+not work or `sleeves.enabled` is false, and with `persistence.spendLeftover` off.
 
 ## RAM
 
@@ -71,8 +79,8 @@ server with room ([`../utils/start-helper.js`](../utils/start-helper.js)). Worke
 - **Gang:** sleeves feed it karma (the biggest karma source outside BitNode 2's invite), and a gang manager never competes with them
   for anything: sleeves cannot join the gang. A gang's income does not use sleeve augmentations.
 - **Bladeburner:** while the state is `run`, free sleeves take contracts, which adds action counts (counts are what limit
-  [`bladeburner.md`](bladeburner.md) late on). They do not use the support or infiltration actions, and bb-pass.js does not know
-  about them: it reads action counts from the game, so a sleeve's finished contract just shows up as fewer counts left.
+  [`bladeburner.md`](bladeburner.md) late on). Sleeves also infiltrate when counts run out (see the jobs above). They do not use the support action, and bb-pass.js
+  does not know about them: it reads action counts from the game, so a sleeve's finished contract just shows up as fewer counts left.
 
 ## Rejected and open
 
@@ -84,9 +92,8 @@ server with room ([`../utils/start-helper.js`](../utils/start-helper.js)). Worke
 - **A fixed job order.** The first version listed jobs in a fixed order (it is still there as `priority: "fixed"`). It ignored the
   BitNode: a BitNode with no Bladeburner rank still sent sleeves on contracts, and a fixed share rule meant three sleeves never reached
   company work. The base weights are still judgement, not measurement (they are in the config); what the data changes is how they
-  scale and which jobs drop out. Not built: measuring each job's real rate (karma per hour per sleeve, rep per hour) from successive
-  passes, which would replace the weights and the decay.
+  scale and which jobs drop out. Built so far: the measured karma rate only caps how many sleeves grind karma. Not built: measuring
+  the other jobs' real rates (rep per hour) from successive passes, which would replace the weights and the decay.
 - **A hardcoded crime table.** The game's own stats are read where Singularity is cheap, and a ladder by combat level covers the rest.
-- **Open:** sleeves do not use `Infiltrate synthoids`, `Support main sleeve` or grafting; leftover cash is not spent on sleeve
-  augmentations just before an install ([`install-persistence.md`](install-persistence.md)); the cost of sleeves bought in BitNode 10
+- **Open:** sleeves do not use `Support main sleeve` or grafting; the cost of sleeves bought in BitNode 10
   (the Covenant, up to $100q) means the shop usually waits for the late game there.

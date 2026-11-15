@@ -33,8 +33,9 @@ const FOCUS_AUG = "Neuroreceptor Management Implant"; // removes the penalty for
  * Started by singularity/player-work.js with one JSON argument:
  *   { factions: [...in priority order], rates: { faction: rep/s }, ratesTime, incomeModel, push, pushTime }
  * (rates and income model from data/aug-plan.json; ignored if from before the last reset). Writes
- *   { time, budget, horizonHours, timeChecked, focusPenalty, goals: { faction: { rep, aug, count, skipped } } }
- * to port 23 and exits. count = augments picked there, skipped = wanted but out of reach this run.
+ *   { time, budget, horizonHours, timeChecked, focusPenalty, goals: { faction: { rep, aug, count, skipped, value } } }
+ * to port 23 and exits. count = augments picked there, skipped = wanted but out of reach this run, value = their summed
+ * augValue (player-work.js picks by value per missing rep while the route waits for hacking exp, utils/route-focus.js).
  * focusPenalty = the Neuroreceptor Management Implant isn't installed, so player-work.js works focused.
  */
 /** @param {NS} ns */
@@ -149,11 +150,12 @@ export async function main(ns) {
 		if (!picked.has(candidate.aug)) tryBundle(candidate.aug);
 	}
 
-	const goals = Object.fromEntries(factions.map((faction) => [faction, { rep: 0, aug: "", count: 0, skipped: 0 }]));
+	const goals = Object.fromEntries(factions.map((faction) => [faction, { rep: 0, aug: "", count: 0, skipped: 0, value: 0 }]));
 	for (const aug of [...picked, ...forced]) {
-		const { faction, rep: needed } = info.get(aug);
+		const { faction, rep: needed, value } = info.get(aug);
 		const goal = goals[faction];
 		goal.count++;
+		goal.value += value; // what the picked augments are worth (the reset rule's value), for route-focus.js' faction pick
 		if (needed > goal.rep) Object.assign(goal, { rep: needed, aug });
 	}
 	for (const aug of wanted) if (!picked.has(aug) && !forced.has(aug)) goals[sellerOf.get(aug)].skipped++;

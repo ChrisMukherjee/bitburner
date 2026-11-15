@@ -22,6 +22,7 @@ const COMBAT = ["strength", "defense", "dexterity", "agility"];
 const MAX_SKILL_LEVEL = 975; // the game's divisor in a crime's success chance
 const GANG_INVITE_COMBAT = 30; // the combat level a combat gang's invite needs (docs/gang.md)
 const MIN_TRAVEL_CASH = 1e6; // a flight costs $200k; not worth it with less cash than this
+const INFILTRATE = "Infiltrate Synthoids"; // the sleeve-only Bladeburner action that adds action counts
 export const BB_ROUTE_STATES = ["boot", "train", "run"];
 
 /**
@@ -54,7 +55,9 @@ export function sameTask(task, candidate) {
 		case "class": return task.type === "CLASS" && !String(task.classType).toLowerCase().startsWith("gym");
 		case "faction": return task.type === "FACTION" && task.factionName === candidate.faction && task.factionWorkType === candidate.work;
 		case "company": return task.type === "COMPANY" && task.companyName === candidate.company;
-		case "bb": return task.type === "BLADEBURNER" && (candidate.contract ? task.actionName === candidate.contract : true);
+		case "bb":
+			if (candidate.action === INFILTRATE) return task.type === "INFILTRATE";
+			return task.type === "BLADEBURNER" && (candidate.contract ? task.actionName === candidate.contract : true);
 		default: return false;
 	}
 }
@@ -116,6 +119,15 @@ export function pickCashCrime(sleeve, crimes, ladder, minChance) {
 }
 
 /**
+ * True while the gang invite still needs the sleeves (its karma, its combat level). Not while the hacking route has a clear next
+ * step (`state.focus`, utils/route-focus.js, posted by player-work.js): the gang's money and rep don't unlock Daedalus, The Red Pill or
+ * w0r1d_d43m0n, and a sleeve at the gym or on Homicide is a sleeve not earning rep for them.
+ */
+export function gangInviteOpen(state) {
+	return !!state.invite?.applies && !state.focus?.skipSide;
+}
+
+/**
  * The combat level the sleeves should be trained to, from what this run needs: Bladeburner's floor while it is the route (its
  * contracts' chance depends on combat), the gym level the gang invite asks for, else 0. `train.combat` in the config
  * replaces it with a number.
@@ -124,7 +136,7 @@ export function combatTarget(state, rule) {
 	if (typeof rule.combat === "number") return rule.combat;
 	let target = 0;
 	if (state.bb && BB_ROUTE_STATES.includes(state.bb.state)) target = Math.max(target, state.bb.trainFloor ?? 100);
-	if (state.invite?.applies) target = Math.max(target, state.invite.gym || (state.invite.crime ? GANG_INVITE_COMBAT : 0));
+	if (gangInviteOpen(state)) target = Math.max(target, state.invite.gym || (state.invite.crime ? GANG_INVITE_COMBAT : 0));
 	return target;
 }
 
@@ -177,7 +189,8 @@ export function trainingFor(sleeve, state, config) {
  *      grind for each faction with a goal the player isn't working on (factionShare), a job the player holds (companyShare),
  *   5. cash: the best crime (pickCashCrime).
  * @param {{ sleeves: SleeveInfo[], cash: number, goals: Record<string, any> | null, playerFaction: string,
- *   joined: string[], jobs: Record<string, string>, invite: any, bb: any, crimes: any }} state
+ *   joined: string[], jobs: Record<string, string>, invite: any, bb: any, crimes: any, focus?: { skipSide?: boolean } | null }} state
+ *   (focus: the route-focus phase from port 44, null or missing = none)
  * @param {any} config the whole config
  */
 export function planSleeves(state, config) {
@@ -205,12 +218,14 @@ export function planSleeves(state, config) {
 	const decay = rule.weights?.decay ?? 0.6;
 	/** @type {{ role: string, why: string, candidates: Candidate[], value: number }[]} */
 	let jobs = [];
-	if (state.invite?.applies && state.invite.crime && state.invite.gain === "karma") {
-		for (let at = 0; at < count; at++) jobs.push({ role: "karma", why: "karma for the gang", candidates: [{ kind: "crime", crime: "Homicide" }], value: values.karma * decay ** at });
+	if (gangInviteOpen(state) && state.invite.crime && state.invite.gain === "karma") {
+		for (let at = 0; at < (auto ? karmaSlots(state, rule, count) : count); at++) jobs.push({ role: "karma", why: "karma for the gang", candidates: [{ kind: "crime", crime: "Homicide" }], value: values.karma * decay ** at });
 	}
 	if (state.bb?.state === "run") {
 		const contracts = rule.bladeburner.contracts.map((contract) => ({ kind: "bb", action: "Take on contracts", contract }));
 		for (let at = 0; at < count; at++) jobs.push({ role: "bladeburner", why: "Bladeburner contracts", candidates: contracts, value: values.bladeburner * decay ** at });
+		// Infiltrating adds action counts, which is what limits contracts once every safe action's counts are used up.
+		if (auto) for (let at = 0; at < count; at++) jobs.push({ role: "infiltrate", why: "infiltrating for action counts", candidates: [{ kind: "bb", action: INFILTRATE }], value: values.infiltrate * decay ** at });
 	}
 	const joined = new Set(state.joined);
 	const factions = (config.factionWork?.order ?? [])
@@ -244,10 +259,22 @@ export function planSleeves(state, config) {
 }
 
 /**
+ * How many sleeves the karma job may take: with a measured karma rate per sleeve-hour (`state.karmaRate`) and the karma still
+ * missing (`state.karmaLeft`), only as many as finish it within `weights.karmaHours`; without a reading, all of them.
+ */
+export function karmaSlots(state, rule, count) {
+	const rate = state.karmaRate;
+	if (!(rate > 0) || !(state.karmaLeft >= 0)) return count;
+	return Math.min(count, Math.max(1, Math.ceil(state.karmaLeft / (rate * (rule.weights?.karmaHours ?? 2)))));
+}
+
+/**
  * What each job is worth to this run, in one unit (relative value of a sleeve-hour), so the planner can hand sleeves to the best
  * job instead of a fixed order. Each base weight (`sleeves.weights`) is scaled by what the run says:
  *   karma        0 where the gang can't run (GangSoftcap below mechanicGates.minMultiplier), else the weight: karma is a gate
- *   bladeburner  x BladeburnerRank (0 = no division), x 0.25 while the route estimate says hacking (the division is only held)
+ *   bladeburner  x BladeburnerRank (0 = no division), x 0.25 while the route estimate says hacking (the division is only held), x the
+ *                share of passes where counts are left (1 - freeShare); infiltrate is the same weight x freeShare (counts are what
+ *                limits rank then)
  *   faction      x FactionWorkRepGain, x 0.5 on the Bladeburner route (it needs fewer augmentations)
  *   company      the weight (the slowest rep there is)
  *   cash         x CrimeMoney, times the share of the money the sleeve's crime would be next to the run's income (so cash is
@@ -263,10 +290,13 @@ export function jobValues(state, config) {
 	const first = state.sleeves?.[0];
 	const rate = first ? pickCashCrime(first, state.crimes, config.sleeves.crimeLadder, config.sleeves.minCrimeChance).rate : null;
 	const income = state.incomePerSecond ?? 0;
+	// Share of passes where every safe action's counts were used up (bb-pass.js): contracts earn little then, infiltrating adds counts.
+	const free = Number.isFinite(state.bb?.freeShare) ? Math.min(1, Math.max(0, state.bb.freeShare)) : 0;
 	const share = rate === null || !(income >= 0) ? 0.5 : rate / (rate + income || 1);
 	return {
 		karma: gangOk ? weights.karma : 0,
-		bladeburner: weights.bladeburner * mult("BladeburnerRank") * (combatRoute ? 1 : 0.25),
+		bladeburner: weights.bladeburner * mult("BladeburnerRank") * (combatRoute ? 1 : 0.25) * (1 - free),
+		infiltrate: weights.bladeburner * mult("BladeburnerRank") * (combatRoute ? 1 : 0.25) * free,
 		faction: weights.faction * mult("FactionWorkRepGain") * (state.bb?.route === "combat" ? 0.5 : 1),
 		company: weights.company,
 		cash: weights.cash * mult("CrimeMoney") * 2 * share,

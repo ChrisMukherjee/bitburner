@@ -82,5 +82,11 @@ test("leftoverBuyers: stock access (unless the trader is skipped), then gang equ
 	assert.deepEqual(leftoverBuyers({ startupSkip: [] }), [["stocks/workers/buy-market-access.js", 0, "--4s"], ["gang/workers/spend-leftover.js", 0]]);
 	assert.deepEqual(leftoverBuyers({ startupSkip: ["stocks/stock-trader.js"] }), [["gang/workers/spend-leftover.js", 0]], "no trader, no market access");
 	assert.deepEqual(leftoverBuyers({ persistence: { spendLeftover: false }, startupSkip: [] }), []);
-	assert.equal(leftoverBuyers(loadConfig(fakeNs())).length, 2, "default config");
+	assert.equal(leftoverBuyers(loadConfig(fakeNs())).length, 2, "default config, no reset info: no sleeve shop");
+	const sleeveInfo = { currentNode: 10, ownedSF: new Map() };
+	const plain = { currentNode: 1, ownedSF: new Map() };
+	const withSleeves = leftoverBuyers(loadConfig(fakeNs()), sleeveInfo);
+	assert.deepEqual(withSleeves.at(-1), ["sleeves/sleeve-shop.js", "--spend-all"], "sleeves are kept through an install, so the shop spends last");
+	assert.equal(leftoverBuyers(loadConfig(fakeNs()), plain).length, 2, "no Sleeve API, no sleeve shop");
+	assert.equal(leftoverBuyers({ sleeves: { enabled: false }, startupSkip: [] }, sleeveInfo).length, 2, "sleeves switched off");
 });

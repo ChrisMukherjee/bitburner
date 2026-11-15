@@ -1,4 +1,6 @@
 // @ts-check
+import { karmaNeededFromInfo } from "/utils/gang-karma.js";
+export { karmaNeededFromInfo };
 /**
  * What this run can do with gangs. The one place that knows the gang rules per BitNode:
  *   - the Gang API works in BitNode 2, and anywhere once you own Source-File 2 (or are in a gang);
@@ -12,9 +14,8 @@
 export function gangAccess(ns) {
 	const info = ns.getResetInfo();
 	const inGang = ns.gang.inGang();
-	const homeNode = info.currentNode === 2;
 	const available = inGang || gangApiFromInfo(info);
-	const karmaNeeded = homeNode ? 0 : -54_000;
+	const karmaNeeded = karmaNeededFromInfo(info);
 	const canCreate = inGang || (available && ns.heart.break() <= karmaNeeded);
 	return { available, inGang, karmaNeeded, canCreate };
 }
@@ -23,3 +24,4 @@ export function gangAccess(ns) {
 export function gangApiFromInfo(info) {
 	return info.currentNode === 2 || info.ownedSF.has(2);
 }
+

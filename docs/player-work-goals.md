@@ -22,6 +22,8 @@ happens.
   rate (from `data/aug-plan.json`; factions not worked yet get the best rate seen). Skipped until a rate
   is measured.
 
+The goals post a `value` per faction too (the summed `augValue` of what it picked there), which player-work.js uses to pick the faction while the hacking route waits for hacking exp ([`route-focus.md`](route-focus.md)).
+
 Augments are picked best value per dollar first (`augValue`, the reset rule's value), each with the
 prerequisites it still needs. The Red Pill (`resetRule.keyAugs`) always counts, so Daedalus keeps its goal for
 the Daedalus favor rule. The rest are "out of reach" for now; the goals refresh every 10 minutes, so they come

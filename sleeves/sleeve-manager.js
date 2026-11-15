@@ -6,9 +6,11 @@ import { adviseMissing } from "/utils/api-advice.js";
 import { sleevesApiFromInfo } from "/utils/sleeves.js";
 import { singularityFromInfo } from "/utils/singularity.js";
 import { postPass } from "/utils/pass-log.js";
-import { bladeburnerState, trainFloor, bladeburnerPlan } from "/bladeburner/state.js";
+import { bladeburnerState, trainFloor, bladeburnerPlan, readBladeburner } from "/bladeburner/state.js";
+import { karmaNeededFromInfo } from "/utils/gang-karma.js";
 import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { readIncomeRate } from "/utils/income.js";
+import { readRouteFocus } from "/utils/route-focus.js";
 import { planSleeves, jobValues, family, pickCashCrime, SUMMARY_PORT, RESULT_PORT, CRIME_STATS_PORT } from "/sleeves/plan.js";
 
 // Ports read from other scripts (see docs/NETSCRIPT.md).
@@ -19,7 +21,7 @@ const GOALS_MAX_AGE_MS = 3600_000;
 const INVITE_MAX_AGE_MS = 15 * 60_000;
 const SCRIPT = "sleeves/sleeve-manager.js";
 
-// One-shot workers (each holds only the 4GB calls it needs, so this script stays at 12GB). `xImports` lists the files a
+// One-shot workers (each holds only the 4GB calls it needs, so this script stays at 20.3GB). `xImports` lists the files a
 // worker imports, copied along when it runs on another server.
 export const CONFIG = {
 	recoverHelper: "sleeves/workers/recover.js", recoverImports: [],
@@ -34,7 +36,7 @@ export const CONFIG = {
  * One pass over the sleeves: gives each its job (sleeves/plan.js decides, docs/sleeves.md explains) and posts a summary for
  * `status` on port 40. startup.js runs it every minute while the Sleeve API works (BitNode 10, or Source-File 10); settings are
  * `sleeves` in the config (`sleeves.enabled: false` stops it). It never touches the player: player-work.js owns that.
- * 12GB, plus the worker it starts for a moment (4 to 12GB).
+ * 20.3GB, plus the worker it starts for a moment (4 to 12GB).
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -48,7 +50,7 @@ export async function main(ns) {
 	}
 	const count = ns.sleeve.getNumSleeves();
 	if (count === 0) {
-		post(ns, ["no sleeves yet (sleeve-shop.js buys the first in BitNode 10)"], []);
+		post(ns, ["no sleeves yet (sleeve-shop.js buys the first in BitNode 10)"], [], null);
 		return;
 	}
 
@@ -62,14 +64,16 @@ export async function main(ns) {
 		});
 	}
 	const crimes = await crimeStats(ns, info);
+	const karma = karmaRate(ns, player.karma);
 	const state = {
 		sleeves, cash: player.money, joined: player.factions, jobs: /** @type {Record<string, string>} */ (player.jobs ?? {}),
 		goals: fresh(ns, GOALS_PORT, GOALS_MAX_AGE_MS)?.goals ?? null,
 		playerFaction: String(peekJson(ns, PLAYER_WORK_PORT)?.lastGoalFaction ?? ""),
 		invite: fresh(ns, INVITE_PORT, INVITE_MAX_AGE_MS),
-		bb: { state: bladeburnerState(ns), trainFloor: trainFloor(ns), route: bladeburnerPlan(ns)?.route },
+		bb: { state: bladeburnerState(ns), trainFloor: trainFloor(ns), route: bladeburnerPlan(ns)?.route, freeShare: readBladeburner(ns).freeShare },
+		karmaLeft: Math.max(0, player.karma - karmaNeededFromInfo(info)), karmaRate: karma.rate,
 		mults: bitnodeMults(ns), incomePerSecond: readIncomeRate(ns).perSecond,
-		crimes,
+		crimes, focus: readRouteFocus(ns),
 	};
 	const plan = planSleeves(state, config);
 
@@ -109,15 +113,32 @@ export async function main(ns) {
 		const sleeve = sleeves[entry.sleeve];
 		lines.push(`#${entry.sleeve} ${entry.why} (shock ${Math.round(sleeve.shock)}%, sync ${Math.round(sleeve.sync)}%)`);
 	}
-	post(ns, lines, roles);
+	const onKarma = roles.filter((role) => role === "karma").length;
+	if (onKarma && karma.rate > 0) lines.splice(1, 0, `karma: ${Math.round(state.karmaLeft)} to go, about ${Math.round(karma.rate)} an hour per sleeve (${Math.round(state.karmaLeft / (karma.rate * onKarma) * 10) / 10} hours at ${onKarma} sleeves)`);
+	post(ns, lines, roles, { time: Date.now(), value: player.karma, sleeves: onKarma, rate: karma.rate });
 }
 
 /** Posts the summary `status` shows (port 40) and the pass log `debug-report` reads. */
-function post(ns, lines, roles) {
+function post(ns, lines, roles, karma) {
 	ns.clearPort(SUMMARY_PORT);
-	ns.writePort(SUMMARY_PORT, JSON.stringify({ time: Date.now(), title: "Sleeves", script: SCRIPT, oneShot: true, lines, roles }));
+	ns.writePort(SUMMARY_PORT, JSON.stringify({ time: Date.now(), title: "Sleeves", script: SCRIPT, oneShot: true, lines, roles, karma }));
 	postPass(ns, SCRIPT, lines);
 	for (const line of lines) ns.print(`[sleeves] ${line}`);
+}
+
+/**
+ * Karma lowered per sleeve-hour while sleeves were grinding it, measured between this pass and the last (the summary on port 40 keeps
+ * the last reading), smoothed with the one before. Counts the player's own crimes too when it commits any, so it can read high.
+ * { rate } is 0 when there is no usable reading yet.
+ */
+function karmaRate(ns, karma) {
+	const prev = peekJson(ns, SUMMARY_PORT)?.karma;
+	if (!prev || !(prev.sleeves > 0)) return { rate: prev?.rate ?? 0 };
+	const hours = (Date.now() - prev.time) / 3.6e6;
+	const gained = prev.value - karma;
+	if (!(hours > 0) || hours > 0.5 || !(gained > 0)) return { rate: prev.rate ?? 0 };
+	const instant = gained / hours / prev.sleeves;
+	return { rate: prev.rate > 0 ? (prev.rate + instant) / 2 : instant };
 }
 
 /** JSON on a port, or null. */

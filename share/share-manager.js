@@ -3,8 +3,10 @@ import { notify } from "/utils/notify.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { buildRamPool, freeRamTotal } from "/utils/ram-pool.js";
 import { hasSingularity } from "/utils/singularity.js";
+import { hackingBinding, spareRamGoesToShare } from "/utils/route-focus.js";
 
 const WORKER = "share/workers/share.js";
+const XP_FARM_SCRIPT = "hack/xp-farm.js";
 // hack/batcher.js posts { time, wantFree } here: free RAM its planned batches still need. Its workers
 // are exec'd just before they start, so RAM that looks free is often already spoken for.
 const BATCHER_CLAIM_PORT = 31;
@@ -26,6 +28,8 @@ const CONFIG = {
  * and the next wave only starts a second later, so the batcher always gets freed RAM back first
  * and share only ever gets the leftovers. It leaves free whichever is bigger: a slice of the network
  * (--headroom) or the RAM the batcher says its planned batches still need (port 31).
+ * While the hacking route waits for hacking exp (Daedalus' invite or w0r1d_d43m0n needing level, utils/route-focus.js) and
+ * hack/xp-farm.js is running, it yields the spare RAM to the farm instead (not with --always).
  * Share power grows with the log of threads, so it's a modest boost; it's for idle RAM only.
  *
  * Home is used too (its cores raise share power), above a reserve of max(128GB, 5% of home).
@@ -70,6 +74,14 @@ export async function main(ns) {
 		const factionWork = work?.type === "FACTION";
 		if (!factionWork && !flags.always) {
 			const state = `[share] idle: not doing faction work (current work: ${work?.type ?? "none"})`;
+			if (state !== lastState) ns.print(state);
+			lastState = state;
+			await ns.sleep(CONFIG.idleCheckMs);
+			continue;
+		}
+
+		if (!flags.always && !spareRamGoesToShare({ factionWork, shareRunning: true, farmRunning: ns.isRunning(XP_FARM_SCRIPT, "home"), binding: hackingBinding(ns) })) {
+			const state = "[share] idle: the route waits for hacking exp, so the XP farm takes the spare RAM";
 			if (state !== lastState) ns.print(state);
 			lastState = state;
 			await ns.sleep(CONFIG.idleCheckMs);

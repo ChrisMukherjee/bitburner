@@ -11,6 +11,8 @@ import { startHelper } from "/utils/start-helper.js";
 import { postGate } from "/singularity/ready.js";
 import { bladeburnerAccess, simulacrumInstalled } from "/utils/bladeburner.js";
 import { bladeburnerState, bladeburnerPlan, trainFloor, combatRoute } from "/bladeburner/state.js";
+import { routeFocus, postRouteFocus, pickGoalFaction } from "/utils/route-focus.js";
+import { daemonLevelFor } from "/utils/route-progress.js";
 
 // Ports the one-shot helpers write to (not imported: the static RAM check would charge their
 // Singularity calls to this script too).
@@ -50,7 +52,7 @@ const CONFIG = {
 	planHelper: "singularity/workers/city-plan.js",
 	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	gangHelper: "gang/workers/invite.js",
-	gangImports: ["utils/gang.js"],
+	gangImports: ["utils/gang.js", "utils/gang-karma.js"],
 	crimeInviteHelper: "singularity/workers/crime-invites.js",
 	crimeInviteImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	idleCrimeHelper: "singularity/workers/start-crime.js",
@@ -93,6 +95,11 @@ const CONFIG = {
  *   4. Company work: when no faction needs rep, a companyWork.field job at the first megacorp
  *      whose faction you haven't joined, until its invite (companyWork.repNeeded). Asks for a
  *      promotion every pass. Left alone while you do faction work you started yourself.
+ *
+ * Route focus (utils/route-focus.js, `routeFocus.enabled`): every pass it works out what the hacking route waits for and posts
+ * it on port 44. While it has a clear next step the gang invite (step 2) is left alone, and while hacking exp is what it waits
+ * for, step 3 works for the joined faction whose augments are worth the most per missing rep instead of the first in the order.
+ * hack/xp-farm.js, share/share-manager.js and sleeves/sleeve-manager.js read the same post. Design: docs/route-focus.md.
  *
  * Travel and joining, alongside the work:
  *   - Tian Di Hui first: once you have hacking 50 and $1.2m, flies to Chongqing and joins on the invite.
@@ -198,6 +205,8 @@ async function onePass(ns, state) {
 			}
 		}
 	}
+	state.routeState = currentFocus(ns, config, player);
+	postRouteFocus(ns, state.routeState);
 	if (!state.cityDone && (!state.plan || Date.now() - state.planAt >= CONFIG.refreshMs)) {
 		const fresh = await refreshPlan(ns, config.cities);
 		if (fresh) Object.assign(state, { plan: fresh, planAt: Date.now() });
@@ -225,7 +234,30 @@ async function onePass(ns, state) {
 	state.holdCity = !!trip.hold; // waiting here for an invite: the gym doesn't fly away
 	state.travelDone = !!trip.done;
 	const work = workStep(ns, state, player);
-	return { messages: { travel: trip.message, work: work.message }, all: trip.done && work.done };
+	const route = state.routeState.phase === "none" ? {} : { route: `[route] ${state.routeState.phase}: ${state.routeState.reason}` };
+	return { messages: { travel: trip.message, work: work.message, ...route }, all: trip.done && work.done };
+}
+
+/**
+ * What the hacking route waits for now (utils/route-focus.js). The route is the estimate's verdict (port 36), else the config route
+ * where Bladeburner exists, else hacking (it is the only way out). Reads only what this script already reads: the plan file
+ * buy-augs.js --plan writes (Daedalus' invite requirements), the reset info (installed augments, BitNode) and the player.
+ */
+export function currentFocus(ns, config, player) {
+	const info = ns.getResetInfo();
+	let invite = null;
+	try {
+		const plan = JSON.parse(ns.read(AUG_PLAN_FILE));
+		invite = plan.checkedAt >= info.lastAugReset ? plan.bitnode?.daedalusInvite ?? null : null;
+	} catch {
+		// no plan yet
+	}
+	const route = bladeburnerPlan(ns)?.route ?? (bladeburnerAccess(ns).available ? config.bladeburner?.route : "hacking");
+	return routeFocus({
+		enabled: config.routeFocus?.enabled !== false, route, hacking: player.skills.hacking, daemonLevel: daemonLevelFor(info.currentNode),
+		daedalusJoined: player.factions.includes("Daedalus"), redPillInstalled: info.ownedAugs?.has("The Red Pill") ?? false, invite,
+		have: { money: player.money, installed: info.ownedAugs?.size ?? 0, skills: player.skills },
+	});
 }
 
 // --- State kept between passes (port 35) ---
@@ -253,7 +285,7 @@ function loadState(ns, resetAt) {
 
 /** Keeps what the next pass needs (not the config or the flags, which are read again). */
 function saveState(ns, state, resetAt) {
-	const { config, focus, focusForced, studyLevel, noCompany, plan, ...rest } = state;
+	const { config, focus, focusForced, studyLevel, noCompany, plan, routeState, ...rest } = state;
 	ns.clearPort(STATE_PORT);
 	ns.writePort(STATE_PORT, JSON.stringify({ ...rest, planGroups: plan?.groups ?? null, resetAt }));
 }
@@ -284,7 +316,7 @@ export function workStep(ns, state, player) {
 		const open = factionWork.order.filter((faction) => goals[faction]?.rep > 0 &&
 			(joined.has(faction) ? ns.singularity.getFactionRep(faction) < goals[faction].rep : !CITY_FACTIONS.includes(faction)));
 		factionDone = open.length === 0;
-		goalFaction = open.find((faction) => joined.has(faction)) ?? "";
+		goalFaction = pickGoalFaction(open.filter((faction) => joined.has(faction)), goals, (faction) => ns.singularity.getFactionRep(faction), !!state.routeState?.binding);
 		if (factionDone) {
 			factionMessage = "[faction-work] every faction has the rep for all its augments worth buying";
 			if (!state.factionAnnounced) notify(ns, "[faction-work]", "every faction has the rep for all its augments worth buying.", "success");
@@ -329,7 +361,8 @@ export function workStep(ns, state, player) {
 	}
 	// 2. Crime or gym for the gang invite (BitNode 2). Stopped once gang/workers/invite.js says they're no longer needed.
 	// The slow karma grind outside BitNode 2 waits until nothing else needs the player (step 4).
-	const invite = state.gang?.applies && (state.gang.crime || state.gang.gym) ? state.gang : null;
+	// Left alone while the hacking route has a clear next step (state.routeState, utils/route-focus.js): the gang's money and rep don't unlock it
+	const invite = state.gang?.applies && (state.gang.crime || state.gang.gym) && !state.routeState?.skipSide ? state.gang : null;
 	if (invite && !invite.slow) {
 		const message = gangStep(ns, state, player, current, invite);
 		if (message) return { message, done };

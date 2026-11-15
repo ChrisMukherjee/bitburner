@@ -92,7 +92,9 @@ async function goalsFor(ownedSF, cash) {
 test("regression: faction-goals counts the augments the money covers at the run's price step", async () => {
 	// $190. B first (same value, cheaper); both, most expensive first, cost 100 + 50 x 1.9 = 195 at 1.9, but
 	// 100 + 50 x 1.767 = 188.4 at Source-File 11.3.
-	assert.deepEqual(await goalsFor(new Map(), 190), { rep: 1000, aug: "B", count: 1, skipped: 1 });
+	// (the goal also carries `value` for route-focus.js; this test is about what the money covers, so it is left out of the comparison)
+	const { value: _value, ...goal } = await goalsFor(new Map(), 190);
+	assert.deepEqual(goal, { rep: 1000, aug: "B", count: 1, skipped: 1 });
 	const sf11 = await goalsFor(withSF11(3), 190);
 	assert.equal(sf11.count, 2);
 	assert.equal(sf11.skipped, 0);

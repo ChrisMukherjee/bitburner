@@ -10,7 +10,7 @@ import { sleevesApiFromInfo, sleevesBuyableFromInfo } from "/utils/sleeves.js";
 import { GYMS, GYM_CASH_SECONDS } from "/utils/gyms.js";
 import { sleevesReady } from "/sleeves/ready.js";
 import {
-	planSleeves, jobValues, crimeChance, pickCashCrime, needsRecovery, needsSync, trainingFor, combatTarget, pickStage, budgetFor, nextPurchase, sameTask, family,
+	planSleeves, jobValues, crimeChance, pickCashCrime, needsRecovery, needsSync, trainingFor, combatTarget, pickStage, budgetFor, nextPurchase, sameTask, family, karmaSlots,
 } from "/sleeves/plan.js";
 import { main as manage, CONFIG as MANAGER_CONFIG } from "/sleeves/sleeve-manager.js";
 import { main as shop } from "/sleeves/sleeve-shop.js";
@@ -420,4 +420,55 @@ test("shop: nothing is bought with no cash above the reserve, and the kill switc
 	const off = sleeveWorld({ node: 10, money: 1e9, files: { "data/config.json": JSON.stringify({ sleeves: { enabled: false } }) } });
 	await shop(off.ns);
 	assert.equal(off.ns.called("sleeve.getNumSleeves").length, 0);
+});
+
+// --- karma rate, infiltrating, spending before an install ---
+
+test("karmaSlots: with a measured rate only as many sleeves as finish the karma within weights.karmaHours; without one, all", () => {
+	const hours = rule.weights.karmaHours;
+	assert.equal(karmaSlots({ karmaRate: 0, karmaLeft: 1e4 }, rule, 4), 4, "no reading yet");
+	assert.equal(karmaSlots({ karmaRate: 100, karmaLeft: 100 * hours * 2 }, rule, 4), 2, "two sleeve-lots of karma-hours of work");
+	assert.equal(karmaSlots({ karmaRate: 100, karmaLeft: 1 }, rule, 4), 1, "never fewer than one while karma is missing");
+	assert.equal(karmaSlots({ karmaRate: 1, karmaLeft: 1e9 }, rule, 3), 3, "capped at the sleeves there are");
+});
+
+test("jobs: karma sleeves are capped by the measured rate, the rest go to other jobs", () => {
+	const invite = { applies: true, crime: "Homicide", gain: "karma", gym: 0 };
+	const input = state([sleeve(0), sleeve(1), sleeve(2)], { invite, karmaRate: 100, karmaLeft: 1 });
+	const roles = planOf(input).map((entry) => entry.role);
+	assert.equal(roles.filter((role) => role === "karma").length, 1, "one sleeve finishes what is left");
+});
+
+test("jobs: Infiltrate Synthoids is valued by the share of passes where Bladeburner counts ran out, and contracts by the rest", () => {
+	const base = { bb: { state: "run", trainFloor: 100, route: "combat", freeShare: 0 } };
+	const none = jobValues(state([sleeve(0)], base), config);
+	assert.equal(none.infiltrate, 0, "counts are left: nothing to infiltrate for");
+	const out = jobValues(state([sleeve(0)], { bb: { ...base.bb, freeShare: 1 } }), config);
+	assert.equal(out.bladeburner, 0, "no counts left: contracts earn nothing");
+	assert.ok(out.infiltrate > 0);
+	const half = jobValues(state([sleeve(0)], { bb: { ...base.bb, freeShare: 0.5 } }), config);
+	assert.ok(Math.abs(half.infiltrate + half.bladeburner - none.bladeburner) < 1e-9, "the two split one weight");
+	const plan = planOf(state([sleeve(0)], { bb: { ...base.bb, freeShare: 1 } }));
+	assert.equal(plan[0].role, "infiltrate");
+	assert.equal(plan[0].candidates[0].action, "Infiltrate Synthoids");
+});
+
+test("manager: a sleeve infiltrating is kept as it is on the next pass", async () => {
+	const sim = sleeveWorld({ sleeves: [{ task: { type: "INFILTRATE" } }], ports: { 36: { time: Date.now(), state: "run", freeShare: 1 } } });
+	await manage(sim.ns);
+	assert.ok(sim.calls("setToBladeburnerAction").length <= 1);
+});
+
+test("shop --spend-all: everything above the reserve may go, not just the stage's share", async () => {
+	const cash = 1e9;
+	const common = { node: 1, sourceFiles: [[10, 1]], sleeves: [{}], money: cash, augs: [{ name: "A", cost: cash * 0.4 }, { name: "B", cost: cash * 0.4 }] };
+	const normal = sleeveWorld(common);
+	await shop(normal.ns);
+	assert.equal(normal.calls("purchaseSleeveAug").length, 0, "a $400m chip is above the stage's share of $1b");
+	const all = sleeveWorld({ ...common, args: ["--spend-all"] });
+	await shop(all.ns);
+	assert.equal(all.calls("purchaseSleeveAug").length, 2, "both fit once the whole cash may go");
+	const kept = sleeveWorld({ ...common, args: ["--spend-all", "--reserve", String(cash * 0.5)] });
+	await shop(kept.ns);
+	assert.equal(kept.calls("purchaseSleeveAug").length, 1, "the reserve is never spent");
 });

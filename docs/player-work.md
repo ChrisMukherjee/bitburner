@@ -18,6 +18,13 @@ Order, one at a time: study (free course to hacking 50), the gang invite (BitNod
 the karma, the gym for the combat stats), the crime-faction invite (Bladeburner route), faction work, then megacorp jobs when
 no faction needs rep.
 
+## Route focus
+
+On the hacking route player-work.js posts what the way out waits for (port 44, [`route-focus.md`](route-focus.md)). While there is a clear next
+step (Daedalus' invite needing level, Daedalus rep for The Red Pill, the daemon's level) the gang invite's crimes and gym (step 2) are
+left alone, and while hacking exp is what binds, step 3 works for the joined faction whose augments are worth the most per missing rep
+(`value` from the goals helper) instead of the first in `factionWork.order`. `routeFocus.enabled: false` restores the old order.
+
 ## Alongside Bladeburner
 
 While Bladeburner plays (state `run`), any work started here would cancel its action, so nothing is started; a flight still

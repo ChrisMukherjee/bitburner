@@ -12,7 +12,7 @@ import { pickStage, budgetFor, nextPurchase, AUG_VALUE_PORT } from "/sleeves/pla
 
 const SCRIPT = "sleeves/sleeve-shop.js";
 const TAG = "[sleeves]";
-const MAX_BUYS = 25;                  // purchases per pass
+const MAX_BUYS = 25;                  // purchases per pass (50 with --spend-all)
 const VALUES_MAX_AGE_MS = 3 * 3600_000; // the sleeve augmentations' values are asked for again after this
 
 // The worker that values augmentations (needs the Singularity API); `valuesImports` is what it imports, copied along off home.
@@ -40,7 +40,10 @@ export async function main(ns) {
 		return;
 	}
 	const canBuy = sleevesBuyableFromInfo(info);
-	const stage = pickStage(rule.buying, readIncomeRate(ns).perSecond);
+	// --spend-all [--reserve n]: just before an install (singularity/install-augs.js): the cash would be wiped but sleeves and their
+	// augmentations are kept, so everything above the reserve may go.
+	const flags = ns.flags([["spend-all", false], ["reserve", 0]]);
+	const stage = flags["spend-all"] ? { name: "before install", reserve: Number(flags.reserve) || 0, maxFraction: 1 } : pickStage(rule.buying, readIncomeRate(ns).perSecond);
 	const cash = ns.getPlayer().money;
 	let budget = budgetFor(cash, stage);
 	// A sleeve is permanent and the Covenant's price is far above any stage's share of the cash, so it may use more of it.
@@ -57,7 +60,7 @@ export async function main(ns) {
 		for (const aug of augs) aug.value = values[aug.name];
 	}
 
-	for (let step = 0; step < MAX_BUYS; step++) {
+	for (let step = 0; step < MAX_BUYS * (flags["spend-all"] ? 2 : 1); step++) {
 		const memory = [];
 		if (canBuy && rule.buy.memory) {
 			for (let index = 0; index < count; index++) memory.push({ index, memory: ns.sleeve.getSleeve(index).memory, cost: ns.sleeve.getMemoryUpgradeCost(index, 1) });

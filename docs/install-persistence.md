@@ -77,5 +77,5 @@ the next run goes, whatever pays for it, and the gang's progress doesn't depend 
   install (from new rank and new respect only); neither is modelled for buying their augments.
 - **Mechanics without scripts yet.** A corporation keeps everything through an install; whatever manages it
   should value spending over the BitNode, not the run. Sleeves are managed by [`../sleeves/`](../sleeves/README.md), which sets them back to work
-  after an install by itself (the first pass sees shock and sync and recovers or synchronizes first); cash left before an install is not yet spent on sleeve augmentations. Stanek's Gift loses its charge each install, so charging belongs early
+  after an install by itself (the first pass sees shock and sync and recovers or synchronizes first); cash left before an install goes to sleeve augmentations (`sleeve-shop.js --spend-all`, run by install-augs.js after stock access and gang equipment). Stanek's Gift loses its charge each install, so charging belongs early
   in a run.

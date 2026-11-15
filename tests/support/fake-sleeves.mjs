@@ -39,10 +39,11 @@ const CRIME_TABLE = {
  * @param {Record<string, any>} [options.ports]
  * @param {Record<string, string>} [options.files]
  * @param {(script: string) => number} [options.scriptRam] RAM of each script (2GB by default)
+ * @param {(string|number)[]} [options.args] the script's own arguments (`--spend-all`, `--reserve 5`)
  * @param {Record<string, any>} [options.overrides]
  */
 export function sleeveWorld({
-	node = 10, sourceFiles = [], sleeves = [{}], money = 0, sleeveCost = 1e6, memoryCost = 1e5, augs = [], refuse = [], ports = {}, files = {}, scriptRam = () => 2, overrides = {},
+	node = 10, sourceFiles = [], sleeves = [{}], money = 0, sleeveCost = 1e6, memoryCost = 1e5, augs = [], refuse = [], ports = {}, files = {}, scriptRam = () => 2, args = [], overrides = {},
 } = {}) {
 	const list = sleeves.map((sleeve) => ({
 		shock: 0, sync: 100, memory: 50, city: "Sector-12", task: null, augs: [], ...sleeve,
@@ -72,7 +73,7 @@ export function sleeveWorld({
 		travel: (index, city) => { record("travel", [index, city]); if (refuse.includes("travel")) return false; list[index].city = city; return true; },
 		setToFactionWork: (index, faction, workType) => { record("setToFactionWork", [index, faction, workType]); return take("faction", index, { type: "FACTION", factionName: faction, factionWorkType: workType }); },
 		setToCompanyWork: (index, company) => { record("setToCompanyWork", [index, company]); return take("company", index, { type: "COMPANY", companyName: company }); },
-		setToBladeburnerAction: (index, action, contract) => { record("setToBladeburnerAction", [index, action, contract]); return take("bb", index, { type: "BLADEBURNER", actionType: "Contracts", actionName: contract ?? action }); },
+		setToBladeburnerAction: (index, action, contract) => { record("setToBladeburnerAction", [index, action, contract]); return take("bb", index, action === "Infiltrate Synthoids" ? { type: "INFILTRATE" } : { type: "BLADEBURNER", actionType: "Contracts", actionName: contract ?? action }); },
 		getSleeveCost: () => (list.length >= 8 ? Infinity : sleeveCost), // the game sells up to 8 in all
 		purchaseSleeve: () => {
 			record("purchaseSleeve", []);
@@ -118,6 +119,11 @@ export function sleeveWorld({
 			getPlayer: () => ({ money: wallet.money, factions: world.player.factions, jobs: world.player.jobs, karma: 0 }),
 			getTotalScriptIncome: () => [0, 0],
 			getHostname: () => "home",
+			flags: (schema) => Object.fromEntries(schema.map(([name, fallback]) => {
+				const at = args.indexOf(`--${name}`);
+				if (at < 0) return [name, fallback];
+				return [name, typeof fallback === "boolean" ? true : Number(args[at + 1])];
+			})),
 			enums: { CrimeType: { shoplift: "Shoplift", homicide: "Homicide" } },
 			singularity: { getCrimeStats: (name) => CRIME_TABLE[name], getAugmentationStats: (name) => ({ hacking: name.includes("Hack") ? 1.1 : 1 }) },
 			...overrides,

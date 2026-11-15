@@ -3,6 +3,7 @@ import { notify } from "/utils/notify.js";
 import { loadConfig } from "/utils/config.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { buildRamPool, freeRamTotal } from "/utils/ram-pool.js";
+import { hackingBinding, spareRamGoesToShare } from "/utils/route-focus.js";
 
 const WORKER = "hack/workers/weaken.js";
 const BATCHER_CLAIM_PORT = 31; // hack/batcher.js posts { time, wantFree }: free RAM its planned batches still need
@@ -22,7 +23,8 @@ const CONFIG = {
  * (xpFarm.target, or "auto": the rooted server with the most XP per thread-second), which pay XP every time they finish. Waves like share/share-manager.js: a
  * wave ends before the next starts, so the batcher always sees freed RAM first and this only gets
  * leftovers. Keeps free the larger of xpFarm.headroom of the network's RAM and the batcher's claim (port 31).
- * Stands down while share/share-manager.js is running (it uses the same spare RAM).
+ * Stands down while share/share-manager.js is running (it uses the same spare RAM), except while the hacking route waits for
+ * hacking exp (utils/route-focus.js: Daedalus' invite or w0r1d_d43m0n needing level): then share-manager yields to it instead.
  *
  *   run /hack/xp-farm.js                     home + purchased + rooted servers
  *   run /hack/xp-farm.js --no-home           leave home alone
@@ -45,7 +47,7 @@ export async function main(ns) {
 	let lastState = "";
 	while (true) {
 		const target = requested === "auto" ? bestTarget(ns, settings.maxWaveSeconds ?? 300) : requested;
-		if (ns.isRunning(SHARE_SCRIPT, "home") && doingFactionWork(ns)) {
+		if (spareRamGoesToShare({ factionWork: doingFactionWork(ns), shareRunning: ns.isRunning(SHARE_SCRIPT, "home"), farmRunning: true, binding: hackingBinding(ns) })) {
 			lastState = "[xp] idle: share-manager is using the spare RAM";
 			await ns.sleep(CONFIG.idleCheckMs);
 			continue;

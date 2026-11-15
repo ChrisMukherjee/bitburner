@@ -238,6 +238,13 @@ export const DEFAULTS = {
 		crimes: null,
 	},
 
+	// Route focus (docs/route-focus.md): on the hacking route, player-work.js works out what the way out waits for (Daedalus' invite
+	// needing hacking level, The Red Pill's rep, w0r1d_d43m0n's level) and posts it on port 44. While hacking exp is what the route
+	// waits for, the XP farm keeps the spare RAM (share-manager yields), faction work goes to the faction whose augments are worth
+	// the most per missing rep, and while any step is clear the gang invite's crimes and gym and the sleeves' combat training wait.
+	// enabled: false = every script behaves as it did before.
+	routeFocus: { enabled: true },
+
 	// City factions (player-work.js): rival groups, tried in this order, one group per run.
 	// A group is only joined if one of its factions sells a wanted augment that no faction in
 	// otherSources sells (those are joined anyway).
@@ -414,6 +421,7 @@ export const DEFAULTS = {
 	//                 crime; "fixed" uses the order karma, Bladeburner, factions, companies with factionShare and companyShare as caps.
 	//   weights:      a job's base value (karma is a gate, so the highest); decay: each further sleeve on the same job (karma,
 	//                 Bladeburner contracts) is worth this much of the one before, so the jobs share the sleeves.
+	//                 karmaHours: with a measured karma rate, no more sleeves grind karma than finish the gang's karma in this long.
 	//   shock / sync: a sleeve recovers once its shock reaches `enter` (%) and until it is at or below `exit`; it synchronizes
 	//                 once its sync is below `enter` and until it reaches `exit`. Work output is scaled by both.
 	//   train:        combat / hacking: the level to train to, or "auto" (the level this run's jobs need: Bladeburner's combat floor,
@@ -434,7 +442,7 @@ export const DEFAULTS = {
 		enabled: true,
 		priority: "auto",
 		sleeveFraction: 1,
-		weights: { karma: 100, bladeburner: 50, faction: 20, company: 6, cash: 10, decay: 0.6 },
+		weights: { karma: 100, bladeburner: 50, faction: 20, company: 6, cash: 10, decay: 0.6, karmaHours: 2 },
 		shock: { enter: 25, exit: 2 },
 		sync: { enter: 90, exit: 100 },
 		train: { combat: "auto", hacking: "auto" },

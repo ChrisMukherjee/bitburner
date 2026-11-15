@@ -254,6 +254,7 @@ Which scripts need which BitNode, Source-File or item is not decided per folder:
 | 37 | Last pass of each one-shot, for the debug report ([`utils/pass-log.js`](utils/pass-log.js)) |
 | 38 | This run's money by source, for the augment weights ([`utils/income-mix.js`](utils/income-mix.js), posted by buy-augs.js) |
 | 39 | The crime-faction invite to work on next, on the Bladeburner route ([`singularity/workers/crime-invites.js`](singularity/workers/crime-invites.js), for player-work.js) |
+| 44 | Route focus: what the hacking route waits for now ([`utils/route-focus.js`](utils/route-focus.js), posted by player-work.js; read by xp-farm, share-manager and the sleeves) |
 
 ## Conventions
 

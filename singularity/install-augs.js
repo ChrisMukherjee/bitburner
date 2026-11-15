@@ -3,6 +3,7 @@
 import { loadConfig } from "/utils/config.js";
 import { requireApi } from "/utils/api-advice.js";
 import { singularityFromInfo } from "/utils/singularity.js";
+import { sleevesApiFromInfo } from "/utils/sleeves.js";
 const PLAN_FILE = "data/aug-plan.json";
 const RESET_LOG = "data/reset-log.json"; // one line per install, for singularity/reset-log.js (tuning the reset rule)
 const RESET_LOG_KEEP = 40;
@@ -15,6 +16,7 @@ const HOME_BUYERS = ["singularity/upgrade-home-ram.js", "singularity/upgrade-hom
 const STOCK_TRADER = "stocks/stock-trader.js";
 const MARKET_ACCESS = "stocks/workers/buy-market-access.js"; // [reserve] [--4s]
 const GANG_LEFTOVER = "gang/workers/spend-leftover.js";
+const SLEEVE_LEFTOVER = "sleeves/sleeve-shop.js";
 
 /**
  * Installs the augments you've bought, which resets the run (money, servers, scripts).
@@ -61,7 +63,7 @@ export async function main(ns) {
 				ns.tprint(`No room on home for ${script} (${ns.format.ram(ns.getScriptRam(script))}); its cash is left unspent.`);
 			}
 		}
-		for (const [script, ...args] of leftoverBuyers(loadConfig(ns))) {
+		for (const [script, ...args] of leftoverBuyers(loadConfig(ns), ns.getResetInfo())) {
 			if (!await runAndWait(ns, script, ...args)) {
 				ns.tprint(`No room on home for ${script} (${ns.format.ram(ns.getScriptRam(script))}); skipped.`);
 			}
@@ -82,14 +84,17 @@ export async function main(ns) {
  * Stock market access only when the stock trader may run (it buys TIX and 4S itself as soon as cash allows, so buying
  * them with cash the install would wipe saves that much next run); then gang equipment. Empty with persistence.spendLeftover off.
  * @param {any} config
+ * @param {{ currentNode: number, ownedSF: Map<number, number> }} [info] ns.getResetInfo(); with the Sleeve API the sleeve shop is added
  * @returns {[string, ...(string|number)[]][]}
  */
-export function leftoverBuyers(config) {
+export function leftoverBuyers(config, info) {
 	if (config?.persistence?.spendLeftover === false) return [];
 	/** @type {[string, ...(string|number)[]][]} */
 	const buyers = [];
 	if (!(config?.startupSkip ?? []).includes(STOCK_TRADER)) buyers.push([MARKET_ACCESS, 0, "--4s"]);
 	buyers.push([GANG_LEFTOVER, 0]);
+	// Sleeves and their augmentations are kept too (only where the Sleeve API works: `info` is ns.getResetInfo()).
+	if (info && sleevesApiFromInfo(info) && config?.sleeves?.enabled !== false) buyers.push([SLEEVE_LEFTOVER, "--spend-all"]);
 	return buyers;
 }
 
