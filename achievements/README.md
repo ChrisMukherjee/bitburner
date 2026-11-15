@@ -59,7 +59,7 @@ strong BitNode.
 - **You and what army (8 sleeves):** needs Source-File 10 level 3 and all five Covenant sleeves ($10t up to $100q, BitNode 10 only,
   kept for good). [`sleeves/`](../sleeves/README.md) buys them and keeps BitNode 10 open while the next one is worth the wait
   ([`docs/sleeves.md`](../docs/sleeves.md#holding-bitnode-10-for-the-covenants-sleeves)); the last two need large income, so
-  expect a late extra BitNode 10 run. The BN10 challenge run (no sleeve experience) is a different run.
+  expect a late extra BitNode 10 run, started by hand once income is high enough ([`docs/bitnode-order.md`](../docs/bitnode-order.md#coming-back-to-bitnode-10-for-the-last-sleeves)). The BN10 challenge run (no sleeve experience) is a different run.
 - **Wretched hive (-1m karma):** a long crime farm.
 - **While(true); (freeze and reload):** manual, reload using "reload and kill all".
 - **Too many options:** leave the game on the Bitverse screen for an hour.

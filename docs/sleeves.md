@@ -113,7 +113,8 @@ reset rule value the wipe exactly (an install's gain is the reset rule's job, so
 
 **Open.** Nothing trains or works toward the Covenant's invite on purpose: hacking 850 comes with the run, combat 850 comes from
 Bladeburner or the gym, so a run with neither gets no hold. Five sleeves in all means more BitNode 10 runs after level 3, which the
-plan (levels only) cannot ask for: run `next-bitnode 10` by hand once income allows $1q and up.
+plan (levels only) cannot ask for: come back with `next-bitnode 10` once income is near price / run length for the next sleeve (about $1.2e10/s
+for the $1q one, ten times more for each after it, on a day-long run; see [`bitnode-order.md`](bitnode-order.md#coming-back-to-bitnode-10-for-the-last-sleeves)).
 
 ## The BN10 challenge
 

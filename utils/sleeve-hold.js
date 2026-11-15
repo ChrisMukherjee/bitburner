@@ -30,7 +30,7 @@ export function covenantSleeveCost(bought) {
 /**
  * Whether the player is in The Covenant ("member"), could be invited once the money and augmentations are there ("reachable": hacking and
  * every combat skill at least 850), or not close ("no"). From getPlayer(); a missing field counts as "no". Pure.
- * @param {{ factions?: string[], skills?: Record<string, number> }} player
+ * @param {{ factions?: string[], skills?: any }} player
  * @returns {"member" | "reachable" | "no"}
  */
 export function covenantAccess(player) {
@@ -94,6 +94,7 @@ export function readSleeveHold(ns, now = Date.now(), maxAgeMs = SLEEVE_HOLD_MAX_
 }
 
 function short(value) {
+	/** @type {[number, string][]} */
 	const units = [[1e18, "qt"], [1e15, "q"], [1e12, "t"], [1e9, "b"], [1e6, "m"]];
 	for (const [size, unit] of units) if (value >= size) return `${+(value / size).toFixed(2)}${unit}`;
 	return String(Math.round(value));

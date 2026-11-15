@@ -26,7 +26,7 @@ from the game's source at version 3.0.0 and its in-game BitNode guides ([Sources
 | 5 | BN1.3 | +28% instead of +24%. No more home RAM: every SF1 level gives the same 32GB start | The cheapest clear in the game, and the bonus covers almost every later run |
 | 6 | BN2.1 | Gangs everywhere (outside BitNode 2 a gang needs -54,000 karma); +24% crime success, crime money and charisma | In BitNode 2 a gang needs no karma and its faction offers The Red Pill. Gang money buys the NeuroFlux levels its 15,000-hacking finish takes |
 | 7 | BN6.1 | Bladeburner everywhere; +8% combat | Finishing every Black Op ends a BitNode with no hacking at all: the way out of BitNodes 10, 9 and 13. BitNode 6 has no Bladeburner penalties |
-| 8 | BN10.1 to 10.3, in a row | One sleeve per level, and grafting | Sleeves speed up karma and Bladeburner. The Covenant sells up to 5 more sleeves ($10t up to $100q) only inside BitNode 10, so three runs give three chances. The scripts keep each run open while the next sleeve is worth the wait ([`sleeves.md`](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves)); the challenge (no sleeve experience or augmentations) goes on the first of these runs |
+| 8 | BN10.1 to 10.3, in a row | One sleeve per level, and grafting | Sleeves speed up karma and Bladeburner. The Covenant sells up to 5 more sleeves ($10t up to $100q) only inside BitNode 10, so three runs give three chances, and the last three usually need a later extra run ([Coming back to BitNode 10](#coming-back-to-bitnode-10-for-the-last-sleeves)). The scripts keep each run open while the next sleeve is worth the wait ([`sleeves.md`](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves)); the challenge (no sleeve experience or augmentations) goes on the first of these runs |
 | 9 | BN7.1 to 7.3, in a row | +8/12/14% Bladeburner stamina, analysis and success chance; at 7.3 The Blade's Simulacrum free on joining Bladeburner ($150b otherwise) | With the Simulacrum, Bladeburner runs alongside other work. Sleeves and SF6 soften BitNode 7's 60% rank gain and 2x skill costs |
 | 10 | BN3.1 to 3.3, in a row | Corporations everywhere ($150b to start one outside BitNode 3); at 3.3 the full corporation API (the Office and Warehouse APIs cost $50b each otherwise) | Hacking pays 0.8% of BitNode 1 there and augmentations cost 3x, but a corporation can start on government seed money and Bladeburner has no penalty |
 | 11 | BN9.1 to 9.3, in a row | Hacknet servers everywhere; from 9.2 a 128GB home at every start; at 9.3 a highly upgraded hacknet server at every start | Hacking pays 0.1% of BitNode 1 there and there are no purchased servers, so it comes after Bladeburner. The 128GB start then helps every run after |
@@ -167,6 +167,28 @@ for any other run where you want the Gift ([`bladeburner.md`](bladeburner.md)).
 - **SF11:** the company and augmentation price effects apply by themselves, and the scripts that plan augmentation
   batches use the cheaper price step ([`../utils/aug-price.js`](../utils/aug-price.js), [`aug-reset.md`](aug-reset.md)).
 - **SF12:** the free NeuroFlux Governor levels apply by themselves.
+
+## Coming back to BitNode 10 for the last sleeves
+
+Expect to leave BitNode 10.3 with some Covenant sleeves still unbought. The first two ($10t and $100t) usually fit in the runs of
+step 8; the other three ($1q, $10q and $100q) need far more income than a BitNode 10 run has. The scripts only keep a run open for
+a sleeve they can afford within the time the run has already taken
+([`sleeves.md`](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves)), so they let the run end instead of stalling it. Roughly,
+for a run of about a day (86,400 s) the income that makes the next sleeve worth holding for is its price over that time:
+
+| Sleeve | Price | Income worth holding a day-long run for |
+| --- | --- | --- |
+| 3rd Covenant sleeve | $1q | about $1.2e10 per second |
+| 4th | $10q | about $1.2e11 per second |
+| 5th | $100q | about $1.2e12 per second |
+
+**The advice:** do the other BitNodes of the plan first (BitNode 3's corporation is the biggest income step; 7 and 9 come with it),
+and come back to BitNode 10 for one more run once your income is near the line for the next sleeve. The plan cannot schedule that
+run (it counts Source-File levels and BitNode 10 stops at 3), so start it by hand with `next-bitnode 10`, with `challenge clear`
+first if the BitNode 10 challenge is still on. The run gives no Source-File, so go back only when the next sleeve is close; every
+run you spend there without buying one is wasted. Each extra run can buy the sleeves it reaches, one after the other, and the
+hold keeps the run open for each as long as it is worth it. Eight sleeves (Source-File 10.3 plus all five) is also the "You and
+what army" achievement.
 
 ## Challenge achievements
 
