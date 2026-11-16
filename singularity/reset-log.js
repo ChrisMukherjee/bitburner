@@ -3,7 +3,7 @@
 /**
  * Run by hand: what the reset rule saw at each install (data/reset-log.json, written by install-augs.js).
  *   run /singularity/reset-log.js
- * One row per install: how long the run was, how many augments were bought, the batch's speed-up (x e^value)
+ * One row per install: how long the run was, how many augments were bought (NeuroFlux levels count as one), the batch's speed-up (x e^value)
  * and value per hour, the better later moment the rule was weighing (null: none), and the income then.
  * Compare consecutive rows to tune resetRule (waitMargin, maxWaitMinutes, weights): value per hour that keeps
  * falling means resets come too late, runs of 1-2 augments at a low rate mean too early. Reads one file; changes nothing.
@@ -20,6 +20,7 @@ export async function main(ns) {
 		const later = row.best ? `${row.best.inMinutes} min, ${row.best.rate.toFixed(3)}` : "none";
 		const income = row.income === null ? "n/a" : ns.format.number(row.income);
 		ns.tprint(`${String(row.runMinutes).padStart(7)} | ${String(row.bought).padStart(6)} | ${speed.padStart(8)} | ${rate.padStart(7)} | ${later.padEnd(27)} | ${income}`);
+		if (row.reason) ns.tprint(`        why: ${row.reason}`);
 	}
 	const rated = history.filter((row) => row.rate !== null);
 	if (rated.length > 0) ns.tprint(`${rated.length} resets with a rate; average ${(rated.reduce((sum, row) => sum + row.rate, 0) / rated.length).toFixed(3)} value/h, average run ${Math.round(history.reduce((sum, row) => sum + row.runMinutes, 0) / history.length)} min.`);

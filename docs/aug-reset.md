@@ -305,11 +305,21 @@ While Daedalus is joined and can't take donations yet:
 3. Otherwise, if it reaches 150 within the horizon: wait for it, then reset.
 4. Otherwise the normal rule decides.
 
+## Small batches when money is short
+
+When money, not rep, limits the batch, the rule often installs one augment at a time, and that is the rule working. After the
+first purchase the next costs 1.9x more (less with Source-File 11), so with a similar augment and today's income the second
+takes about 1.9 runs' worth of earning, and a new run buys it at full price. Two equal augments per run win only when the
+current income is well above the run's average (so the second comes fast) or the reset overhead is large. BitNodes that cut
+money and raise prices (BitNode 10: half the money, augmentations 5x) make this the usual case. A reset log of short runs
+with value per hour holding steady is this effect. A falling value per hour, or resets during or right after a graft,
+point to a problem.
+
 ## Tuning from real runs
 
 The settings were checked only against an offline model. [`singularity/install-augs.js`](../singularity/install-augs.js)
 appends one row per install to `data/reset-log.json` (run length, augments bought, the batch's value and value per hour,
-the better later moment the rule was weighing, income), and `run /singularity/reset-log.js` prints it. Compare rows
+the better later moment the rule was weighing, income, the rule's reason), and `run /singularity/reset-log.js` prints it. Compare rows
 before changing `waitMargin`, `maxWaitMinutes` or the weights: a value per hour that keeps falling means resets come
 too late, many short runs with a low rate mean too early. It only records; nothing reads it back.
 
