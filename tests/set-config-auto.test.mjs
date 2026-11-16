@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeNs } from "./support/fake-ns.mjs";
-import { main as setConfig, describeAuto } from "/tools/set-config.js";
+import { main as setConfig, describeAuto, routeClearedText } from "/tools/set-config.js";
 import { loadConfig } from "/utils/config.js";
 import { DEFAULTS } from "/config.js";
 
@@ -52,4 +52,19 @@ test("the help lists auto and the alias name players type", async () => {
 test("choice: the auto route is on by default, so a fresh save follows the plan without being told", () => {
 	assert.equal(DEFAULTS.bitnodeRouteAuto, true, "automation is the default; autoroute off is the opt-out");
 	assert.equal(loadConfig(fakeNs()).bitnodeRouteAuto, true);
+});
+
+test("regression: route clear doesn't claim auto-destroy waits when the auto route is on", async () => {
+	const on = await run(["route", "clear"]);
+	const text = on.terminal.join("\n");
+	assert.equal(DEFAULTS.bitnodeRouteAuto, true);
+	assert.doesNotMatch(text, /waits for you/, "the default has auto on, so the plan decides");
+	assert.match(text, /follows the plan/);
+	const off = await run(["route", "clear"], { "data/config.json": JSON.stringify({ bitnodeRouteAuto: false }) });
+	assert.match(off.terminal.join("\n"), /waits for you.*autoroute on/, "auto off: say what to run");
+});
+
+test("route clear warns when startup.js is told to skip auto-destroy", () => {
+	assert.match(routeClearedText({ startupSkip: ["singularity/auto-destroy.js"] }), /startupSkip/);
+	assert.doesNotMatch(routeClearedText({ startupSkip: [] }), /startupSkip/);
 });

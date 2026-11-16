@@ -13,7 +13,8 @@ import { USER_CONFIG_FILE } from "/utils/config.js";
  *                                                     (a bare 5 means one more level of 5 than you will own);
  *                                                     done in order, owned ones skipped
  *   run /tools/set-config.js route                    show the route
- *   run /tools/set-config.js route clear              empty the route (auto-destroy then waits for you)
+ *   run /tools/set-config.js route clear              empty the route (the plan decides when auto is on, which it is by default;
+ *                                                     with auto off auto-destroy waits for you)
  *   run /tools/set-config.js auto on                 let auto-destroy follow the plan's next BitNode by itself
  *                                                     (bitnodeRouteAuto); `auto off` goes back to only suggesting it;
  *                                                     `auto` alone shows which it is. A route you set always wins
@@ -46,7 +47,7 @@ export async function main(ns) {
 	}
 	if (command === "route") {
 		if (rest.length === 0) {
-			ns.tprint(`bitnodeRoute: ${describeRoute(mine.bitnodeRoute ?? DEFAULTS.bitnodeRoute)}`);
+			ns.tprint(`bitnodeRoute: ${describeRoute(mine.bitnodeRoute ?? DEFAULTS.bitnodeRoute, autoOn(mine))}`);
 			return;
 		}
 		if (rest[0] === "clear") {
@@ -65,7 +66,7 @@ export async function main(ns) {
 			}
 			mine.bitnodeRoute = steps;
 		}
-		save(ns, mine, `bitnodeRoute is now ${describeRoute(mine.bitnodeRoute)}. auto-destroy.js picks it up when it next starts: run /startup.js --restart or restart it.`);
+		save(ns, mine, `bitnodeRoute is now ${describeRoute(mine.bitnodeRoute, autoOn(mine))}.${mine.bitnodeRoute.length ? "" : " " + routeClearedText(mine)} auto-destroy.js picks it up when it next starts: run /startup.js --restart or restart it.`);
 		return;
 	}
 	if (command === "auto") {
@@ -180,7 +181,7 @@ export function describeAuto(mine, word) {
 	const route = mine.bitnodeRoute ?? DEFAULTS.bitnodeRoute;
 	const willBeOn = word === undefined ? (mine.bitnodeRouteAuto ?? DEFAULTS.bitnodeRouteAuto) : word === "on";
 	const note = route.length
-		? ` You have your own route (${describeRoute(route)}); it is followed first${willBeOn ? ", then the plan carries on once it is done" : ", then you pick"}.`
+		? ` You have your own route (${describeRoute(route, willBeOn)}); it is followed first${willBeOn ? ", then the plan carries on once it is done" : ", then you pick"}.`
 		: " Your route is empty, so the plan decides.";
 	if (word === undefined) {
 		const on = willBeOn;
@@ -193,8 +194,22 @@ export function describeAuto(mine, word) {
 	return { error: `"${word}" isn't on or off, e.g. autoroute on.` };
 }
 
-function describeRoute(route) {
-	return route.length ? route.map((step) => `BN${step.bitNode} level ${step.level}`).join(" -> ") : "empty (auto-destroy waits for you)";
+/** Whether the plan is followed by itself: your override, else the default. */
+function autoOn(mine) {
+	return mine.bitnodeRouteAuto ?? DEFAULTS.bitnodeRouteAuto;
+}
+
+/** What auto-destroy does with an empty route, given the player's overrides. Pure, so a test can run it without the game. */
+export function routeClearedText(mine) {
+	const skipped = (mine.startupSkip ?? DEFAULTS.startupSkip).includes("singularity/auto-destroy.js");
+	const note = skipped ? " Note: singularity/auto-destroy.js is in startupSkip, so startup.js won't start it (skip clear to undo)." : "";
+	return (autoOn(mine)
+		? "Auto route is ON, so auto-destroy follows the plan's next BitNode by itself: nothing else to switch on (autoroute off to only get suggestions)."
+		: "Auto route is OFF, so auto-destroy waits for you: run autoroute on to let it follow the plan, or next-bitnode <n> to choose.") + note;
+}
+
+function describeRoute(route, auto = autoOn({})) {
+	return route.length ? route.map((step) => `BN${step.bitNode} level ${step.level}`).join(" -> ") : auto ? "empty (the plan decides)" : "empty (auto-destroy waits for you)";
 }
 
 function help(ns, mine) {

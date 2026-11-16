@@ -46,8 +46,9 @@ test("--opponent picks the focus; every game is a win or a loss in the log with 
 test("a longer game, move by move: the bot keeps choosing moves until the opponent passes while it leads, then passes to win", async () => {
 	const sim = goSim({ movesPerGame: 4 });
 	await sim.run(main, { games: 2 });
-	assert.equal(sim.moves, 8, "four moves a game");
-	assert.equal(sim.passes, 2, "one pass at the end of each, to take the win");
+	const detail = `moves ${sim.moves}, passes ${sim.passes}, early passes ${sim.earlyPasses}, rejected ${sim.rejected}`;
+	assert.equal(sim.moves, 8, `four moves a game (${detail})`);
+	assert.equal(sim.passes, 2, `one pass at the end of each, to take the win; a pass the move search chooses earlier is answered by the opponent and play goes on (${detail})`);
 	assert.deepEqual(sim.games.map((game) => game.won), [true, true]);
 });
 

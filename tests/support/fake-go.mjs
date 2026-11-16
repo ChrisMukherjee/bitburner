@@ -5,7 +5,7 @@
 //   sim.games                                                  // { opponent, size, won } of each game, in order
 //
 // Each game is scripted: the opponent answers the bot's `movesPerGame` moves with a stone and then passes; the bot is ahead
-// (and passes to take the win) when `results` says it wins, and loses at its last move otherwise. Winning raises the opponent's
+// (and passes to take the win) when `results` says it wins (a pass before then is answered with a stone and counted in `sim.earlyPasses`), and loses at its last move otherwise. Winning raises the opponent's
 // bonus by `gain`, like Go's faction bonus; a lost game leaves it. Stats and the bonus survive between runs (an install clears them:
 // sim.install()). Time: Date.now is the real clock plus an offset that sleeps and games move, so the bot's own search timing
 // still works while "an hour later" is one call (sim.later(60 * 60_000)).
@@ -31,7 +31,7 @@ export function goSim({ results = () => ({ won: true, gain: 0.5 }), movesPerGame
 	let history = [];
 	let scores = { black: 0, white: 0 };
 	const sim = {
-		games: [], resets: [], passes: 0, moves: 0, rejected: 0, resumed: 0, highlights: [],
+		games: [], resets: [], passes: 0, earlyPasses: 0, moves: 0, rejected: 0, resumed: 0, highlights: [],
 		rejectNextMoves: 0,
 		afterGame: null,   // (gamesPlayed) => void, called after each game: change ports, bonuses, the clock
 		stats, played,
@@ -92,7 +92,20 @@ export function goSim({ results = () => ({ won: true, gain: 0.5 }), movesPerGame
 			}
 			return { type: "move" };
 		},
-		passTurn: async () => { sim.passes++; return end(!!game.outcome.won); },
+		passTurn: async () => {
+			// A pass before the scripted ending is answered like a real game: the opponent moves and play goes on. (The move search can
+			// choose to pass early when a slow or busy machine gives it few playouts; that must not end the scripted game.)
+			if (game.outcome.won && game.moves < movesPerGame) {
+				sim.earlyPasses++;
+				const column = game.board.findIndex((text) => text.includes("."));
+				const row = game.board[column].indexOf(".");
+				place(column, row, "O");
+				game.previousMove = [column, row];
+				return { type: "move" };
+			}
+			sim.passes++;
+			return end(!!game.outcome.won);
+		},
 		analysis: { getStats: () => JSON.parse(JSON.stringify(stats)), highlightPoint: (x, y, color, text) => { sim.highlights.push({ x, y, color, text }); } },
 	};
 	const ns = fakeNs({
