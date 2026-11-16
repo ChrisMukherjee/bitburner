@@ -8,6 +8,7 @@ import { homeUpgradeBeatsNeuroFlux } from "/singularity/ready.js";
 import { BASE_PRICE_STEP, augPriceStep } from "/utils/aug-price.js";
 import { requireApi } from "/utils/api-advice.js";
 import { singularityFromInfo } from "/utils/singularity.js";
+import { readGraftInProgress } from "/utils/grafting.js";
 // Design: docs/aug-reset.md
 const NEUROFLUX = "NeuroFlux Governor";
 const RED_PILL = "The Red Pill";
@@ -141,7 +142,9 @@ export async function main(ns) {
 	const installed = new Set(ns.singularity.getOwnedAugmentations(false));
 	const queued = [...owned].filter((aug) => !installed.has(aug));
 	const previous = readPlan(ns);
-	const rates = repRates(ns, previous, rep);
+	// A graft in progress (player-work.js's note, port 35): the player does no faction work meanwhile, and an install would cancel it.
+	const graft = readGraftInProgress(ns);
+	const rates = repRates(ns, previous, rep, !!graft);
 	const plan = byPrice();
 	const lastReset = ns.getResetInfo().lastAugReset;
 	const sameRun = previous?.checkedAt >= lastReset;
@@ -222,7 +225,7 @@ export async function main(ns) {
 
 	const decision = homeBeforeNeuroFlux(decideReset({
 		queued, plan, upcoming, cash: cash() + stocks, homeCash: cash(), income, incomeModel, sinceInstallMs,
-		neuroflux, favors, daedalus, push, endgame, blackOps, ratesMeasured: Object.keys(rates.perSecond).length > 0,
+		neuroflux, favors, daedalus, push, endgame, blackOps, ratesMeasured: Object.keys(rates.perSecond).length > 0, graft,
 	}), homeUpgradeBeatsNeuroFlux(ns, cash() + stocks));
 	// A push reset buys the fill list (cheapest augments) instead of the usual plan.
 	const pushing = push && decision.reset && decision.push;
@@ -238,6 +241,9 @@ export async function main(ns) {
 		// Useful augments whose faction rep is still short (for singularity/donate-rep.js, augments.donations).
 		unlockable: upcoming.map((entry) => ({ aug: entry.aug, faction: entry.faction, repNeeded: entry.repNeeded, missing: entry.missing, price: entry.price, value: entry.value })), resetSince, daedalusSeenAt, bitnode: bitnodeGoal(ns, factions),
 		incomeHistory, incomeModel, hackExp,
+		// Grafting (singularity/workers/graft-scan.js) spends only cash beyond this: what the batch the rule resets with, or is waiting
+		// for, still needs from today's cash. grafting: the graft in progress at this check (the next check doesn't measure rep over it).
+		graftReserve: graftReserve(decision, fitNow.cost, (seconds) => earnedOver(Math.max(0, income), incomeModel, seconds)), grafting: graft,
 		// For singularity/workers/aug-buyer.js: everything with the rep, most expensive first, and
 		// where to buy NeuroFlux (null when the config or --no-neuroflux says not to).
 		buyList: pushing ? push.fill.map((aug) => ({ aug, faction: anySeller.get(aug) }))
@@ -276,9 +282,12 @@ export async function main(ns) {
  * (daedalusRule) holds or forces a reset around Daedalus favor reaching the donation line, and on the
  * Bladeburner route the Black Op rule (blackOpHoldRule) holds a reset that would delay the next Black Op, and The Blade's
  * Simulacrum (resetRule.routeKeyAugs) resets at once after it.
+ *
+ * Before all of it: no reset while the player is grafting (context.graft, utils/grafting.js). An install cancels the graft and
+ * the game keeps its price, and a graft lasts an hour or two at most.
  */
 export function decideReset(context) {
-	const { queued, plan, upcoming, income, sinceInstallMs, daedalus, push, endgame, blackOps, ratesMeasured } = context;
+	const { queued, plan, upcoming, income, sinceInstallMs, daedalus, push, endgame, blackOps, ratesMeasured, graft } = context;
 	const minutes = (ms) => `${Math.max(1, Math.round(ms / 60_000))} min`;
 	const eta = (ms) => (ms < 3600_000 ? minutes(ms) : `${(ms / 3600_000).toFixed(1)}h`);
 	const overheadMs = RESET_RULE.overheadMinutes * 60_000;
@@ -296,7 +305,7 @@ export function decideReset(context) {
 	const curve = points.map((point) => ({ inMinutes: Math.round(point.waitMs / 60_000), value: round(point.value), rate: round(point.rate), augs: point.augs.length, neuroflux: point.neuroflux }));
 	const result = (reset, reason, pushReset = false) => ({
 		reset, reason, push: pushReset, value: round(now.value), rate: round(now.rate), curve,
-		best: later ? { inMinutes: Math.round(later.waitMs / 60_000), value: round(later.value), rate: round(later.rate) } : null,
+		best: later ? { inMinutes: Math.round(later.waitMs / 60_000), value: round(later.value), rate: round(later.rate), cost: Math.round(later.cost) } : null,
 	});
 	const speed = (point) => `x${Math.exp(point.value).toFixed(2)} (${point.rate.toFixed(3)}/h)`;
 	const added = (point) => {
@@ -309,6 +318,11 @@ export function decideReset(context) {
 	};
 
 	const ready = [...queued, ...now.augs];
+	if (graft) {
+		const left = graft.endsAt ? `, about ${eta(Math.max(0, graft.endsAt - Date.now()))} left` : "";
+		const price = graft.cost ? ` (its $${graft.cost >= 1e12 ? `${(graft.cost / 1e12).toFixed(1)}t` : `${(graft.cost / 1e9).toFixed(1)}b`})` : "";
+		return result(false, `Grafting ${graft.aug}${left}: an install now would cancel it and the game keeps the money${price}. No reset until it ends.`);
+	}
 	if (endgame) {
 		const after = afterRedPillRule(endgame, ready, now.neuroflux, eta);
 		return result(after.reset, after.reason);
@@ -503,7 +517,7 @@ export function blackOpHoldRule(blackOps, ready, neurofluxLevels, eta) {
  * the income curve (utils/income-curve.js; flat when it has nothing to go on),
  * locked augments unlock at their rep ETA, bought most expensive first like a real run,
  * then NeuroFlux with what's left, plus the favor the run's rep turns into.
- * Returns { value, augs, neuroflux }.
+ * Returns { value, augs, neuroflux, cost } (cost: the augments', NeuroFlux not included).
  */
 export function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neuroflux, favors }, waitMs) {
 	const waitS = waitMs / 1000;
@@ -539,7 +553,22 @@ export function valueAt({ queued, plan, upcoming, cash, income, incomeModel, neu
 		const after = repToFavor(favorToRep(entry.favor) + entry.rep + entry.rate * waitS);
 		value += entry.repShare * repWeight * Math.log((100 + after) / (100 + entry.favor));
 	}
-	return { value, augs: fit.augs, neuroflux: levels };
+	return { value, augs: fit.augs, neuroflux: levels, cost: fit.cost };
+}
+
+/**
+ * Cash grafting must leave alone (singularity/graft-plan.js graftBudget): the batch that fits now, or, while the rule waits for a
+ * better moment (decision.best), what that batch costs minus what the income brings in until then, whichever is more. Without it a
+ * graft spends the money the rule is counting on, the batch it waits for slips past maxWaitMinutes, and the next check resets
+ * with the one augment that already fits. earnedBy(seconds): cash earned over that long (utils/income-curve.js earnedOver). Pure.
+ * @param {{ reset: boolean, best: { inMinutes: number, cost?: number } | null }} decision
+ * @param {number} nowCost
+ * @param {(seconds: number) => number} earnedBy
+ */
+export function graftReserve(decision, nowCost, earnedBy) {
+	const best = decision.reset ? null : decision.best;
+	if (!best || !(Number(best.cost) > 0)) return nowCost;
+	return Math.max(nowCost, Number(best.cost) - earnedBy(best.inMinutes * 60));
 }
 
 /**
@@ -678,12 +707,16 @@ function readPlan(ns) {
  * Rep gained per second for each faction, from the rep snapshot in the last plan file.
  * Snapshots closer than 2 minutes are too noisy, so then the old snapshot and rates are
  * kept. A snapshot from before the last install (or rep that went down) starts afresh.
+ * Time spent grafting (now, or at the last check) isn't measured: the player does no faction work then, so the rates would read
+ * near zero, every locked augment would look out of reach and the rule would reset with whatever fits. The rates from before the
+ * graft are kept and the measurement starts again from now.
  */
-function repRates(ns, previous, rep) {
+export function repRates(ns, previous, rep, grafting = false) {
 	const now = Date.now();
 	const current = Object.fromEntries(rep);
 	const lastReset = ns.getResetInfo().lastAugReset;
 	if (!previous?.rep || previous.time < lastReset) return { snapshot: current, snapshotTime: now, perSecond: {} };
+	if (grafting || previous.grafting) return { snapshot: current, snapshotTime: now, perSecond: previous.perSecond ?? {} };
 
 	const gap = now - previous.time;
 	if (gap < RESET_RULE.minRateGapMs) return { snapshot: previous.rep, snapshotTime: previous.time, perSecond: previous.perSecond ?? {} };

@@ -1,14 +1,16 @@
-// Grafting (docs/grafting.md): the pure rules (singularity/graft-plan.js), the scan worker's candidates and the player-work
-// step that starts a graft (singularity/player-work.js graftStep, the guard that never interrupts a graft in progress).
+// Grafting (docs/grafting.md): the pure rules (singularity/graft-plan.js), the scan worker's candidates, the player-work
+// step that starts a graft (singularity/player-work.js graftStep, the guard that never interrupts a graft in progress), and how the
+// reset rule (singularity/buy-augs.js) treats a graft: no install during one, no rep measured over one, cash kept for the waited batch.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeNs } from "./support/fake-ns.mjs";
 import { DEFAULTS } from "/config.js";
-import { graftingApiFromInfo } from "/utils/grafting.js";
+import { graftingApiFromInfo, graftNote, readGraftInProgress, PLAYER_WORK_STATE_PORT, GRAFT_NOTE_MAX_AGE_MS } from "/utils/grafting.js";
 import { graftBudget, pickGraft } from "/singularity/graft-plan.js";
 import { main as scan } from "/singularity/workers/graft-scan.js";
 import { main as start } from "/singularity/workers/graft-start.js";
 import { graftStep, workStep } from "/singularity/player-work.js";
+import { setAugConfig, decideReset, valueAt, repRates, graftReserve } from "/singularity/buy-augs.js";
 
 const rule = DEFAULTS.grafting;
 const aug = (name, extra = {}) => ({ name, cost: 1e9, hours: 1, value: 0.2, reachable: false, ...extra });
@@ -183,4 +185,91 @@ test("work step: with a faction to work for, only an augmentation no joined fact
 	const idle = workWorld();
 	const idleResult = workStep(idle, passState({ graft: { plannedCost: 0, candidates: [reachable] } }), player({ factions: ["CyberSec"] }));
 	assert.match(idleResult.message, /grafting Sold/);
+});
+
+// --- grafting and the reset rule (singularity/buy-augs.js) ---
+// An install cancels a graft and the game keeps its price; a graft also takes the player off faction work, and the rep rates
+// measured over it read near zero. Both used to end in a reset with the one augment that fit.
+
+const HOUR = 3600_000;
+const FLAT = { growth: 0, dampHours: 1.5, maxMult: 4, source: "flat", samples: 0 };
+function resetContext(changes = {}) {
+	setAugConfig(JSON.parse(JSON.stringify(DEFAULTS.augments)));
+	return {
+		queued: [], plan: [{ aug: "Fits", price: 5e9, value: 0.1 }], upcoming: [], cash: 6e9, homeCash: 6e9, income: 3e6, incomeModel: FLAT,
+		sinceInstallMs: 2 * HOUR, neuroflux: null, favors: [], daedalus: null, push: null, endgame: null, ratesMeasured: true, ...changes,
+	};
+}
+const grafting = (changes = {}) => ({ aug: "Cranium", seenAt: Date.now(), endsAt: Date.now() + HOUR, cost: 3e9, ...changes });
+
+test("regression: no reset while the player is grafting, even for The Red Pill (an install cancels the graft and keeps its price)", () => {
+	const plain = resetContext();
+	assert.equal(decideReset(plain).reset, true, "premise: with nothing better ahead the rule resets with the one augment");
+	const held = decideReset({ ...plain, graft: grafting({ endsAt: Date.now() + 45 * 60_000 }) });
+	assert.equal(held.reset, false);
+	assert.match(held.reason, /Grafting Cranium, about 45 min left/);
+	const redPill = resetContext({ queued: ["The Red Pill"] });
+	assert.equal(decideReset(redPill).reset, true, "premise: The Red Pill resets at once");
+	assert.equal(decideReset({ ...redPill, graft: grafting({ endsAt: null, cost: null }) }).reset, false, "a graft started by hand is waited for too");
+});
+
+test("regression: rep isn't measured over time spent grafting; the rates from before the graft are kept and the snapshot starts again", () => {
+	const ns = fakeNs({ overrides: { getResetInfo: () => ({ lastAugReset: 0 }) } });
+	const previous = { rep: { F: 1000 }, time: Date.now() - 30 * 60_000, perSecond: { F: 5 } };
+	const rep = new Map([["F", 1000]]); // no rep gained: the player was grafting
+	const measured = repRates(ns, previous, rep);
+	assert.equal(measured.perSecond.F, 0, "premise: measured over the graft the rate reads zero");
+	for (const [label, kept] of [["grafting now", repRates(ns, previous, rep, true)], ["grafting at the last check", repRates(ns, { ...previous, grafting: grafting() }, rep, false)]]) {
+		assert.deepEqual(kept.perSecond, { F: 5 }, `${label}: the pre-graft rate`);
+		assert.ok(kept.snapshotTime > previous.time, `${label}: the next measurement starts now, after the graft`);
+	}
+});
+
+test("a locked augment counts only with a measured rep rate: at zero (what a graft measured) the rule resets with what fits", () => {
+	// What main builds from the rates: the locked augment's ETA and the favor rate. Kept rates keep the wait.
+	const locked = (rate) => resetContext({
+		upcoming: [{ aug: "Locked", price: 8e9, value: 0.3, etaMs: rate > 0 ? 1.5 * HOUR : null, faction: "F", missing: 1, repNeeded: 1 }],
+		favors: [{ faction: "F", favor: 20, rep: 1e5, rate, repShare: 1 }],
+	});
+	assert.equal(decideReset(locked(20)).reset, false, "with the faction work's rate the rule waits for the locked augment");
+	assert.equal(decideReset(locked(0)).reset, true, "with the graft's zero rate it resets with the one that fits: why repRates keeps the old rate");
+});
+
+test("graft reserve: while the rule waits, grafting leaves what that batch still needs from today's cash, never less than the batch that fits now", () => {
+	const earned = (seconds) => 1e6 * seconds; // $1m/s
+	const waiting = { reset: false, best: { inMinutes: 60, cost: 2e10 } };
+	assert.equal(graftReserve(waiting, 5e9, earned), 2e10 - 3.6e9, "the batch's cost less an hour of income");
+	assert.equal(graftReserve({ reset: false, best: { inMinutes: 600, cost: 2e10 } }, 5e9, earned), 5e9, "income covers it: the batch that fits now still counts");
+	assert.equal(graftReserve({ reset: true, best: waiting.best }, 5e9, earned), 5e9, "resetting: only the batch bought now");
+	assert.equal(graftReserve({ reset: false, best: null }, 5e9, earned), 5e9, "no later moment");
+});
+
+test("the reset rule's best later moment carries the cost of its augments (what the graft reserve protects)", () => {
+	const ctx = resetContext({ upcoming: [{ aug: "Locked", price: 8e9, value: 0.3, etaMs: 1.5 * HOUR, faction: "F", missing: 1, repNeeded: 1 }] });
+	const decision = decideReset(ctx);
+	assert.equal(decision.reset, false);
+	const later = valueAt(ctx, decision.best.inMinutes * 60_000);
+	assert.ok(later.augs.includes("Locked"));
+	assert.equal(decision.best.cost, Math.round(later.cost), "the batch at that moment, bought in price order");
+});
+
+test("regression: the graft scan protects the plan's graft reserve (the batch the reset waits for), not only the batch that fits now", async () => {
+	const ns = scanWorld({ augs: ["Cranium"], plan: { checkedAt: Date.now(), cost: 5e9, graftReserve: 1.6e10 } });
+	await scan(ns);
+	assert.equal(ns.portJson(46).plannedCost, 1.6e10);
+	assert.equal(pickGraft({ ...view(ns.portJson(46).candidates), cash: 2e10, plannedCost: ns.portJson(46).plannedCost }), null,
+		"$20b - $16b x 1.25 leaves nothing for a $3b graft");
+});
+
+test("graft note: player-work notes a graft as it starts it, and the reset rule reads it from player-work's state until it goes stale", () => {
+	const state = passState();
+	graftStep(workWorld(), state, player({ city: "New Tokyo" }), true);
+	assert.equal(state.grafting?.aug, "Cranium");
+	assert.ok(Math.abs(state.grafting.endsAt - (state.graftTry.at + HOUR)) < 5, "ends after the candidate's hours");
+	assert.equal(state.grafting.cost, 1e9);
+	const ns = fakeNs({ ports: { [PLAYER_WORK_STATE_PORT]: { grafting: state.grafting, resetAt: 0 } } });
+	assert.equal(readGraftInProgress(ns)?.aug, "Cranium");
+	assert.equal(readGraftInProgress(ns, Date.now() + GRAFT_NOTE_MAX_AGE_MS + 1), null, "player-work stopped posting: no longer trusted");
+	assert.equal(readGraftInProgress(fakeNs()), null, "nothing posted");
+	assert.deepEqual(graftNote("Other", state.graftTry, 1), { aug: "Other", seenAt: 1, endsAt: null, cost: null }, "a graft started by hand: no end time or price");
 });

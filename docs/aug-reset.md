@@ -15,6 +15,8 @@ resets when no later moment within `maxWaitMinutes` (180) beats now by more than
 
 On top of that:
 
+- A graft in progress (BitNode 10 or Source-File 10): no reset until it ends, whatever else is ready, The Red Pill included.
+  See [Grafting](#grafting) below.
 - The Red Pill ready: reset at once (`keyAugs`).
 - No reset in the first `minRunMinutes` (30), and none before rep rates are measured.
 - Daedalus rule (`daedalusFavor`), see below.
@@ -231,6 +233,28 @@ turns it off. Not counted: the team's chance bonus and skill points bought meanw
 Right after the hold comes The Blade's Simulacrum (`resetRule.routeKeyAugs`, filled in by `routeAdjust` on this route): once it
 is ready the run resets at once, since it lets Bladeburner run alongside every other kind of work for the rest of the BitNode.
 It is first in the plan and the buyer's list, so the cash never goes elsewhere first ([`bladeburner.md`](bladeburner.md#the-blades-simulacrum)).
+
+## Grafting
+
+Where grafting works, [`player-work.js`](../singularity/player-work.js) grafts augmentations ([`grafting.md`](grafting.md)). Three
+things keep that from turning into resets with a single augment (reported in game, 2026-11):
+
+- **No install during a graft.** The game cancels a graft at install and keeps its price, so `decideReset` holds while
+  player-work's note (its state on port 35, `grafting`, read with [`utils/grafting.js`](../utils/grafting.js) at 0GB) says
+  a graft is running. A graft lasts an hour or two at most. A note older than 5 minutes (player-work stopped) is ignored.
+- **No rep rates measured over a graft.** The player does no faction work while grafting, so rep measured across a graft
+  reads near zero, every locked augment looked out of reach and the forecast had nothing to wait for: the rule reset with
+  the one augment that fit. Now a check made during a graft, or the first one after it, keeps the rates from before
+  the graft and starts measuring again from that check.
+- **Grafts don't spend what the rule is waiting for.** The plan's `graftReserve` is what the batch the rule resets with,
+  or waits for (`decision.best`, which now carries its cost), still needs from today's cash after the income until then,
+  and at least the batch that fits now. The graft scan passes it to the graft budget instead of `cost`. Before, grafts
+  could spend the money the rule was counting on. The batch it waited for then slipped past `maxWaitMinutes`, and the
+  next check reset with what already fit.
+
+Not modelled: an augmentation grafted meanwhile leaves the plan (it is installed already, so the next batch is smaller
+but nothing is lost), and graft prices aren't compared with buying (3x the base price against the BitNode's price
+multiplier and the 1.9x step).
 
 ## Daedalus push (getting the invite)
 

@@ -10,7 +10,7 @@ import { GYM_STATS, GYMS, GYM_CITY, GYM_CASH_SECONDS } from "/utils/gyms.js";
 import { startHelper } from "/utils/start-helper.js";
 import { postGate } from "/singularity/ready.js";
 import { bladeburnerAccess, simulacrumInstalled } from "/utils/bladeburner.js";
-import { graftingApiFromInfo } from "/utils/grafting.js";
+import { graftingApiFromInfo, graftNote } from "/utils/grafting.js";
 import { pickGraft } from "/singularity/graft-plan.js";
 import { bladeburnerState, bladeburnerPlan, trainFloor, combatRoute } from "/bladeburner/state.js";
 import { routeFocus, postRouteFocus, pickGoalFaction } from "/utils/route-focus.js";
@@ -242,14 +242,17 @@ async function onePass(ns, state) {
 
 	// Grafting candidates (BitNode 10 or Source-File 10): asked again every refresh, and right after a graft ends.
 	if (config.grafting?.enabled !== false && graftingApiFromInfo(ns.getResetInfo())) {
-		const grafting = ns.singularity.getCurrentWork()?.type === "GRAFTING";
+		const current = ns.singularity.getCurrentWork();
+		const grafting = current?.type === "GRAFTING";
 		if (state.wasGrafting && !grafting) state.graftAt = 0;
 		state.wasGrafting = grafting;
+		// The reset rule reads this note (utils/grafting.js readGraftInProgress): an install would cancel the graft and lose its price.
+		state.grafting = grafting ? graftNote(current.augmentation, state.graftTry, Date.now()) : null;
 		if (Date.now() - (state.graftAt ?? 0) >= CONFIG.refreshMs) {
 			const fresh = await runHelper(ns, CONFIG.graftScanHelper, CONFIG.graftScanImports, GRAFT_PORT);
 			if (fresh) Object.assign(state, { graft: fresh, graftAt: Date.now() });
 		}
-	} else state.graft = null;
+	} else Object.assign(state, { graft: null, grafting: null });
 
 	const trip = travelStep(ns, state, player);
 	player = ns.getPlayer(); // a join or flight above changes factions, city and money
@@ -297,7 +300,7 @@ function loadState(ns, resetAt) {
 		plan: null, planAt: 0, lastAnnounced: "", cityDone: false, cityMessage: "",
 		gang: null, gangAt: 0, gangDone: false, gangCrime: false, gangGym: false, holdCity: false,
 		crimeInvite: null, crimeInviteAt: 0, inviteCrime: false, travelDone: false,
-		graft: null, graftAt: 0, graftTry: null, wasGrafting: false,
+		graft: null, graftAt: 0, graftTry: null, wasGrafting: false, grafting: null,
 	};
 	if (saved?.resetAt !== resetAt) return state;
 	const { planGroups, resetAt: _, ...rest } = saved;
@@ -467,7 +470,9 @@ export function graftStep(ns, state, player, idle) {
 	if (startHelper(ns, CONFIG.graftStartHelper, CONFIG.graftStartImports, pick.name, state.focus) === 0) {
 		return `[graft] no room for ${CONFIG.graftStartHelper} (${ns.format.ram(ns.getScriptRam(CONFIG.graftStartHelper))}); trying again next pass`;
 	}
-	state.graftTry = { name: pick.name, at: Date.now() };
+	state.graftTry = { name: pick.name, at: Date.now(), hours: pick.hours, cost: pick.cost };
+	// Noted at once, so a reset check before the next pass already sees it (utils/grafting.js readGraftInProgress).
+	state.grafting = graftNote(pick.name, state.graftTry, Date.now());
 	const message = `grafting ${pick.name}: $${ns.format.number(pick.cost)}, about ${Math.round(pick.hours * 60)} minutes${idle ? "" : " (no joined faction sells it)"}`;
 	notify(ns, "[graft]", message, "info");
 	return `[graft] ${message}`;

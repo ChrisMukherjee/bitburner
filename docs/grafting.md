@@ -27,11 +27,19 @@ The player is the scarce thing, so the rule is about their time, not only the mo
    grafted: the rest come from rep for a third of the money, and the rep work stays. This is step 2c, before faction work.
 4. **With nothing else to do** (no faction below its goal, no company job, no gang or study step), any wanted augmentation:
    idle player time is free, and an augmentation now beats the cash crime. This is the gap before the gym and the idle crime.
-5. **Budget**: the cash beyond what this reset's planned purchases need (`data/aug-plan.json` cost x `grafting.safety`), at most
-   `grafting.maxFraction` of the cash. Planned purchases come first because their price per augmentation is lower.
+5. **Budget**: the cash beyond what this reset's planned purchases need (`data/aug-plan.json` `graftReserve` x `grafting.safety`),
+   at most `grafting.maxFraction` of the cash. `graftReserve` is the batch the reset rule resets with, or is waiting for, less
+   the income until then, and at least the batch that fits now (older plans: `cost`). Planned purchases come first because the
+   reset rule is counting on that money: spent on grafts, the batch it waits for slipped out of reach and it reset with one augment.
 6. **Which**: the best value per hour of graft time, the cheaper first on a tie.
 7. A refused graft is left alone for 30 minutes (`graftTryMs`). Flying to New Tokyo costs $200k and is only done when price
    plus flight fit; a stay in a city for an invite (`holdCity`) is never broken for a graft.
+
+8. **The reset rule waits for a graft.** player-work notes the graft in progress in its state (port 35, `grafting`: augmentation,
+   end time and price when it started it), from the pass that starts it. [`../singularity/buy-augs.js`](../singularity/buy-augs.js)
+   reads it ([`../utils/grafting.js`](../utils/grafting.js) `readGraftInProgress`, 0GB): no reset while it runs (an install
+   cancels it and the game keeps the money), and no rep rates measured over it (they read zero, so the rule saw nothing to wait for).
+   See [`aug-reset.md`](aug-reset.md#grafting).
 
 Settings: `grafting` in the config (`enabled`, `maxFraction`, `safety`, `minValue`); `enabled: false` is the kill switch.
 

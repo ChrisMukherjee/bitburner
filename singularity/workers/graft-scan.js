@@ -5,14 +5,14 @@ import { augValue } from "/utils/aug-filter.js";
 
 // Port player-work.js reads the candidates from (see docs/NETSCRIPT.md).
 const GRAFT_PORT = 46;
-const PLAN_FILE = "data/aug-plan.json"; // buy-augs.js --plan: what this reset's purchases will cost
+const PLAN_FILE = "data/aug-plan.json"; // buy-augs.js --plan: what this reset's purchases will cost (graftReserve)
 const PLAN_MAX_AGE_MS = 30 * 60_000;
 const NEUROFLUX = "NeuroFlux Governor";
 
 /**
  * One-shot for singularity/player-work.js: the augmentations worth grafting, with their numbers. Wanted ones only (the reset
  * rule's augValue), not owned or queued, with their prerequisites installed. `reachable` = a joined faction sells it.
- * Writes { time, plannedCost, candidates: [{ name, cost, hours, value, reachable }] } to port 45.
+ * Writes { time, plannedCost, candidates: [{ name, cost, hours, value, reachable }] } to port 46.
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -26,7 +26,8 @@ export async function main(ns) {
 	let plannedCost = 0;
 	try {
 		const plan = JSON.parse(ns.read(PLAN_FILE) || "null");
-		if (plan && Date.now() - (plan.checkedAt ?? 0) <= PLAN_MAX_AGE_MS) plannedCost = plan.cost ?? 0;
+		// graftReserve: what the batch the reset rule resets with, or is waiting for, still needs from today's cash (an older plan: the batch that fits now).
+		if (plan && Date.now() - (plan.checkedAt ?? 0) <= PLAN_MAX_AGE_MS) plannedCost = plan.graftReserve ?? plan.cost ?? 0;
 	} catch { /* no plan */ }
 
 	const candidates = [];
