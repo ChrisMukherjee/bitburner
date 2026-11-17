@@ -5,7 +5,7 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | File | What it does | Requires | RAM |
 | --- | --- | --- | --- |
 | [`config.js`](config.js) | `loadConfig`: defaults, per-BitNode section and `data/config.json` merged. Design: [`docs/config.md`](../docs/config.md) | none | 0GB |
-| [`aug-filter.js`](aug-filter.js) | `wantedBoosts`: the one "worth buying" rule for augments; `augValue` for the reset rule, with money stats weighed by the income mix. Design: [`docs/config.md`](../docs/config.md) | none | 0GB |
+| [`aug-filter.js`](aug-filter.js) | `wantedBoosts`: the one "worth buying" rule for augments; `augValue` for the reset rule, with money stats weighed by the income mix; `entropyStackCost`, what one Entropy stack from a graft costs in the same units. Design: [`docs/config.md`](../docs/config.md) | none | 0GB |
 | [`aug-price.js`](aug-price.js) | `augPriceStep`: how much dearer each augment bought makes the rest (1.9, less with Source-File 11); pass `getResetInfo().ownedSF`. Design: [`docs/aug-reset.md`](../docs/aug-reset.md) | none | 0GB |
 | [`bitnode-route.js`](bitnode-route.js) | Next BitNode: `routeStep` (your `bitnodeRoute`, else the `bitnodePlan` suggestion, easiest multipliers first with Source-File 5). Design: [`docs/bitnode-mults.md`](../docs/bitnode-mults.md) | SF5 (opt) | 1GB |
 | [`bitnode-mults.js`](bitnode-mults.js) | `bitnodeMults(ns).get(name)`: the BitNode multipliers saved this run, 1 each when unknown (no Source-File 5). Design: [`docs/bitnode-mults.md`](../docs/bitnode-mults.md) | SF5 (opt) | 0GB |

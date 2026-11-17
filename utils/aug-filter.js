@@ -64,3 +64,22 @@ export function augValue(augName, stats, augConfig) {
 	}
 	return Math.max(0, value);
 }
+
+/** The game's Entropy virus: each graft multiplies every player multiplier by this (CONSTANTS.EntropyEffect, v3.0.0). */
+export const ENTROPY_EFFECT = 0.98;
+
+/**
+ * What one more Entropy stack (one finished graft) costs, in augValue's units: the stack scales every multiplier by
+ * ENTROPY_EFFECT, so each wanted stat loses -ln(0.98) of ln, at the stat's weight (a lower-is-better stat gets worse the
+ * same way). Stacks are permanent until the BitNode ends (installs keep them; the Congruity Implant clears them), and
+ * ln adds, so the cost is the same for the 1st stack and the 20th. 0GB.
+ * @param {any} augConfig
+ */
+export function entropyStackCost(augConfig) {
+	const rule = augConfig.resetRule;
+	let weights = 0;
+	for (const group of augConfig.wantStats) {
+		for (const key of Object.keys(STAT_GROUPS[group] ?? {})) weights += (rule.weights[key] ?? rule.defaultWeight) * incomeFactor(key, augConfig);
+	}
+	return -Math.log(ENTROPY_EFFECT) * weights;
+}

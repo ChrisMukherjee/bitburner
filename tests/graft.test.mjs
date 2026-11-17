@@ -4,9 +4,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeNs } from "./support/fake-ns.mjs";
-import { DEFAULTS } from "/config.js";
+import { DEFAULTS, STAT_GROUPS } from "/config.js";
+import { loadConfig } from "/utils/config.js";
+import { entropyStackCost, ENTROPY_EFFECT } from "/utils/aug-filter.js";
 import { graftingApiFromInfo, graftNote, readGraftInProgress, PLAYER_WORK_STATE_PORT, GRAFT_NOTE_MAX_AGE_MS } from "/utils/grafting.js";
-import { graftBudget, pickGraft } from "/singularity/graft-plan.js";
+import { graftBudget, pickGraft, graftNetValue } from "/singularity/graft-plan.js";
 import { main as scan } from "/singularity/workers/graft-scan.js";
 import { main as start } from "/singularity/workers/graft-start.js";
 import { graftStep, workStep } from "/singularity/player-work.js";
@@ -53,7 +55,7 @@ test("pick: while the player has other work only augmentations no joined faction
 // --- the scan worker ---
 
 function scanWorld({ augs, joinedSells = [], owned = [], installed = [], plan = null }) {
-	const stats = { "Cranium": { hacking: 1.2 }, "Plain": {}, "Needs Cranium": { hacking: 1.1 }, "Owned": { hacking: 1.3 } };
+	const stats = { "Cranium": { hacking: 2 }, "Weak": { hacking: 1.1 }, "Plain": {}, "Needs Cranium": { hacking: 2 }, "Owned": { hacking: 1.3 } };
 	return fakeNs({
 		files: plan ? { "data/aug-plan.json": JSON.stringify(plan) } : {},
 		overrides: {
@@ -272,4 +274,72 @@ test("graft note: player-work notes a graft as it starts it, and the reset rule 
 	assert.equal(readGraftInProgress(ns, Date.now() + GRAFT_NOTE_MAX_AGE_MS + 1), null, "player-work stopped posting: no longer trusted");
 	assert.equal(readGraftInProgress(fakeNs()), null, "nothing posted");
 	assert.deepEqual(graftNote("Other", state.graftTry, 1), { aug: "Other", seenAt: 1, endsAt: null, cost: null }, "a graft started by hand: no end time or price");
+});
+
+// --- Entropy ---
+
+test("game: a stack's cost is -ln(0.98) per unit of wanted-stat weight, so it follows the config's weights and income mix", () => {
+	const augments = DEFAULTS.augments;
+	const weights = augments.wantStats.flatMap((group) => Object.keys(STAT_GROUPS[group] ?? {}))
+		.reduce((sum, key) => sum + (augments.resetRule.weights[key] ?? augments.resetRule.defaultWeight) * (augments.incomeFactors?.[key] ?? 1), 0);
+	assert.ok(Math.abs(entropyStackCost(augments) - -Math.log(ENTROPY_EFFECT) * weights) < 1e-12);
+	const hackingOnly = { ...augments, wantStats: ["hacking"] };
+	assert.ok(entropyStackCost(hackingOnly) < entropyStackCost(augments), "fewer wanted stats, less to lose");
+	assert.ok(entropyStackCost(augments) > 0.1, "with the default stats one stack costs about as much as a decent augmentation");
+});
+
+test("pick: an augmentation worth less than the Entropy stack it adds is not grafted, however cheap", () => {
+	const weak = aug("Weak", { value: 0.15, entropyCost: 0.2 });
+	const strong = aug("Strong", { value: 0.5, entropyCost: 0.2 });
+	assert.equal(graftNetValue(strong), 0.5 - 0.2);
+	assert.equal(pickGraft(view([weak])), null, "net -0.05");
+	assert.equal(pickGraft(view([weak, strong])).name, "Strong");
+	assert.equal(pickGraft(view([aug("Meh", { value: 0.22, entropyCost: 0.2 })])), null, "net 0.02 is under minValue");
+});
+
+test("pick: ranks by value net of Entropy per hour", () => {
+	const big = aug("Big", { value: 0.6, entropyCost: 0.4, hours: 1 });   // net 0.2
+	const small = aug("Small", { value: 0.3, entropyCost: 0.1, hours: 1 }); // net 0.2, the same hour: tie -> cheaper first
+	const better = aug("Better", { value: 0.45, entropyCost: 0.1, hours: 1 }); // net 0.35
+	assert.equal(pickGraft(view([big, small, better])).name, "Better");
+});
+
+function entropyWorld({ entropy, owned = [], augs = ["Cranium", "Congruity Implant"], config = null }) {
+	const ns = scanWorld({ augs, owned });
+	ns.getPlayer = () => ({ factions: ["Faction"], entropy });
+	if (config) ns.write("data/config.json", JSON.stringify(config), "w");
+	return ns;
+}
+
+test("scan: candidates carry the Entropy cost; with Congruity owned or queued it is 0", async () => {
+	const ns = entropyWorld({ entropy: 19 });
+	await scan(ns);
+	const posted = ns.portJson(46);
+	const cranium = posted.candidates.find((item) => item.name === "Cranium");
+	assert.ok(Math.abs(cranium.entropyCost - entropyStackCost(loadConfig(ns).augments)) < 1e-12, "the loaded config (income mix applied) decides the weights");
+	assert.equal(posted.entropy, 19);
+	const safe = entropyWorld({ entropy: 0, owned: ["Congruity Implant"] });
+	await scan(safe);
+	assert.equal(safe.portJson(46).candidates.find((item) => item.name === "Cranium")?.entropyCost, 0, "no stack to add");
+});
+
+test("scan: the Congruity Implant is worth the stacks it clears, and nothing with no entropy to clear", async () => {
+	const stacked = entropyWorld({ entropy: 19 });
+	await scan(stacked);
+	const congruity = stacked.portJson(46).candidates.find((item) => item.name === "Congruity Implant");
+	assert.ok(Math.abs(congruity.value - 19 * entropyStackCost(loadConfig(stacked).augments)) < 1e-9, "19 stacks cleared");
+	assert.equal(congruity.entropyCost, 0);
+	const clean = entropyWorld({ entropy: 0 });
+	await scan(clean);
+	assert.equal(clean.portJson(46).candidates.some((item) => item.name === "Congruity Implant"), false, "nothing to clear");
+});
+
+test("regression: an augmentation worth less than the Entropy stack it adds is left out of the scan; grafting.entropy false (the kill switch) brings it back", async () => {
+	const weighed = entropyWorld({ entropy: 0, augs: ["Weak"] });
+	await scan(weighed);
+	assert.deepEqual(weighed.portJson(46).candidates, [], "ln(1.1) is less than a stack's cost with the default stats");
+	const ignored = entropyWorld({ entropy: 19, augs: ["Weak", "Congruity Implant"], config: { grafting: { entropy: false } } });
+	await scan(ignored);
+	const names = ignored.portJson(46).candidates.map((item) => item.name);
+	assert.deepEqual(names, ["Weak"], "entropy ignored: Weak is back, and the Congruity Implant is worth nothing");
 });

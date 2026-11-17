@@ -5,6 +5,7 @@ import { pickCity, nextRestShare, scoutTarget, BLACKOP_CHANCE } from "/bladeburn
 import { idealRankRate, staminaRegen, measuredRate, hoursToRank, nextShare, keepRankSamples } from "/bladeburner/ideal.js";
 import { bladeburnerState, postBladeburner, readBladeburner } from "/bladeburner/state.js";
 import { readIncomeRate } from "/utils/income.js";
+import { blackOpHealth, guardRows } from "/bladeburner/hp-guard.js";
 import { blackOpDecision, chanceGrowth, failureBill, memberValue, nextTrend, recruitSeconds, teamBonus } from "/bladeburner/team.js";
 
 const CONTRACTS = ["Tracking", "Bounty Hunter", "Retirement"];
@@ -32,6 +33,9 @@ const RANK_WINDOW_MS = 3600_000;
  * saves the Black Op more time than it takes), otherwise the Contract/Operation with the best chance x rank gain / seconds;
  * Field Analysis when the estimates are too fuzzy, Diplomacy only when chaos is above 10, otherwise Training when nothing
  * is safe yet. bb-manage.js puts the team on the Black Op (teamPlan on port 36).
+ * HP guard (`bladeburner.hpGuard`, bladeburner/hp-guard.js): a failure's damage that reaches the current HP hospitalises the player,
+ * and the game repeats the running action without looking, so an action that can kill the player is priced (hospital bill or time in
+ * the Hyperbolic Regeneration Chamber, whichever is cheaper) and the player heals first when healing wins.
  * Posts its reasoning as the status lines on port 36, plus rank samples and live readings for the route estimate.
  * Ported from the other player's bb-pass.js, which has run in game.
  */
@@ -42,6 +46,7 @@ export async function main(ns) {
 	const bb = ns.bladeburner;
 	if (!bb.inBladeburner()) return;
 	const settings = loadConfig(ns).bladeburner;
+	const player = ns.getPlayer();
 	const [stamina, maxStamina] = bb.getStamina();
 	const ratio = maxStamina > 0 ? stamina / maxStamina : 1;
 	const current = bb.getCurrentAction(); // { type, name } or null
@@ -87,10 +92,13 @@ export async function main(ns) {
 	let progress;     // Black Ops done / total, the next one and rank, for tools/status.js (undefined when not read this pass)
 	let blackOpsDone; // true only when the game says no Black Op is left; undefined when not checked this pass
 	let free = false; // the safe actions' counts are used up: the player's time earns little rank this pass
+	let income = 0;   // $ per second the scripts earn: prices a hospital bill
 	let teamPlan;     // the team the next Black Op should have, for bb-manage.js (bladeburner.team)
 	let trend = before.blackOpTrend;
 	if (!done) {
 		rows = readRows(bb, notes);
+		income = readIncomeRate(ns).perSecond;
+		if (settings.hpGuard !== false) rows = guardRows(rows, { hp: player.hp, money: player.money, income, rankRate: Number.isFinite(perHour) ? perHour / 3600 : 0, chamberSecs: chamberSeconds(bb) });
 		next = bb.getNextBlackOp();
 		blackOpsDone = next === null;
 		progress = blackOpProgress(bb, next, rank, now);
@@ -107,16 +115,16 @@ export async function main(ns) {
 		const team = Number(before.team?.size) || 0;
 		const assigned = before.team?.name === next.name ? Math.min(Number(before.team?.assigned) || 0, team) : 0;
 		const odds = recruitOdds(bb);
-		const player = ns.getPlayer();
-		const income = readIncomeRate(ns).perSecond;
 		const bestRate = Math.max(0, ...rows.filter((row) => row.count >= 1 && row.low >= MIN_CHANCE).map((row) => row.score));
 		const rankRate = Number.isFinite(perHour) && perHour > 0 ? perHour / 3600 : bestRate;
 		const reading = blackOp ?? { chance: 0, high: 0, gain: 0, secs: 1 };
+		// A failure that would hospitalise the player now: heal first when that costs less than the expected bill (hp-guard.js)
+		const health = settings.hpGuard !== false ? blackOpHealth(next.name, reading.chance, player.hp, player.money, income, chamberSeconds(bb)) : null;
 		trend = nextTrend(trend, next.name, reading.chance / teamBonus(assigned), now);
 		const decision = blackOpDecision({
 			name: next.name, chance: reading.chance, assigned, size: team, gain: reading.gain, secs: reading.secs, rank, rankRate,
 			recruitSecs: odds.secs, timeValue: 1 - (Number.isFinite(freeShare) ? freeShare : 0),
-			bill: failureBill(next.name, player.hp, player.money), income, growth: chanceGrowth(trend), safeChance: BLACKOP_CHANCE,
+			bill: health?.rest ? 0 : failureBill(next.name, player.hp, player.money), income, growth: chanceGrowth(trend), safeChance: BLACKOP_CHANCE,
 		});
 		if (settings.team) {
 			teamPlan = { name: next.name, members: decision.team, all: decision.all, time: now };
@@ -129,6 +137,8 @@ export async function main(ns) {
 			const attempt = settings.blackOpGate ? decision.attempt : low >= BLACKOP_CHANCE;
 			if (high - low > 0.1) {
 				done = start(GENERAL, "Field Analysis", `Black Op estimate too fuzzy (${Math.round(low * 100)}-${Math.round(high * 100)}%)`);
+			} else if (attempt && health?.rest) {
+				done = start(GENERAL, "Hyperbolic Regeneration Chamber", `HP ${Math.floor(player.hp.current)}/${player.hp.max}: ${next.name} can do up to ${health.damage} damage on a failure, healing first (about ${Math.round(health.healSecs / 60)} min) costs less than the hospital bill`);
 			} else if (attempt) {
 				done = start("Black Operations", next.name, settings.blackOpGate ? `${decision.reason}: ${decision.why}` : `${Math.round(low * 100)}% chance, rank ${Math.floor(rank)} >= ${next.rank}`);
 			} else {
@@ -145,12 +155,12 @@ export async function main(ns) {
 
 	// The best few actions, after what the Black Op and recruiting steps said (the status shows the first lines)
 	for (const row of rows.slice(0, 4)) {
-		notes.push(`  ${row.name}: ${Math.round(row.low * 100)}-${Math.round(row.high * 100)}% chance, ${row.gain.toFixed(2)} rank in ${row.seconds.toFixed(0)} s => ${row.score.toFixed(3)} rank/s`);
+		notes.push(`  ${row.name}: ${Math.round(row.low * 100)}-${Math.round(row.high * 100)}% chance, ${row.gain.toFixed(2)} rank in ${row.seconds.toFixed(0)} s => ${Number.isFinite(row.score) ? row.score.toFixed(3) + " rank/s" : "skipped"}${row.hp ? ` (up to ${row.hp.damage} damage on a failure, HP ${Math.floor(player.hp.current)}/${player.hp.max}: ${row.hp.mode})` : ""}`);
 	}
 
 	// 5. Contracts and Operations by expected rank per second
 	if (!done) {
-		const live = rows.filter((row) => row.count >= 1); // an action with no count left can't be started: don't plan on it
+		const live = rows.filter((row) => row.count >= 1 && !(row.hp && !(row.score > 0))); // no count left can't be started; an action the HP guard priced out is not played
 		const safe = live.filter((row) => row.low >= MIN_CHANCE); // safe by the pessimistic estimate
 		const okay = live.filter((row) => row.middle >= FALLBACK_CHANCE); // acceptable by the middle estimate
 		const pool = safe.length > 0 ? safe : okay;
@@ -173,12 +183,16 @@ export async function main(ns) {
 			done = start(GENERAL, "Field Analysis", `estimates too fuzzy to trust (up to ${Math.round(spread * 100)} points wide) and nothing is clearly safe yet`);
 		} else if (pool.length > 0) {
 			const best = pool[0];
-			const running = current && pool.find((row) => row.type === current.type && row.name === current.name);
-			if (running && running.score >= best.score * 0.75) {
+			const running = current && pool.find((row) => row.type === current.type && row.name === current.name && row.hp?.mode !== "rest");
+			if (best.hp?.mode === "rest") {
+				// The best action can kill the player with one failure and healing first beats the hospital bill: the game would repeat it
+				// at whatever HP is left, so stop it and heal until the damage no longer reaches the current HP (the next pass re-reads)
+				done = start(GENERAL, "Hyperbolic Regeneration Chamber", `HP ${Math.floor(player.hp.current)}/${player.hp.max}: ${best.name} can do up to ${best.hp.damage} damage on a failure; healing first beats a hospital visit`);
+			} else if (running && running.score >= best.score * 0.75) {
 				notes.push(`keeping ${running.name}: still within 25% of the best (${best.name})`);
 				done = true;
 			} else {
-				for (const row of pool) {
+				for (const row of pool.filter((candidate) => candidate.hp?.mode !== "rest")) {
 					if (start(row.type, row.name, `${Math.round(row.low * 100)}-${Math.round(row.high * 100)}% chance, ${row.score.toFixed(3)} rank/s`)) {
 						done = true;
 						break;
@@ -248,6 +262,11 @@ function readRows(bb, notes) {
 		}
 	}
 	return rows.sort((first, second) => second.score - first.score);
+}
+
+/** The Hyperbolic Regeneration Chamber's seconds per completion (the game's 60 when it won't say). */
+function chamberSeconds(bb) {
+	try { return bb.getActionTime(GENERAL, "Hyperbolic Regeneration Chamber") / 1000 || 60; } catch { return 60; }
 }
 
 /** Recruitment's seconds per member (its time over its chance; the chance falls as the team grows), Infinity when it can't succeed. */

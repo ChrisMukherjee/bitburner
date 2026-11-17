@@ -14,6 +14,11 @@
 import { fakeNs } from "./fake-ns.mjs";
 
 export const START = 1_800_000_000_000;
+// [base difficulty at level 1, hpLoss] of every Contract and Operation (the game's data/Contracts.ts and data/Operations.ts)
+const HP_LOSS = {
+	"Tracking": [125, 0.5], "Bounty Hunter": [250, 1], "Retirement": [200, 1], "Investigation": [400, 0], "Undercover Operation": [500, 2],
+	"Sting Operation": [650, 2.5], "Raid": [800, 50], "Stealth Retirement Operation": [1000, 10], "Assassination": [1500, 5],
+};
 const BLACK_OPS = [["Operation Typhoon", 2500], ["Operation Zero", 5000], ["Operation X", 7500], ["Operation Titan", 10000]];
 
 /** The Contracts and Operations a fresh player has: estimated chance, rank per success, seconds, stamina per attempt, counts. */
@@ -47,12 +52,16 @@ export const ACTION_TABLE = {
  * @param {object} [options.config]           data/config.json
  * @param {object} [options.post]             port 36 at the start (state "run" is added)
  * @param {object} [options.player]           overrides of getPlayer()
+ * @param {{ current: number, max: number }} [options.hp]   the player's HP (default 100/100). A failure (counted in expected value: a
+ *                                            failure every 1 / (1 - chance) attempts) of an action with hpLoss does the game's damage;
+ *                                            HP at 0 or below is a hospital visit (sim.hospital counts them, HP back to full);
+ *                                            the Hyperbolic Regeneration Chamber heals 2 HP per minute
  * @param {number} [options.income]           $/s
  * @param {object} [options.overrides]        extra ns members
  */
 export function bladeburnerSim({
 	rank = 0, stamina = 100, maxStamina = 100, regen = 0.2, actions = {}, spread = 0.02, blackOps = BLACK_OPS, blackOpChance = 0.9,
-	blackOpSecs = 30, recruitSecs = 60, recruitChance = 0.5, cities = { "Sector-12": { pop: 1e9, chaos: 0 } }, city = "Sector-12", config = {}, post = {}, player = {}, income = 0, route = null, overrides = {},
+	blackOpSecs = 30, recruitSecs = 60, recruitChance = 0.5, cities = { "Sector-12": { pop: 1e9, chaos: 0 } }, city = "Sector-12", config = {}, post = {}, player = {}, hp = { current: 100, max: 100 }, income = 0, route = null, overrides = {},
 } = {}) {
 	let now = START;
 	const table = {};
@@ -63,6 +72,8 @@ export function bladeburnerSim({
 	const sim = {
 		rank, stamina, maxStamina, city, cities, trained: 0, recruited: 0, blackOpsDone: 0, blackOpTries: 0,
 		joined: true,
+		hp: { ...hp },           // the player's HP; a failure's damage lowers it, the chamber heals it
+		hospital: 0,             // visits: HP at 0 or below sends the player to the hospital (HP back to full)
 		refuse: new Set(), // action names startAction answers false for
 		current: null,           // { type, name } the game is repeating
 		started: [],             // { time, type, name } every startAction that took
@@ -101,6 +112,7 @@ export function bladeburnerSim({
 	const regenerate = (seconds) => {
 		sim.hackExp += seconds * sim.expRate;
 		const resting = sim.current?.name === "Hyperbolic Regeneration Chamber";
+		if (resting) sim.hp.current = Math.min(sim.hp.max, sim.hp.current + (seconds / 60) * 2);
 		sim.stamina = Math.min(sim.maxStamina, sim.stamina + seconds * regen + (resting ? (seconds / 60) * sim.maxStamina * 0.01 : 0));
 		for (const entry of Object.values(table)) entry.count = Math.min(entry.total + 50, entry.count + seconds * (entry.growth ?? 0));
 	};
@@ -125,6 +137,14 @@ export function bladeburnerSim({
 		sim.stamina -= entry.stamina;
 		entry.count -= 1;
 		sim.rank += chanceOf(action.name) * entry.gain;
+		// a failure every 1 / (1 - chance) attempts does the game's damage: hpLoss x (difficulty ^ 0.28 + difficulty / 650)
+		entry.failures = (entry.failures ?? 0) + (1 - chanceOf(action.name));
+		const [difficulty, hpLoss] = HP_LOSS[action.name];
+		if (entry.failures >= 1 && hpLoss > 0) {
+			entry.failures -= 1;
+			sim.hp.current -= Math.ceil(hpLoss * (Math.pow(difficulty, 0.28) + difficulty / 650));
+			if (sim.hp.current <= 0) { sim.hospital++; sim.hp.current = sim.hp.max; }
+		}
 		if (entry.count < 1 || sim.stamina < entry.stamina) sim.current = null; // the game stops it: the player idles until the next pass
 	};
 	const BLACK_OP_GAIN = 200;
@@ -187,7 +207,7 @@ export function bladeburnerSim({
 		ports: { 36: { state: "run", stateTime: START, ...post } },
 		overrides: {
 			getScriptName: () => sim.scriptName,
-			getPlayer: () => ({ hp: { current: 100, max: 100 }, money: 1e9, skills: { hacking: 100, strength: 200, defense: 200, dexterity: 200, agility: 200, charisma: 50, intelligence: 1 }, mults: {}, ...player }),
+			getPlayer: () => ({ hp: { ...sim.hp }, money: 1e9, skills: { hacking: 100, strength: 200, defense: 200, dexterity: 200, agility: 200, charisma: 50, intelligence: 1 }, mults: {}, ...player }),
 			getTotalScriptIncome: () => [sim.income, 0],
 			bladeburner,
 			...(route ? routeMembers(sim, route) : {}),

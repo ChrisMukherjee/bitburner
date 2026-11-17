@@ -416,9 +416,11 @@ export const DEFAULTS = {
 	// Source-File 10). Design: docs/grafting.md. enabled: false = never grafts.
 	//   maxFraction: a graft may cost at most this share of the cash; and only cash beyond the reset's planned purchases
 	//                (data/aug-plan.json cost) times `safety` counts, since the planned buys are cheaper per augment.
-	//   minValue:    the least the reset rule's value of an augment (augValue, ln of its multipliers) must be.
+	//   minValue:    the least the reset rule's value of an augment (augValue, ln of its multipliers) must be, after Entropy.
+	//   entropy:     true = each graft's Entropy stack (every multiplier x0.98 for the rest of the BitNode, kept across installs;
+	//                the Congruity Implant clears it) is subtracted from the augment's value (utils/aug-filter.js entropyStackCost); false = ignored.
 	// While the player has other work only augments no joined faction sells are grafted; with nothing else to do, any.
-	grafting: { enabled: true, maxFraction: 0.5, safety: 1.25, minValue: 0.05 },
+	grafting: { enabled: true, maxFraction: 0.5, safety: 1.25, minValue: 0.05, entropy: true },
 
 	// Sleeves (sleeves/; BitNode 10, or anywhere with Source-File 10). Design: docs/sleeves.md. enabled: false = never started.
 	// The manager gives each sleeve one job every pass (sleeves/plan.js): shock recovery, then synchronization, then training
@@ -453,10 +455,7 @@ export const DEFAULTS = {
 	//                 one can be afforded within `runShare` x the time this run has taken (live price, cash and measured income; the
 	//                 alternative is another whole BitNode 10 run), auto-destroy.js keeps the BitNode open, and once the cash has
 	//                 reached `progress` of the price, auto-reset.js skips installs that would wipe it and the hacknet and server
-	//                 managers leave it alone. When only combat skill (under 850) stands between the player and the Covenant's invite, the
-	//                 shop also asks singularity/player-work.js to train it in the gym (the BitNode stays held for at most
-	//                 runShare x the run's age of training). enabled: false = destroy as soon as the daemon allows and no Covenant
-	//                 training. Design: docs/sleeves.md.
+	//                 managers leave it alone. enabled: false = destroy as soon as the daemon allows. Design: docs/sleeves.md.
 	sleeves: {
 		enabled: true,
 		manage: true,
@@ -499,12 +498,18 @@ export const DEFAULTS = {
 	// blackOpGate: attempt the next Black Op when its expected cost (time, rank lost, members killed and the hospital bill on a
 	// failure) is below the rank it gives, or once it, not rank, holds the BitNode back and its chance has stopped growing fast
 	// enough to be worth waiting for (bladeburner/team.js); always at 80 %. false = only at 80 %, as before.
+	// hpGuard: a failed Contract, Operation or Black Op does damage, and damage that reaches the current HP sends the player to the
+	// hospital (full HP again, for up to 10 % of the cash); the game repeats the running action without looking at HP. On: an
+	// action whose worst-case failure would do that is priced (the failure chance times the hospital bill in seconds of income, or
+	// the time to heal first in the Hyperbolic Regeneration Chamber, 2 HP a minute, whichever is cheaper) and the player heals
+	// first when healing wins; an action that can't be priced or survived is not played (bladeburner/hp-guard.js). false = play
+	// whatever the HP, as before.
 	// team: recruit team members (free while every safe action's counts are used up, otherwise only when one saves the Black Op
 	// more time than recruiting takes) and send the team size that gets the Black Op done cheapest; false = no recruiting and
 	// the team assignment is left alone.
 	bladeburner: {
 		route: "combat", stanekFirst: false, adaptiveSkills: true, switchCity: true, fieldAnalysis: true, blackOpSkills: true,
-		blackOpGate: true, team: true,
+		blackOpGate: true, team: true, hpGuard: true,
 		// simulacrumFirst: on the Bladeburner route, buy The Blade's Simulacrum as soon as the Bladeburners faction has the rep
 		// (1,250) and reset for it at once; once installed, player-work.js keeps working, training or committing crimes while
 		// bb-pass.js plays (docs/bladeburner.md, "The Blade's Simulacrum"). false = never bought by the scripts.

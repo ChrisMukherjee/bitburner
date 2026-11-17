@@ -479,7 +479,7 @@ export function graftStep(ns, state, player, idle) {
 	state.graftTry = { name: pick.name, at: Date.now(), hours: pick.hours, cost: pick.cost };
 	// Noted at once, so a reset check before the next pass already sees it (utils/grafting.js readGraftInProgress).
 	state.grafting = graftNote(pick.name, state.graftTry, Date.now());
-	const message = `grafting ${pick.name}: $${ns.format.number(pick.cost)}, about ${Math.round(pick.hours * 60)} minutes${idle ? "" : " (no joined faction sells it)"}`;
+	const message = `grafting ${pick.name}: $${ns.format.number(pick.cost)}, about ${Math.round(pick.hours * 60)} minutes${idle ? "" : " (no joined faction sells it)"}${pick.entropyCost > 0 ? `, adds an Entropy stack (-${Math.round((1 - 0.98) * 100)}% to every multiplier)` : ""}`;
 	notify(ns, "[graft]", message, "info");
 	return `[graft] ${message}`;
 }

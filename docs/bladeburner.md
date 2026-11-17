@@ -117,6 +117,44 @@ takes `300 - (charisma ^ 0.81 + charisma / 90)` seconds (at least 10).
   whether waiting even costs anything); valuing members by the chance they add alone (ignores that a Black Op kills at least
   one per attempt).
 
+## The HP guard
+
+A failed Contract, Operation or Black Op does damage (`hpLoss x (difficulty ^ 0.28 + difficulty / 650)`, up to 10 % more, taken on
+a failure only; difficulty is `base x factor ^ (level - 1)`, so it grows with the action's level). Damage that reaches the current
+HP hospitalises the player: HP back to full, for `(HP missing) x $100k`, at most 10 % of the cash. The game repeats the running
+action without looking at HP, and only the Hyperbolic Regeneration Chamber heals (2 HP per 60 s completion), so before the guard
+an action that could kill the player in one failure (Raid does up to 426 damage, Assassination and Stealth Retirement dozens) sent
+them to the hospital again and again at 10 % of the cash a time, and the Black Op bill was priced but never avoided.
+
+[`../bladeburner/hp-guard.js`](../bladeburner/hp-guard.js) (pure, 0GB, game data from v3.0.0) works out each action's worst-case
+damage at its live level. Actions that cannot reach the current HP are untouched. A *lethal* one gets the better of two prices,
+both in rank per second so they compare with every other action:
+
+- **risk:** play it anyway. The failure chance times the bill (in seconds of the measured income) times what a second of play earns
+  (the best action that can't kill the player, else the measured rank rate).
+- **rest:** heal in the chamber first, possible only when one failure can't kill a full-HP player (damage below max HP). The
+  failure chance times the heal time for that damage is added to the action's seconds.
+
+`bb-pass.js` then re-sorts by the adjusted rate. When the best row is in rest mode it starts the chamber instead (the next pass
+re-reads HP; it plays the action once HP is above the worst case, with no hysteresis needed: resting is only for the gap). A
+running lethal action in rest mode is stopped, not kept by the "within 25 % of the best" rule. A row that is neither safe to risk
+nor coverable (no income reading, or the bill costs more rank than it earns) is dropped from the pool, and the existing fallbacks
+(Field Analysis, Diplomacy, Training) apply. The Black Op uses the same pricing: when the next attempt would hospitalise now, a
+full-HP player would survive it and the heal time is under the expected bill, it heals first (`blackOpHealth`), and the gate's bill
+is then 0.
+
+- **No hardcoded line.** Everything comes from live HP, cash, income, chances and levels; the only constants are the game's.
+- **Without readings.** No income reading (a fresh start) means the bill can't be priced, so only resting or a sure action remains:
+  the cautious side, and it improves as soon as an income is measured. Unknown HP leaves the pass as it was.
+- **Kill switch.** `bladeburner.hpGuard: false` plays whatever the HP, as before.
+- **Tradeoffs.** Damage is priced on failures at the middle chance estimate; the chamber is slow (2 HP a minute), so with a large
+  HP pool and a cheap bill the guard prefers paying; the bill is the one for the player's current HP and cash, not a forecast.
+  Skipping non-lethal damage means HP can drain over many cheap failures, after which the guard rests once; it never rests
+  earlier than it has to. Not modelled: the game's own varied damage (the worst case, +10 %, is assumed).
+- **Rejected:** a fixed HP percentage floor (wrong for every action and every HP pool); resting to full HP before every action
+  (slow, and a lethal action's cost is the same at any HP below its damage); disabling Raid and the other heavy Operations
+  (they are the best rank per second for a player with the HP to take them).
+
 ## Mechanics and what the scripts do with them
 
 Read from the v3.0.0 source (`src/Bladeburner/`), checked against what `bb-manage.js` and `bb-pass.js` call. "Impact" is how
@@ -128,6 +166,7 @@ much play is left on the table.
 | Action count: -1 per attempt (win or lose), grows by the table's average per 480 s, no cap | Read per action; `route-model.js` models it | Handled for choosing; it is the **late-game limit** (see "Measuring"): about 0.05 counts a second across all nine actions |
 | Action level (`autoLevel` on: level = max level, which rises with successes) | Read (`level`, `maxLevel`); the game's default keeps the highest level | Not steered. `setActionLevel` could trade reward for chance, but reward grows faster than difficulty, so the default is right whenever the chance holds. Open: the 60 % safety gate can exclude an action whose autolevel difficulty pushed it just under; a lower level would be safe |
 | Success chance: stats^decay, skills, stamina below 50 %, population^0.7, chaos above 50, team | `picks.js` (skills, city), stamina rest below 55 %, `team.js` (team on Black Ops) | Handled |
+| HP: damage on a failure (`hpLoss` x difficulty factor), hospital at 0 HP, healing only in the chamber | `hp-guard.js` prices lethal actions and heals first when cheaper (`bladeburner.hpGuard`, see [The HP guard](#the-hp-guard)) | Handled |
 | Stamina: cost per action, regeneration, Hyperbolic Regeneration Chamber | Rest below 55 % until 90 %; `ideal.js` models the budget | Handled; now measured |
 | City: population, chaos, communities (Raid needs one), random events | `pickCity` moves for a clear gain; Diplomacy only when nothing is safe and chaos is above 10 | Handled. Communities and the pop loss from Raid (-1 % per win) are not modelled; a Raid with no community shows 0 % and is skipped |
 | Black Ops: 21 in order, rank gates, difficulty 2,000-80,000, no city effect, 1.5x time, rank loss and damage on failure | `team.js` gate: always at 80 %, earlier when it pays or holds the BitNode back; skills weigh their chance | Handled |
