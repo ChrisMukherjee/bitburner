@@ -453,7 +453,10 @@ export const DEFAULTS = {
 	//                 one can be afforded within `runShare` x the time this run has taken (live price, cash and measured income; the
 	//                 alternative is another whole BitNode 10 run), auto-destroy.js keeps the BitNode open, and once the cash has
 	//                 reached `progress` of the price, auto-reset.js skips installs that would wipe it and the hacknet and server
-	//                 managers leave it alone. enabled: false = destroy as soon as the daemon allows. Design: docs/sleeves.md.
+	//                 managers leave it alone. When only combat skill (under 850) stands between the player and the Covenant's invite, the
+	//                 shop also asks singularity/player-work.js to train it in the gym (the BitNode stays held for at most
+	//                 runShare x the run's age of training). enabled: false = destroy as soon as the daemon allows and no Covenant
+	//                 training. Design: docs/sleeves.md.
 	sleeves: {
 		enabled: true,
 		manage: true,

@@ -41,28 +41,60 @@ export function covenantAccess(player) {
 }
 
 /**
+ * Which of hacking and the four combat skills are under the Covenant's 850, as [{ name, have }] (empty when none is, or when the
+ * player lists no skills). Pure. @param {{ skills?: any }} player
+ * @returns {{ name: string, have: number }[]}
+ */
+export function covenantGap(player) {
+	const skills = player.skills;
+	if (!skills) return [];
+	return ["hacking", "strength", "defense", "dexterity", "agility"]
+		.map((name) => ({ name, have: Math.floor(skills[name] ?? 0) }))
+		.filter((entry) => entry.have < COVENANT_SKILL);
+}
+
+/**
  * The decision. `view`: cost (the next sleeve, Infinity when none is for sale), cash, income ($/s, 0 when unknown), runMs (the time
- * this BitNode run has taken), access (covenantAccess), canBuy (BitNode 10). `rule` is `sleeves.hold`.
- * Returns { hold, cost, etaMs, reason }: etaMs is the time to afford it at the current income (0 when already affordable, null when
- * unknown or never). A hold needs: the rule on, a sleeve for sale, a way to the Covenant, and a wait of at most runShare x runMs.
- * @param {{ cost: number, cash: number, income: number, runMs: number, access: "member" | "reachable" | "no", canBuy: boolean }} view
+ * this BitNode run has taken), access (covenantAccess), canBuy (BitNode 10). Optional: `missing` (covenantGap: the skills under
+ * 850) and `trainingMs` (how long the player has already been asked to train for the Covenant). `rule` is `sleeves.hold`.
+ * Returns { hold, train, floor, cost, etaMs, reason }: etaMs is the time to afford it at the current income (0 when already
+ * affordable, null when unknown or never). A hold needs: the rule on, a sleeve for sale, a way to the Covenant, and a wait of at
+ * most runShare x runMs. `train` asks singularity/player-work.js to train the combat skills to `floor` (the Covenant's 850): set
+ * when the invite is out of reach only for want of combat skill (the gym can fix that) and the sleeve is worth the wait. The hold
+ * lasts while the training has taken less than the same runShare x runMs, so it cannot stall the route for good, and only when
+ * hacking is already there (the gym can't raise it).
+ * @param {{ cost: number, cash: number, income: number, runMs: number, access: "member" | "reachable" | "no", canBuy: boolean,
+ *   missing?: { name: string, have: number }[], trainingMs?: number }} view
  * @param {{ enabled?: boolean, runShare?: number }} [rule]
- * @returns {{ hold: boolean, cost: number | null, etaMs: number | null, reason: string }}
+ * @returns {{ hold: boolean, train: boolean, floor: number, cost: number | null, etaMs: number | null, reason: string }}
  */
 export function sleeveHold(view, rule = {}) {
 	const cost = Number.isFinite(view.cost) ? view.cost : null;
-	const none = (reason) => ({ hold: false, cost, etaMs: null, reason });
+	const none = (reason) => ({ hold: false, train: false, floor: COVENANT_SKILL, cost, etaMs: null, reason });
 	if (rule.enabled === false) return none("the sleeve hold is switched off (sleeves.hold.enabled)");
 	if (!view.canBuy) return none("sleeves are bought only inside BitNode 10");
 	if (cost === null) return none("no sleeve left to buy");
-	if (view.access === "no") return none("The Covenant is out of reach (hacking and every combat skill at 850, 20 installed augmentations and $75b get its invite)");
-	const missing = Math.max(0, cost - view.cash);
-	const etaMs = missing === 0 ? 0 : view.income > 0 ? (missing / view.income) * 1000 : null;
-	if (etaMs === null) return { hold: false, cost, etaMs, reason: "no measured income yet, so the wait can't be estimated" };
+	const gap = view.missing ?? [];
+	const trainable = gap.filter((entry) => entry.name !== "hacking");
+	const lacking = gap.map((entry) => `${entry.name} ${entry.have}`).join(", ");
+	if (view.access === "no" && trainable.length === 0) {
+		return none(`The Covenant is out of reach${lacking ? ` (${lacking}, it asks for 850)` : ""} (hacking and every combat skill at 850, 20 installed augmentations and $75b get its invite)`);
+	}
+	const owed = Math.max(0, cost - view.cash);
+	const etaMs = owed === 0 ? 0 : view.income > 0 ? (owed / view.income) * 1000 : null;
+	if (etaMs === null) return { hold: false, train: false, floor: COVENANT_SKILL, cost, etaMs, reason: "no measured income yet, so the wait can't be estimated" };
 	const limit = Math.max(0, view.runMs) * (rule.runShare ?? 1);
-	if (etaMs > limit) return { hold: false, cost, etaMs, reason: `the next sleeve (\$${short(cost)}) is ${duration(etaMs)} away, longer than the ${duration(limit)} a new BitNode 10 run would take` };
+	if (etaMs > limit) return { hold: false, train: false, floor: COVENANT_SKILL, cost, etaMs, reason: `the next sleeve (\$${short(cost)}) is ${duration(etaMs)} away, longer than the ${duration(limit)} a new BitNode 10 run would take` };
+	if (view.access === "no") {
+		const hacking = gap.some((entry) => entry.name === "hacking");
+		const trained = Math.max(0, view.trainingMs ?? 0);
+		const train = `training ${trainable.map((entry) => `${entry.name} ${entry.have}`).join(", ")} to ${COVENANT_SKILL} for The Covenant's invite (sleeve \$${short(cost)}, ${etaMs === 0 ? "affordable now" : `${duration(etaMs)} of income away`})`;
+		if (hacking) return { hold: false, train: true, floor: COVENANT_SKILL, cost, etaMs, reason: `${train}; hacking is under ${COVENANT_SKILL} too, so the BitNode is not held yet` };
+		if (trained > limit) return { hold: false, train: true, floor: COVENANT_SKILL, cost, etaMs, reason: `${train}, but that has taken ${duration(trained)}, longer than the ${duration(limit)} a new run would take: not held any longer` };
+		return { hold: true, train: true, floor: COVENANT_SKILL, cost, etaMs, reason: train };
+	}
 	const join = view.access === "member" ? "" : " (joins The Covenant first)";
-	return { hold: true, cost, etaMs, reason: etaMs === 0 ? `the next sleeve (\$${short(cost)}) is affordable now${join}` : `the next sleeve (\$${short(cost)}) is ${duration(etaMs)} away at the current income${join}` };
+	return { hold: true, train: false, floor: COVENANT_SKILL, cost, etaMs, reason: etaMs === 0 ? `the next sleeve (\$${short(cost)}) is affordable now${join}` : `the next sleeve (\$${short(cost)}) is ${duration(etaMs)} away at the current income${join}` };
 }
 
 /**
@@ -129,4 +161,14 @@ export function sleeveHoldsReset(ns, rule, cash, now = Date.now()) {
 	if (!decision || sleeveSaving(decision, cash, rule) === 0) return "";
 	if (cash >= (decision.cost ?? Infinity)) return ""; // affordable: the install buys it first
 	return `saving for a Covenant sleeve ($${short(cash)} of $${short(decision.cost ?? 0)}): ${decision.reason}`;
+}
+
+/**
+ * The combat level the player should train to now for The Covenant's invite, or 0: the shop's recent decision says train and the
+ * kill switch (`sleeves.hold.enabled`) is not off. For singularity/player-work.js. @param {{ enabled?: boolean } | undefined} rule
+ */
+export function sleeveTrainFloor(ns, rule, now = Date.now()) {
+	if (rule?.enabled === false) return 0;
+	const decision = readSleeveHold(ns, now);
+	return decision?.train ? Number(decision.floor) || COVENANT_SKILL : 0;
 }

@@ -8,7 +8,7 @@ import { sleevesApiFromInfo, sleevesBuyableFromInfo } from "/utils/sleeves.js";
 import { singularityFromInfo } from "/utils/singularity.js";
 import { readIncomeRate } from "/utils/income.js";
 import { postPass } from "/utils/pass-log.js";
-import { sleeveHold, postSleeveHold, covenantAccess } from "/utils/sleeve-hold.js";
+import { sleeveHold, postSleeveHold, readSleeveHold, covenantAccess, covenantGap } from "/utils/sleeve-hold.js";
 import { pickStage, budgetFor, nextPurchase, AUG_VALUE_PORT } from "/sleeves/plan.js";
 
 const SCRIPT = "sleeves/sleeve-shop.js";
@@ -52,6 +52,7 @@ export async function main(ns) {
 	let spent = 0;
 	let count = ns.sleeve.getNumSleeves();
 	const bought = [];
+	let refused = "";
 
 	// Augmentations on offer, with their values (asked from the Singularity API once per few hours).
 	let augs = [];
@@ -70,7 +71,12 @@ export async function main(ns) {
 		const next = nextPurchase({ budget, sleeveBudget: sleeveShare - spent, canBuy, buy: rule.buy, sleeveCost, memory, augs });
 		if (!next) break;
 		if (next.type === "sleeve") {
-			if (!ns.sleeve.purchaseSleeve().success) break;
+			const result = ns.sleeve.purchaseSleeve();
+			if (!result.success) {
+				// Say why (the game only sells to Covenant members), so a stuck shop isn't silent.
+				refused = ` The game refused sleeve #${count} ($${ns.format.number(next.cost)}, affordable): ${result.message ?? "no reason given"}.`;
+				break;
+			}
 			count++;
 			bought.push(`sleeve #${count - 1} for $${ns.format.number(next.cost)}`);
 			notify(ns, TAG, `bought sleeve #${count - 1} for $${ns.format.number(next.cost)}`, "success");
@@ -94,15 +100,22 @@ export async function main(ns) {
 	let holdNote = "";
 	if (canBuy) {
 		const player = ns.getPlayer();
+		const now = Date.now();
+		// How long the player has already been asked to train for the Covenant (the last post's `since`, while it is recent).
+		const before = readSleeveHold(ns, now);
+		const since = before?.train && typeof before.since === "number" ? before.since : now;
 		const decision = sleeveHold({
 			cost: rule.buy.sleeves ? ns.sleeve.getSleeveCost() : Infinity, cash: player.money, income: readIncomeRate(ns).perSecond,
-			runMs: Date.now() - info.lastNodeReset, access: covenantAccess(player), canBuy,
+			runMs: now - info.lastNodeReset, access: covenantAccess(player), canBuy, missing: covenantGap(player),
+			trainingMs: before?.train ? now - since : 0,
 		}, rule.hold);
-		postSleeveHold(ns, { ...decision, progress: rule.hold?.progress });
+		postSleeveHold(ns, { ...decision, progress: rule.hold?.progress, since: decision.train ? since : null });
 		if (decision.hold) holdNote = ` Holding BitNode 10: ${decision.reason}.`;
+		else if (decision.train) holdNote = ` ${decision.reason}.`;
+		else if (decision.cost !== null) holdNote = ` Not holding BitNode 10: ${decision.reason}.`;
 	}
 
-	const summary = (bought.length ? `bought ${bought.length}: ${bought.slice(0, 4).join(", ")}${bought.length > 4 ? ", ..." : ""}` : `nothing bought (stage ${stage.name}, budget $${ns.format.number(budget)})`) + holdNote;
+	const summary = (bought.length ? `bought ${bought.length}: ${bought.slice(0, 4).join(", ")}${bought.length > 4 ? ", ..." : ""}` : `nothing bought (stage ${stage.name}, budget $${ns.format.number(budget)})`) + refused + holdNote;
 	postPass(ns, SCRIPT, [summary]);
 	ns.print(`${TAG} ${summary}`);
 }

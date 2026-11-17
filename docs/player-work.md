@@ -152,6 +152,11 @@ Volhaven: Millenium x4), the better one only with cash for ten minutes of it. In
 to Sector-12, unless the travel step is waiting there for a faction invite (it would otherwise fly back and
 forth every pass and the invite would never come): then the gang's crime stands in, and Bladeburner waits.
 
+The Covenant's sleeves (BitNode 10) use the same step (`covenantStep`, step 2d, before faction work): while the sleeve shop's post on
+port 45 says `train` (the next sleeve is worth the wait and only combat skill is under 850) the lowest combat stat trains to 850;
+once all four are there join-factions.js takes the Covenant's invite. `sleeves.hold.enabled: false` stops it. See
+[`sleeves.md`](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves).
+
 ## Goals, city factions and helpers
 
 What the faction-work step aims for (real rep goals), which city factions to join and the two big helper scripts are in

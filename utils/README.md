@@ -15,7 +15,7 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`singularity.js`](singularity.js) | Whether this run can use the Singularity API | none | 1GB |
 | [`grafting.js`](grafting.js) | What this run can do with grafting (BitNode 10 or Source-File 10), and the graft in progress from player-work's state (port 35) that the reset rule waits for | none | 0GB |
 | [`gyms.js`](gyms.js) | Gym tables (stats, gyms per city, cost) shared by player-work.js and start-gang.js | none | 0GB |
-| [`sleeve-hold.js`](sleeve-hold.js) | Keeping BitNode 10 open for the Covenant's sleeves: the game's price ladder, the Covenant check, the hold decision (affordable within the time the run has taken), the saving rule and port 45. Design: [`docs/sleeves.md`](../docs/sleeves.md#holding-bitnode-10-for-the-covenants-sleeves) | none | 0GB |
+| [`sleeve-hold.js`](sleeve-hold.js) | Keeping BitNode 10 open for the Covenant's sleeves: the game's price ladder, the Covenant check, the hold decision (affordable within the time the run has taken), the Covenant training ask (`train`/`floor` on port 45, `covenantGap`, `sleeveTrainFloor`), the saving rule and port 45. Design: [`docs/sleeves.md`](../docs/sleeves.md#holding-bitnode-10-for-the-covenants-sleeves) | none | 0GB |
 | [`sleeves.js`](sleeves.js) | What this run can do with sleeves (BitNode 10 or Source-File 10; buying only in BitNode 10) | none | 1GB |
 | [`gang.js`](gang.js) | What this run can do with gangs; the one place with per-BitNode gang rules | none | 1GB |
 | [`gang-karma.js`](gang-karma.js) | `karmaNeededFromInfo`: the karma a gang needs (split from gang.js so sleeves/sleeve-manager.js does not pay for its Gang API calls) | none | 0GB |

@@ -15,6 +15,7 @@ import { pickGraft } from "/singularity/graft-plan.js";
 import { bladeburnerState, bladeburnerPlan, trainFloor, combatRoute } from "/bladeburner/state.js";
 import { routeFocus, postRouteFocus, pickGoalFaction } from "/utils/route-focus.js";
 import { daemonLevelFor } from "/utils/route-progress.js";
+import { sleeveTrainFloor } from "/utils/sleeve-hold.js";
 
 // Ports the one-shot helpers write to (not imported: the static RAM check would charge their
 // Singularity calls to this script too).
@@ -96,6 +97,8 @@ const CONFIG = {
  *      singularity/workers/crime-invites.js every 2 minutes: the crime with the most karma (or kills) per minute,
  *      then the flight to the faction's city once nothing else is missing (and a stay there for the invite); the combat
  *      levels go to the gym in step 4's gap.
+ *   2d. The Covenant's invite (BitNode 10, `sleeves.hold`): while the sleeve shop (port 45) says its next sleeve is worth it and a
+ *      combat skill is under 850, the lowest goes to the gym (covenantStep); join-factions.js accepts the invite, and the shop buys.
  *   2c. Grafting (BitNode 10 or Source-File 10, docs/grafting.md): the augmentations no joined faction sells, when they are worth it; with nothing
  *      else to do (step 4's gap), any wanted one. A graft in progress is never interrupted.
  *   3. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
@@ -405,6 +408,9 @@ export function workStep(ns, state, player) {
 		if (message) return { message: alongside ? `${message} (Bladeburner keeps playing)` : message, done };
 	}
 	current = stopInviteCrime(ns, state, current, crimeInvite);
+	// 2d. Combat levels for The Covenant's invite (BitNode 10): sleeves/sleeve-shop.js says when its next sleeve is worth them.
+	const covenant = covenantStep(ns, state, player, current);
+	if (covenant) return { message: alongside ? `${covenant} (Bladeburner keeps playing)` : covenant, done: false };
 	// 2c. Grafting what no joined faction sells (the work below can't get it), when it pays.
 	const unreachable = graftStep(ns, state, player, false);
 	if (unreachable) return { message: unreachable, done };
@@ -476,6 +482,16 @@ export function graftStep(ns, state, player, idle) {
 	const message = `grafting ${pick.name}: $${ns.format.number(pick.cost)}, about ${Math.round(pick.hours * 60)} minutes${idle ? "" : " (no joined faction sells it)"}`;
 	notify(ns, "[graft]", message, "info");
 	return `[graft] ${message}`;
+}
+
+/**
+ * The combat levels The Covenant's invite asks for (850 in every combat skill), trained in the gym while
+ * sleeves/sleeve-shop.js (port 45, utils/sleeve-hold.js) says its next sleeve is worth it. `sleeves.hold.enabled: false` stops it.
+ * Returns the log line, or null when nothing is asked or every combat stat is already there (join-factions.js accepts the invite).
+ */
+export function covenantStep(ns, state, player, current) {
+	const floor = sleeveTrainFloor(ns, state.config.sleeves?.hold);
+	return floor > 0 ? gymStep(ns, state, player, current, floor, "[covenant]") : null;
 }
 
 /**

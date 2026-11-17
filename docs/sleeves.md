@@ -91,7 +91,18 @@ on port 45. The test uses live numbers only: the game's price for the next sleev
 held for when it is at most `sleeves.hold.runShare` (1) times the time this run has already taken, because the alternative is a whole
 new BitNode 10 run, which takes about as long again and meets the same price. Each sleeve is judged at its own price, so the first
 is held for early and the $1q+ ones only once income is large; nothing is held for when the Covenant is out of reach (not a member
-and hacking or a combat skill under 850), when income has not been measured, or when all five are bought.
+and hacking under 850, which the gym can't raise), when income has not been measured, or when all five are bought.
+
+**Getting the invite.** `purchaseSleeve` is refused until the player is in The Covenant, and the invite needs hacking and every
+combat skill at 850. Nothing used to train the combat skills, so a rich player with weak combat stats got no sleeve and no hint why.
+Now, when the sleeve passes the same worth-the-wait test and only combat skill is short, the decision carries `train: true` and
+`floor: 850` and [`../singularity/player-work.js`](../singularity/player-work.js) (step 2d, `covenantStep`) sends the lowest combat stat
+to the gym until all four reach it; [`../singularity/join-factions.js`](../singularity/join-factions.js) accepts the invite on
+its next pass and the shop buys on the one after. The BitNode is held open meanwhile (`hold: true`) as long as the training
+has taken less than `runShare` x this run's age (the shop keeps the start time in `since` on port 45), so a stalled gym cannot keep
+a BitNode open for good; after that the player keeps training but the BitNode is no longer held. With hacking under 850 too the gym
+still runs but the BitNode is not held (hacking comes with the run). The shop's log line always says why it is not buying (the
+missing skills, the wait, or the game's own refusal message when `purchaseSleeve` fails).
 
 **What obeys it** (all default on; `sleeves.hold.enabled: false` turns every one off):
 
@@ -107,12 +118,12 @@ and hacking or a combat skill under 850), when income has not been measured, or 
 **Without the API or in other BitNodes** nothing posts, so nothing is held: the decision only exists in BitNode 10 with the Sleeve API.
 A stale post (older than 10 minutes, a stopped shop) is ignored.
 
-**Rejected.** A fixed number of hours or a target sleeve count (the right wait depends on the run and the income); holding when the
-Covenant is far away (nothing here trains toward its 850 skills, and a hold that cannot end would stall the route); making the
+**Rejected.** A fixed number of hours or a target sleeve count (the right wait depends on the run and the income); holding without a
+bound while the Covenant is far away (the hold ends once the training has taken as long as a new run would); making the
 reset rule value the wipe exactly (an install's gain is the reset rule's job, so only the half-way line is added).
 
-**Open.** Nothing trains or works toward the Covenant's invite on purpose: hacking 850 comes with the run, combat 850 comes from
-Bladeburner or the gym, so a run with neither gets no hold. Five sleeves in all means more BitNode 10 runs after level 3, which the
+**Open.** The gym time to 850 is not estimated up front (only bounded as above); hacking 850 comes with the run. The invite's 20
+installed augmentations and $75b are not checked, only reported by the game when the invite does not come. Five sleeves in all means more BitNode 10 runs after level 3, which the
 plan (levels only) cannot ask for: come back with `next-bitnode 10` once income is near price / run length for the next sleeve (about $1.2e10/s
 for the $1q one, ten times more for each after it, on a day-long run; see [`bitnode-order.md`](bitnode-order.md#coming-back-to-bitnode-10-for-the-last-sleeves)).
 

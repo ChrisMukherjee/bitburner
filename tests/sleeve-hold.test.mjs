@@ -8,9 +8,10 @@ import { DEFAULTS, CHALLENGES } from "/config.js";
 import { loadConfig } from "/utils/config.js";
 import { getBudget } from "/utils/spending.js";
 import {
-	SLEEVE_HOLD_PORT, MAX_COVENANT_SLEEVES, covenantSleeveCost, covenantAccess, sleeveHold, sleeveSaving, postSleeveHold, readSleeveHold,
-	sleeveHoldReason, sleeveHoldsReset,
+	SLEEVE_HOLD_PORT, MAX_COVENANT_SLEEVES, COVENANT_SKILL, covenantSleeveCost, covenantAccess, covenantGap, sleeveHold, sleeveSaving, postSleeveHold,
+	readSleeveHold, sleeveHoldReason, sleeveHoldsReset, sleeveTrainFloor,
 } from "/utils/sleeve-hold.js";
+import { workStep, covenantStep } from "/singularity/player-work.js";
 import { main as shop } from "/sleeves/sleeve-shop.js";
 import { main as manage } from "/sleeves/sleeve-manager.js";
 
@@ -146,13 +147,124 @@ test("shop in BitNode 10: after buying what it can, it posts whether the next sl
 	assert.match(sim.ns.logs.join("\n"), /Holding BitNode 10/);
 });
 
-test("shop: no Covenant, no hold (a player out of reach of the invite is never kept waiting)", async () => {
+test("shop: out of the Covenant's reach (no skills to train, or none the gym can raise), no hold and the reason names what is missing", async () => {
 	const sim = sleeveWorld({
 		node: 10, sleeves: [{}], money: 1e9, sleeveCost: 5e12, memoryCost: 1e15,
-		overrides: { getPlayer: () => ({ money: 1e9, factions: [], jobs: {}, karma: 0, skills: { hacking: 900, strength: 1, defense: 1, dexterity: 1, agility: 1 } }), getTotalScriptIncome: () => [1e9, 0] },
+		overrides: { getPlayer: () => ({ money: 1e9, factions: [], jobs: {}, karma: 0, skills: { hacking: 100, strength: 900, defense: 900, dexterity: 900, agility: 900 } }), getTotalScriptIncome: () => [1e9, 0] },
 	});
 	await shop(sim.ns);
-	assert.equal(JSON.parse(sim.ns.ports[SLEEVE_HOLD_PORT]).hold, false);
+	const posted = JSON.parse(sim.ns.ports[SLEEVE_HOLD_PORT]);
+	assert.equal(posted.hold, false);
+	assert.equal(posted.train, false);
+	const hackingOnly = sleeveHold(view({ access: "no", missing: [{ name: "hacking", have: 400 }] }));
+	assert.equal(hackingOnly.hold, false, "the gym can't raise hacking");
+	assert.equal(hackingOnly.train, false);
+	assert.match(hackingOnly.reason, /hacking 400/, "the reason says which skill is short");
+});
+
+// --- the Covenant invite needs combat skills: the player trains for them while the sleeve is worth it ---
+
+const SHORT = [{ name: "strength", have: 120 }, { name: "defense", have: 90 }, { name: "dexterity", have: 300 }, { name: "agility", have: 849.9 }];
+
+test("regression: a rich player short only of combat skill is asked to train for the Covenant, not left with a silent shop", () => {
+	// $71q cash, the first sleeves cost $10t, $100t, $1q: all affordable, but the invite wants every combat skill at 850.
+	const decision = sleeveHold(view({ access: "no", cash: 71e15, missing: SHORT }));
+	assert.equal(decision.train, true, "the gym is the way to the invite");
+	assert.equal(decision.floor, COVENANT_SKILL);
+	assert.equal(decision.hold, true, "the BitNode stays open while the training is within a new run's length");
+	assert.equal(decision.etaMs, 0);
+	assert.match(decision.reason, /strength 120/);
+});
+
+test("train: not worth it when the sleeve is far away, the income unknown, or the rule off; hacking short trains but does not hold", () => {
+	assert.equal(sleeveHold(view({ access: "no", cash: 0, income: 1e3, missing: SHORT })).train, false, "the price is days of income away");
+	assert.equal(sleeveHold(view({ access: "no", cash: 0, income: 0, missing: SHORT })).train, false, "no measured income");
+	assert.equal(sleeveHold(view({ access: "no", cash: 71e15, missing: SHORT }), { enabled: false }).train, false, "kill switch");
+	const both = sleeveHold(view({ access: "no", cash: 71e15, missing: [...SHORT, { name: "hacking", have: 700 }] }));
+	assert.equal(both.train, true);
+	assert.equal(both.hold, false, "hacking comes with the run: not worth keeping the BitNode open for");
+	assert.equal(sleeveHold(view({ access: "member", cash: 71e15 })).train, false, "a member needs nothing trained");
+});
+
+test("train: the hold ends once the training has taken longer than a new BitNode 10 run would (it cannot stall the route for good)", () => {
+	const input = { access: "no", cash: 71e15, missing: SHORT };
+	assert.equal(sleeveHold(view({ ...input, trainingMs: 9 * HOUR })).hold, true);
+	const late = sleeveHold(view({ ...input, trainingMs: 11 * HOUR })); // the run has taken 10 h
+	assert.equal(late.hold, false);
+	assert.equal(late.train, true, "the player may still train, the BitNode is just no longer held");
+});
+
+test("covenantGap lists the skills under 850", () => {
+	assert.deepEqual(covenantGap({ skills: { hacking: 850, strength: 849.9, defense: 900, dexterity: 1, agility: 850 } }), [{ name: "strength", have: 849 }, { name: "dexterity", have: 1 }]);
+	assert.deepEqual(covenantGap({}), [], "no skills listed: nothing known");
+});
+
+test("shop: a rich player short of combat skill posts train, keeps the start time while training, and says so in its log", async () => {
+	const skills = { hacking: 900, strength: 120, defense: 90, dexterity: 300, agility: 400 };
+	const sim = sleeveWorld({
+		node: 10, sleeves: [{}], money: 71e15, sleeveCost: 10e12, memoryCost: 1e18,
+		overrides: { getPlayer: () => ({ money: 71e15, factions: [], jobs: {}, karma: 0, skills }), getTotalScriptIncome: () => [1e9, 0] },
+	});
+	sim.ns.sleeve.purchaseSleeve = () => ({ success: false, message: "You must be a member of The Covenant" }); // as the game does
+	await shop(sim.ns);
+	const first = JSON.parse(sim.ns.ports[SLEEVE_HOLD_PORT]);
+	assert.equal(first.train, true);
+	assert.equal(first.floor, COVENANT_SKILL);
+	assert.equal(typeof first.since, "number");
+	assert.match(sim.ns.logs.join("\n"), /training strength 120/);
+	await shop(sim.ns);
+	assert.equal(JSON.parse(sim.ns.ports[SLEEVE_HOLD_PORT]).since, first.since, "the start time is kept while the training goes on");
+});
+
+test("shop: when the game refuses an affordable sleeve it says why in its log instead of failing silently", async () => {
+	const sim = sleeveWorld({
+		node: 10, sleeves: [{}], money: 71e15, sleeveCost: 10e12, memoryCost: 1e18,
+		overrides: { getPlayer: () => ({ money: 71e15, factions: [], jobs: {}, karma: 0, skills: {} }), getTotalScriptIncome: () => [1e9, 0] },
+	});
+	sim.ns.sleeve.purchaseSleeve = () => ({ success: false, message: "You must be a member of The Covenant" });
+	await shop(sim.ns);
+	assert.match(sim.ns.logs.join("\n"), /refused sleeve #1.*member of The Covenant/);
+});
+
+test("player-work: while the shop says train, the lowest combat stat goes to the gym toward 850; off or stale, nothing is started", () => {
+	const player = { city: "Sector-12", money: 1e12, factions: [], jobs: {}, karma: 0, numPeopleKilled: 0, skills: { hacking: 900, strength: 120, defense: 90, dexterity: 300, agility: 400 } };
+	const world = (decision, time = Date.now()) => fakeNs({
+		ports: decision ? { [SLEEVE_HOLD_PORT]: { time, ...decision } } : {},
+		overrides: { singularity: { gymWorkout: () => true, travelToCity: () => true, getCurrentWork: () => null } },
+	});
+	const state = () => ({ config: JSON.parse(JSON.stringify(DEFAULTS)), focus: false, holdCity: false });
+	assert.equal(sleeveTrainFloor(world({ train: true, floor: 850 }), DEFAULTS.sleeves.hold), 850);
+	const ns = world({ train: true, floor: COVENANT_SKILL });
+	assert.match(covenantStep(ns, state(), player, null), /\[covenant\] training def/, "the lowest stat first");
+	assert.deepEqual(ns.called("singularity.gymWorkout").map((call) => call[1]), ["def"]);
+	const off = world({ train: true, floor: COVENANT_SKILL });
+	const stopped = state();
+	stopped.config.sleeves.hold.enabled = false;
+	assert.equal(covenantStep(off, stopped, player, null), null, "kill switch");
+	assert.equal(covenantStep(world({ train: false }), state(), player, null), null, "nothing asked");
+	assert.equal(covenantStep(world({ train: true, floor: COVENANT_SKILL }, Date.now() - 20 * 60_000), state(), player, null), null, "a stale post is ignored");
+	assert.equal(covenantStep(world(null), state(), player, null), null, "no shop, nothing asked");
+	const there = { ...player, skills: { ...player.skills, strength: 850, defense: 850, dexterity: 850, agility: 850 } };
+	assert.equal(covenantStep(world({ train: true, floor: COVENANT_SKILL }), state(), there, null), null, "every skill is there: join-factions.js takes the invite");
+});
+
+test("player-work: the Covenant's gym comes before faction work in a full pass, and the pass is not done while it is asked", () => {
+	const player = { city: "Sector-12", money: 1e12, factions: ["CyberSec"], jobs: {}, karma: 0, numPeopleKilled: 0, skills: { hacking: 900, strength: 120, defense: 90, dexterity: 300, agility: 400 } };
+	const ns = fakeNs({
+		ports: { [SLEEVE_HOLD_PORT]: { time: Date.now(), train: true, floor: COVENANT_SKILL } },
+		overrides: {
+			getResetInfo: () => ({ currentNode: 10, ownedSF: new Map(), ownedAugs: new Map(), lastAugReset: 0 }),
+			singularity: { getCurrentWork: () => null, getFactionRep: () => 0, getCompanyRep: () => 1e9, workForFaction: () => true, gymWorkout: () => true, travelToCity: () => true, commitCrime: () => 3000, stopAction: () => true, applyToCompany: () => "", workForCompany: () => true },
+			getScriptRam: () => 1,
+		},
+	});
+	const result = workStep(ns, {
+		config: JSON.parse(JSON.stringify(DEFAULTS)), focus: false, holdCity: false, studyLevel: 50, noCompany: true,
+		goals: { CyberSec: { rep: 1e6, aug: "X", count: 1, skipped: 0 } }, gangDone: true, travelDone: true,
+	}, player);
+	assert.match(result.message, /\[covenant\]/);
+	assert.equal(ns.called("singularity.workForFaction").length, 0, "faction work waits for the gym");
+	assert.equal(result.done, false);
 });
 
 test("shop outside BitNode 10 posts nothing, so nothing there is ever held", async () => {
