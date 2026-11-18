@@ -1,7 +1,7 @@
 // utils/route-progress.js: the BitNode progress block of tools/status.js (hacking route, Bladeburner route, which one is active).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { describeNeeds, inviteAugs, hackingSegments, bladeburnerSegments, routeLines, daemonLevelFor } from "/utils/route-progress.js";
+import { describeNeeds, inviteAugs, hackingSegments, bladeburnerSegments, routeLines, daemonLevelFor, augCountLine, COVENANT_AUGS } from "/utils/route-progress.js";
 
 const fmt = { int: (n) => String(Math.round(n)), number: (n) => String(Math.round(n * 10) / 10), time: (ms) => `${Math.round(ms / 1000)}s`, money: (n) => "$" + n };
 const invite = [
@@ -121,4 +121,15 @@ test("the Red Pill's price is left out when it is free; the Bladeburner brief ha
 	const hacking = hackingSegments(hack(), fmt);
 	const none = bladeburnerSegments({ state: "off", progress: null, hold: false, ago: () => "" }, fmt);
 	assert.match(routeLines({ route: "hacking", routeAgo: "", hacking, bladeburner: none }).join("\n"), /Other route, Bladeburner: no progress yet$/);
+});
+
+test("regression: status shows how many augs are installed, bought and, where sleeves work, the Covenant's 20", () => {
+	assert.equal(augCountLine({ installed: 35, queued: null, sleeves: false, covenantJoined: false }), "Augmentations: 35 installed", "no plan, no sleeves: just the count");
+	assert.match(augCountLine({ installed: 35, queued: 3, sleeves: false, covenantJoined: false }), /35 installed \| 3 bought/);
+	assert.doesNotMatch(augCountLine({ installed: 35, queued: 0, sleeves: false, covenantJoined: false }), /bought/, "nothing queued, nothing said");
+	const need = augCountLine({ installed: 8, queued: null, sleeves: true, covenantJoined: false });
+	assert.ok(need.includes(`${COVENANT_AUGS - 8} to go`), "Covenant shortfall derived from the rule");
+	assert.doesNotMatch(augCountLine({ installed: COVENANT_AUGS, queued: null, sleeves: true, covenantJoined: false }), /Covenant/, "enough augs: no line");
+	assert.doesNotMatch(augCountLine({ installed: 8, queued: null, sleeves: true, covenantJoined: true }), /Covenant/, "already joined: no line");
+	assert.doesNotMatch(augCountLine({ installed: 8, queued: null, sleeves: false, covenantJoined: false }), /Covenant/, "no Sleeve API: not relevant");
 });

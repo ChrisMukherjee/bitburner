@@ -181,3 +181,22 @@ export function routeLines(d) {
 			"    It starts Bladeburner to measure it (hacking 10 and income, the gym to combat 100, then actions), then picks the faster route"];
 	return [...meanwhile, ...full(hackTitle, d.hacking), ...full(bladeTitle, d.bladeburner)];
 }
+
+/** Augmentations installed that the Covenant's invite asks for (a game rule); its sleeves are why status mentions it. */
+export const COVENANT_AUGS = 20;
+
+/**
+ * The "Augmentations" line of status: how many are installed, how many are bought and waiting for the next install (only when the
+ * reset plan is fresh, so unknown without Singularity), and, where the Sleeve API works and the Covenant hasn't been joined, how many
+ * more installed augs its invite (and so its sleeves) needs. Pure, 0GB.
+ * @param {{ installed: number, queued: number | null, sleeves: boolean, covenantJoined: boolean }} d
+ * @returns {string}
+ */
+export function augCountLine(d) {
+	const parts = [`${d.installed} installed`];
+	if (d.queued != null && d.queued > 0) parts.push(`${d.queued} bought, waiting for the next install`);
+	if (d.sleeves && !d.covenantJoined && d.installed < COVENANT_AUGS) {
+		parts.push(`Covenant (sleeves) invite needs ${COVENANT_AUGS} installed, ${COVENANT_AUGS - d.installed} to go`);
+	}
+	return `Augmentations: ${parts.join(" | ")}`;
+}

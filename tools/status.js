@@ -8,7 +8,8 @@ import { hasSingularity } from "/utils/singularity.js";
 import { goOrder } from "/go/go-plan.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
 import { adviceSummary } from "/utils/api-advice.js";
-import { hackingSegments, bladeburnerSegments, routeLines, daemonLevelFor } from "/utils/route-progress.js";
+import { hackingSegments, bladeburnerSegments, routeLines, daemonLevelFor, augCountLine } from "/utils/route-progress.js";
+import { sleevesApiFromInfo } from "/utils/sleeves.js";
 
 /**
  * One-screen summary of the run, so you don't have to tail six logs.
@@ -16,7 +17,7 @@ import { hackingSegments, bladeburnerSegments, routeLines, daemonLevelFor } from
  *   run /tools/status.js
  *   alias status='run /tools/status.js'   (absolute path, so it works from any directory)
  *
- * Shows: stage and home RAM, cash and income, Intelligence (only once above 0), current work, faction rep goals with ETAs, the
+ * Shows: stage and home RAM, cash and income, Intelligence (only once above 0), augmentations installed / bought (utils/route-progress.js augCountLine), current work, faction rep goals with ETAs, the
  * reset advice, how close the BitNode is to ending per route (hacking: Daedalus, The Red Pill, w0r1d_d43m0n; Bladeburner: Black Ops,
  * rank; the route node-eta.js picked in full, the other on one line; kill switch status.routeProgress; utils/route-progress.js) and
  * the next BitNode on the route, Go progress, the city-faction plan, stocks, one block per mechanic (gang ...), and which
@@ -82,6 +83,14 @@ export async function main(ns) {
 	if (player.skills.intelligence > 0) {
 		out.push(`Intelligence ${player.skills.intelligence} (${ns.format.number(player.exp.intelligence)} exp)`);
 	}
+
+	// Installed augs come from getResetInfo (no Singularity needed); "bought" only from a fresh reset plan, so it is left out without one.
+	const augPlan = readJson(ns, PLAN_FILE);
+	out.push(augCountLine({
+		installed: resetInfo.ownedAugs.size,
+		queued: augPlan?.checkedAt >= lastReset && Array.isArray(augPlan.queued) ? augPlan.queued.length : null,
+		sleeves: sleevesApiFromInfo(resetInfo), covenantJoined: player.factions.includes("Covenant"),
+	}));
 
 	// --- Current work and faction goals ---
 	// Work and rep need the Singularity API (BitNode 4 or Source-File 4); without it those lines say so.
