@@ -133,3 +133,10 @@ test("regression: status shows how many augs are installed, bought and, where sl
 	assert.doesNotMatch(augCountLine({ installed: 8, queued: null, sleeves: true, covenantJoined: true }), /Covenant/, "already joined: no line");
 	assert.doesNotMatch(augCountLine({ installed: 8, queued: null, sleeves: false, covenantJoined: false }), /Covenant/, "no Sleeve API: not relevant");
 });
+
+test("regression: status.js checks the game's faction name 'The Covenant', not 'Covenant'", async () => {
+	const { readFileSync } = await import("node:fs");
+	const src = readFileSync(new URL("../tools/status.js", import.meta.url), "utf8");
+	assert.ok(src.includes('factions.includes("The Covenant")'), "player.factions holds 'The Covenant'; a bare 'Covenant' never matches");
+	assert.ok(!/includes\((["'])Covenant\1\)/.test(src), "no bare 'Covenant' faction check left");
+});

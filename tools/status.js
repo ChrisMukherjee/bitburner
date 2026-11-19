@@ -89,7 +89,7 @@ export async function main(ns) {
 	out.push(augCountLine({
 		installed: resetInfo.ownedAugs.size,
 		queued: augPlan?.checkedAt >= lastReset && Array.isArray(augPlan.queued) ? augPlan.queued.length : null,
-		sleeves: sleevesApiFromInfo(resetInfo), covenantJoined: player.factions.includes("Covenant"),
+		sleeves: sleevesApiFromInfo(resetInfo), covenantJoined: player.factions.includes("The Covenant"),
 	}));
 
 	// --- Current work and faction goals ---
