@@ -121,9 +121,9 @@ const STRONG = { hacking: 100, strength: 150, defense: 150, dexterity: 150, agil
  * `files`: data/config.json, data/bitnode.txt...; `costs`: skill name -> cost; `points` skill points; `overclock`: its level.
  */
 function world({ node = 6, sf = [], augs = [], files = {}, skills = STRONG, money = 0, income = 0, ageMs = 5 * 3600_000, post = null,
-	inDivision = true, joins = true, costs = {}, points = 0, overclock = 1, nodeStart = 1000, factions = [], rank = 100 } = {}) {
+	inDivision = true, joins = true, costs = {}, points = 0, overclock = 1, nodeStart = 1000, factions = [], rank = 100, action = "Training" } = {}) {
 	const bought = [];
-	let current = "Training";
+	let current = action;
 	const ns = fakeNs({
 		files,
 		ports: post ? { [BB_PORT]: post } : {},
@@ -136,7 +136,7 @@ function world({ node = 6, sf = [], augs = [], files = {}, skills = STRONG, mone
 			getPlayer: () => ({ skills, money, factions }),
 			getTotalScriptIncome: () => [income, 0],
 			bladeburner: {
-				inBladeburner: () => inDivision,
+				inBladeburner: () => inDivision, getBonusTime: () => 0,
 				joinBladeburnerDivision: () => joins,
 				joinBladeburnerFaction: () => { if (rank < 25) return false; factions.push("Bladeburners"); return true; },
 				getCurrentAction: () => current,
@@ -195,6 +195,19 @@ test("bb-manage: the first hour waits for hacking 10 and income, then Bladeburne
 	const cash = world({ skills: { ...STRONG, hacking: 12 }, ageMs: 10 * 60_000, money: 6e6 });
 	await manage(cash.ns);
 	assert.equal(cash.state(), "run");
+});
+
+test("bb-manage: under the floor it posts membership for player-work's training choice and keeps the Training player-work chose", async () => {
+	const weak = { ...STRONG, strength: 3 };
+	const training = { type: "General", name: "Training" };
+	const chosen = world({ skills: weak, action: training, post: { training: { time: Date.now() } } });
+	await manage(chosen.ns);
+	assert.equal(chosen.state(), "train");
+	assert.equal(chosen.ns.portJson(BB_PORT).member, true, "a member after an install can still train in Bladeburner");
+	assert.equal(chosen.ns.called("bladeburner.stopBladeburnerAction").length, 0, "player-work's pick stays");
+	const leftover = world({ skills: weak, action: training });
+	await manage(leftover.ns);
+	assert.equal(leftover.ns.called("bladeburner.stopBladeburnerAction").length, 1, "nobody chose it: cleared for the gym");
 });
 
 test("an hour into the run the boot hold is dropped even if hacking is still low", async () => {

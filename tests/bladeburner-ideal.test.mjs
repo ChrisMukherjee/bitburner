@@ -181,7 +181,7 @@ test("bb-manage: bladeburner.blackOpSkills turns the Black Op term off", async (
 				getPlayer: () => ({ skills: SK, money: 1e9, factions: ["Bladeburners"] }),
 				getTotalScriptIncome: () => [1, 0],
 				bladeburner: {
-					inBladeburner: () => true, getCurrentAction: () => null, stopBladeburnerAction: () => {}, getSkillPoints: () => 3,
+					inBladeburner: () => true, getBonusTime: () => 0, getCurrentAction: () => null, stopBladeburnerAction: () => {}, getSkillPoints: () => 3,
 					getSkillUpgradeCost: (name) => costs[name] ?? Infinity, getSkillLevel: () => 0,
 					upgradeSkill: (name) => { bought.push(name); return true; },
 					getTeamSize: () => 0, setTeamSize: () => 0,

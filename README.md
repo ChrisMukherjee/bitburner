@@ -256,6 +256,8 @@ Which scripts need which BitNode, Source-File or item is not decided per folder:
 | 39 | The crime-faction invite to work on next, on the Bladeburner route ([`singularity/workers/crime-invites.js`](singularity/workers/crime-invites.js), for player-work.js) |
 | 44 | Route focus: what the hacking route waits for now ([`utils/route-focus.js`](utils/route-focus.js), posted by player-work.js; read by xp-farm, share-manager and the sleeves) |
 | 45 | Sleeve hold: whether the next Covenant sleeve is worth keeping BitNode 10 open for ([`utils/sleeve-hold.js`](utils/sleeve-hold.js), posted by sleeve-shop.js; read by auto-destroy, auto-reset and `utils/spending.js`) |
+| 46 | Grafting candidates ([`singularity/workers/graft-scan.js`](singularity/workers/graft-scan.js), for player-work.js) |
+| 47 | Combat training inputs: crime chances and the gym's hash bonus ([`singularity/workers/train-options.js`](singularity/workers/train-options.js), for player-work.js) |
 
 ## Conventions
 

@@ -15,6 +15,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`config.md`](config.md): one settings file with presets and per-player overrides, instead of per-BitNode copies.
 - [`aug-reset.md`](aug-reset.md): when to buy and install augments (value per hour of run).
 - [`player-work.md`](player-work.md): one script owns the player; start stage stand-in, short passes, focus, gang invite, gym.
+- [`combat-training.md`](combat-training.md): raising the combat stats the fastest way there is now (gym, a multi-stat crime or Bladeburner's Training), from the game's rates.
 - [`player-work-goals.md`](player-work-goals.md): real rep goals, which city factions to join, the goals and plan helpers.
 - [`bitnode-order.md`](bitnode-order.md): not a design note; a guide to the order of every BitNode for a new save (the default `bitnodePlan`), what each Source-File gives and unlocks here, how to set the route.
 - [`NETSCRIPT.md`](NETSCRIPT.md): not a design note; the coding rules and port list to follow when writing scripts.

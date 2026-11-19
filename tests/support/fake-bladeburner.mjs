@@ -157,7 +157,7 @@ export function bladeburnerSim({
 		return [Math.max(0, chance - entry.spread), Math.min(1, chance + entry.spread)];
 	};
 	const bladeburner = {
-		inBladeburner: () => sim.joined,
+		inBladeburner: () => sim.joined, getBonusTime: () => 0,
 		getStamina: () => [sim.stamina, sim.maxStamina],
 		getCurrentAction: () => (sim.current ? { ...sim.current } : null),
 		getRank: () => sim.rank,

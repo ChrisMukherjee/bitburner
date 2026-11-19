@@ -21,13 +21,15 @@ const CASH_FLOOR = 5e6;          // or this much cash on hand
 const BOOT_MAX_MS = 3600_000;    // never hold Bladeburner longer than an hour into a run: if the start is stuck, training is not the cause
 const TEAM_PLAN_MAX_AGE_MS = 15 * 60_000; // a team plan older than this (bb-pass.js stopped) is not applied
 const BLADEBURNERS = "Bladeburners"; // the faction, joinable from rank 25
+const TRAINING_CLAIM_MS = 10 * 60_000; // player-work.js re-posts its Training choice every pass (about a minute)
 
 /**
  * Bladeburner housekeeping, one short pass every few minutes (startup.js runs it): decides the state on port 36,
  * joins the division (and the Bladeburners faction from rank 25), spends skill points. Exits at once without the Bladeburner API.
  *   off    not available
  *   boot   start of a run: first get hacking to 10 and income flowing, Bladeburner waits
- *   train  a combat stat is below the floor: player-work.js trains it in the gym (also after an install resets the stats)
+ *   train  a combat stat is below the floor: player-work.js trains it (gym, crime or Training, whichever is fastest; also after
+ *          an install resets the stats)
  *   run    stats are ready: bladeburner/bb-pass.js plays and player-work.js leaves the player alone
  *   hold   no actions: the route estimate says hacking, Bladeburner isn't worth the time now, or the division waits
  *          for Stanek's Gift (`bladeburner.stanekFirst`, see below)
@@ -51,10 +53,18 @@ export async function main(ns) {
 		return postBladeburner(ns, {
 			state, stateTime: Date.now(), script: ns.getScriptName(),
 			lines: state === "run" ? undefined : [line], // while playing, bb-pass.js writes the lines
+			// For player-work.js's training choice (utils/training.js): membership survives an install, so Training can be the
+			// fastest way back up even while the stats are under the join floor; bonus time runs it up to 5x as fast
+			member: bb.inBladeburner(), bonusMs: bb.getBonusTime(),
 		});
 	};
-	// An action left running (for example from before a reset) would fight the gym or the study
-	const clearAction = () => { if (bb.inBladeburner() && bb.getCurrentAction()) bb.stopBladeburnerAction(); };
+	// An action left running (for example from before a reset) would fight the gym or the study. Training that player-work.js
+	// chose (bladeburner/workers/train.js notes it as `training` on the port) is the training, so it stays.
+	const clearAction = () => {
+		const action = bb.inBladeburner() ? bb.getCurrentAction() : null;
+		if (!action || trainingChosen(action, readBladeburner(ns).training, Date.now())) return;
+		bb.stopBladeburnerAction();
+	};
 
 	const skills = ns.getPlayer().skills;
 	const config = loadConfig(ns);
@@ -118,6 +128,15 @@ export async function main(ns) {
 			costs: { Overclock: bb.getSkillUpgradeCost("Overclock", 1) }, time: Date.now() },
 	});
 	if (config.bladeburner.team) assignTeam(bb, ns, readBladeburner(ns));
+}
+
+/**
+ * True when the running action is the Training player-work.js chose (bladeburner/workers/train.js posts `training: { time }` each
+ * pass it wants it, so a note older than TRAINING_CLAIM_MS means player-work moved on and the action is a leftover).
+ * @param {{ type: string, name: string }} action @param {{ time?: number } | undefined} note @param {number} now
+ */
+export function trainingChosen(action, note, now) {
+	return action.type === "General" && action.name === "Training" && now - (note?.time ?? 0) < TRAINING_CLAIM_MS;
 }
 
 /**

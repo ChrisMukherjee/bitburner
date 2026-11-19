@@ -146,7 +146,13 @@ augments need.
 
 ## The gym
 
-Bladeburner and the gang invite share one gym step: the lowest combat stat trains until all reach the floor, at
+Bladeburner, the gang and crime-faction invites and The Covenant share one training step (`trainStep`). It first picks the
+fastest way for the stats still short, from the game's rates: the gym (below), a crime that trains several short stats at once
+(when the cash only allows a slow gym, or no gym is in reach), or Bladeburner's Training (members with high exp multipliers;
+beside the work with The Blade's Simulacrum). See [`combat-training.md`](combat-training.md); `combatTraining.enabled: false` keeps
+the gym only.
+
+In the gym the lowest combat stat trains until all reach the floor, at
 the best gym in the current city (Sector-12: Powerhouse x10 exp, Iron x1; Aevum: Snap Fitness x5, Crush x2;
 Volhaven: Millenium x4), the better one only with cash for ten minutes of it. In a city without a gym it flies
 to Sector-12, unless the travel step is waiting there for a faction invite (it would otherwise fly back and

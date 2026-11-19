@@ -14,7 +14,8 @@ Shared helpers, plus one capability check per API. None of them run on their own
 | [`study.js`](study.js) | `pickCourse`: the free university course, or `studying.paidCourse` (Algorithms) once cash covers `paidSeconds` of its fee; `isCourse`. Design: [`docs/player-work.md`](../docs/player-work.md) | none | 0GB |
 | [`singularity.js`](singularity.js) | Whether this run can use the Singularity API | none | 1GB |
 | [`grafting.js`](grafting.js) | What this run can do with grafting (BitNode 10 or Source-File 10), and the graft in progress from player-work's state (port 35) that the reset rule waits for | none | 0GB |
-| [`gyms.js`](gyms.js) | Gym tables (stats, gyms per city, cost) shared by player-work.js and start-gang.js | none | 0GB |
+| [`gyms.js`](gyms.js) | Gym tables (stats, gyms per city, cost and exp multiplier) shared by player-work.js, start-gang.js and the sleeves | none | 0GB |
+| [`training.js`](training.js) | Which way raises the combat stats fastest: the game's exp rates for the gym, every combat crime (at its chance, focus and CrimeExpGain) and Bladeburner's Training, scored in gym-seconds per second over the stats still short (`pickTraining`). Design: [`docs/combat-training.md`](../docs/combat-training.md) | none | 0GB |
 | [`sleeve-hold.js`](sleeve-hold.js) | Keeping BitNode 10 open for the Covenant's sleeves: the game's price ladder, the Covenant check, the hold decision (affordable within the time the run has taken), the Covenant training ask (`train`/`floor` on port 45, `covenantGap`, `sleeveTrainFloor`), the saving rule and port 45. Design: [`docs/sleeves.md`](../docs/sleeves.md#holding-bitnode-10-for-the-covenants-sleeves) | none | 0GB |
 | [`sleeves.js`](sleeves.js) | What this run can do with sleeves (BitNode 10 or Source-File 10; buying only in BitNode 10) | none | 1GB |
 | [`gang.js`](gang.js) | What this run can do with gangs; the one place with per-BitNode gang rules | none | 1GB |

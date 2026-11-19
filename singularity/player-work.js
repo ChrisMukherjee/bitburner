@@ -12,7 +12,9 @@ import { postGate } from "/singularity/ready.js";
 import { bladeburnerAccess, simulacrumInstalled } from "/utils/bladeburner.js";
 import { graftingApiFromInfo, graftNote } from "/utils/grafting.js";
 import { pickGraft } from "/singularity/graft-plan.js";
-import { bladeburnerState, bladeburnerPlan, trainFloor, combatRoute } from "/bladeburner/state.js";
+import { bladeburnerState, bladeburnerPlan, trainFloor, combatRoute, readBladeburner } from "/bladeburner/state.js";
+import { COMBAT, COMBAT_CRIMES, UNFOCUSED, gymRates, crimeRates, bladeburnerTrainingRates, bonusSpeed, pickTraining } from "/utils/training.js";
+import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { routeFocus, postRouteFocus, pickGoalFaction } from "/utils/route-focus.js";
 import { daemonLevelFor } from "/utils/route-progress.js";
 import { sleeveTrainFloor } from "/utils/sleeve-hold.js";
@@ -23,6 +25,7 @@ const GOALS_PORT = 23; // singularity/workers/faction-goals.js: rep goal per fac
 const PLAN_PORT = 25;  // singularity/workers/city-plan.js: which city factions still sell something wanted
 const GANG_PORT = 30;  // gang/workers/invite.js: crime or gym for the gang invite (BitNode 2)
 const GRAFT_PORT = 46; // singularity/workers/graft-scan.js: the augmentations worth grafting (docs/grafting.md)
+const TRAIN_PORT = 47; // singularity/workers/train-options.js: crime chances and the gym's hash bonus, for the training choice
 const NEW_TOKYO = "New Tokyo";
 const CRIME_INVITE_PORT = 39; // singularity/workers/crime-invites.js: the crime-faction invite to work on (Bladeburner route)
 const AUG_PLAN_FILE = "data/aug-plan.json"; // buy-augs.js --plan: rep rates for the goals helper
@@ -68,6 +71,14 @@ const CONFIG = {
 	idleCrimeHelper: "singularity/workers/start-crime.js",
 	idleCrimeImports: ["utils/notify.js"],
 	gangRefreshMs: 2 * 60_000, // re-check the gang invite needs (and the best crime, as the stats grow) this often
+	// Combat training (trainStep, docs/combat-training.md): the crime chances are asked again this often while a stat trains (they
+	// grow with the stats), and trusted this long
+	trainHelper: "singularity/workers/train-options.js",
+	trainImports: ["utils/training.js"],
+	trainRefreshMs: 2 * 60_000,
+	trainInfoMaxMs: 10 * 60_000,
+	bbTrainHelper: "bladeburner/workers/train.js",
+	bbTrainImports: ["bladeburner/state.js"],
 	// Bladeburner gym in the gaps (The Blade's Simulacrum installed): keep the running stat until it is this share above the
 	// lowest, so the class doesn't swap every pass
 	gymBand: 0.05,
@@ -257,6 +268,13 @@ async function onePass(ns, state) {
 		}
 	} else Object.assign(state, { graft: null, grafting: null });
 
+	// The training choice's inputs (trainStep), while a pass in the last few minutes wanted a combat stat trained
+	const training = Date.now() - (state.trainNeededAt ?? 0) < CONFIG.trainInfoMaxMs && config.combatTraining?.enabled !== false;
+	if (training && Date.now() - (state.trainInfo?.time ?? 0) >= CONFIG.trainRefreshMs) {
+		const fresh = await runHelper(ns, CONFIG.trainHelper, CONFIG.trainImports, TRAIN_PORT);
+		if (fresh) state.trainInfo = fresh;
+	}
+
 	const trip = travelStep(ns, state, player);
 	player = ns.getPlayer(); // a join or flight above changes factions, city and money
 	state.holdCity = !!trip.hold; // waiting here for an invite: the gym doesn't fly away
@@ -304,6 +322,7 @@ function loadState(ns, resetAt) {
 		gang: null, gangAt: 0, gangDone: false, gangCrime: false, gangGym: false, holdCity: false,
 		crimeInvite: null, crimeInviteAt: 0, inviteCrime: false, travelDone: false,
 		graft: null, graftAt: 0, graftTry: null, wasGrafting: false, grafting: null,
+		trainInfo: null, trainNeededAt: 0, trainedBy: "",
 	};
 	if (saved?.resetAt !== resetAt) return state;
 	const { planGroups, resetAt: _, ...rest } = saved;
@@ -385,7 +404,7 @@ export function workStep(ns, state, player) {
 		return { message: `[bladeburner] playing: nothing else is started (see \`status\`)${flight ? `; ${flight}` : ""}`, done };
 	}
 	if (bladeburner === "train") {
-		const trained = gymStep(ns, state, player, current, trainFloor(ns), "[bladeburner]");
+		const trained = trainStep(ns, state, player, current, trainFloor(ns), "[bladeburner]");
 		if (trained) return { message: trained, done };
 	}
 
@@ -491,7 +510,79 @@ export function graftStep(ns, state, player, idle) {
  */
 export function covenantStep(ns, state, player, current) {
 	const floor = sleeveTrainFloor(ns, state.config.sleeves?.hold);
-	return floor > 0 ? gymStep(ns, state, player, current, floor, "[covenant]") : null;
+	return floor > 0 ? trainStep(ns, state, player, current, floor, "[covenant]") : null;
+}
+
+/**
+ * Raises every combat stat to the floor (Bladeburner's bladeburner/state.js trainFloor, the gang invite's, a crime faction's,
+ * The Covenant's) the fastest way there is now (utils/training.js, docs/combat-training.md): the gym for the lowest stat, a
+ * crime that feeds several of the stats still short, or Bladeburner's Training for all four. With The Blade's Simulacrum the
+ * Training runs beside the player's work as well. `combatTraining.enabled: false` keeps the gym only.
+ * Returns the log line, or null when no stat needs it.
+ */
+export function trainStep(ns, state, player, current, floor, tag) {
+	const need = COMBAT.filter((stat) => player.skills[stat] < floor);
+	if (need.length === 0) return null;
+	state.trainNeededAt = Date.now(); // the options helper keeps refreshing while this is recent (onePass)
+	const pick = trainingChoice(ns, state, player, need);
+	const beside = pick.beside ? bladeburnerTraining(ns) : null;
+	const short = `${need.length === 4 ? "every combat stat" : need.join(", ")} under ${floor}`;
+	if (pick.method === "bladeburner") {
+		const started = bladeburnerTraining(ns);
+		if (started) {
+			state.trainedBy = "bladeburner";
+			return `${tag} ${started}: ${short}, ${pace(pick)}`;
+		}
+	}
+	if (pick.method === "crime") {
+		state.trainedBy = "crime";
+		if (!(current?.type === "CRIME" && current.crimeType === pick.name)) {
+			ns.singularity.commitCrime(/** @type {any} */ (pick.name), state.focus);
+			notify(ns, tag, `${pick.name} to train ${short} (${pace(pick)})`, "info");
+		}
+		return `${tag} ${pick.name} trains ${short} (${pace(pick)})${beside ? `; ${beside}` : ""}`;
+	}
+	state.trainedBy = "gym";
+	const gym = gymStep(ns, state, player, current, floor, tag);
+	return gym && beside ? `${gym}; ${beside}` : gym;
+}
+
+/** "2.3x the gym's pace", or "no gym in reach" when the gym scores 0 this pass. */
+function pace(pick) {
+	return pick.gymScore > 0 ? `${pick.score.toFixed(1)}x the gym's pace` : "no gym in reach";
+}
+
+/**
+ * What trainStep compares, from what the game says now: the best gym the cash allows (in this city, else the one it would fly
+ * to), the crime chances and hash bonus from singularity/workers/train-options.js (port 47; until it has answered only the gym and
+ * Training count), the player's exp multipliers, focus and the BitNode's CrimeExpGain, and Bladeburner's Training when
+ * bladeburner/bb-manage.js says the player is a member and bb-pass.js isn't playing. Returns pickTraining's answer plus `beside`:
+ * Training can also run next to the player's work (The Blade's Simulacrum).
+ * @returns {ReturnType<typeof pickTraining> & { beside: boolean }}
+ */
+export function trainingChoice(ns, state, player, need) {
+	const cityGyms = GYMS[player.city] ?? GYMS[GYM_CITY];
+	const [, , gymExpMult] = cityGyms.find(([, cost]) => player.money >= cost * GYM_CASH_SECONDS) ?? cityGyms[cityGyms.length - 1];
+	const info = state.trainInfo && Date.now() - (state.trainInfo.time ?? 0) < CONFIG.trainInfoMaxMs ? state.trainInfo : null;
+	const gym = gymRates(player.mults, Number(gymExpMult), Number(info?.gymMult) || 1);
+	if (state.config?.combatTraining?.enabled === false) return { method: "gym", name: "", score: 1, gymScore: 1, beside: false };
+	const gymReachable = !!GYMS[player.city] || (!state.holdCity && player.money >= CONFIG.travelCost);
+	const focusMult = state.focus || state.focusAuto === false ? 1 : UNFOCUSED;
+	const crimeExpGain = info ? bitnodeMults(ns).get("CrimeExpGain") : 1;
+	const crimes = info ? COMBAT_CRIMES.map(([name, time, exp]) => ({ name, rates: crimeRates(exp, time, info.chances?.[name], player.mults, crimeExpGain, focusMult) })) : [];
+	// Training belongs to bb-pass.js while it plays ("run"); a stale post ("off") says nothing about membership
+	const post = readBladeburner(ns);
+	const bbState = post.member === true ? bladeburnerState(ns) : "off";
+	const member = bbState !== "off" && bbState !== "run";
+	const beside = member && simulacrumInstalled(ns);
+	const bladeburner = member && !beside ? bladeburnerTrainingRates(player.mults, bonusSpeed(Number(post.bonusMs) || 0, CONFIG.trainRefreshMs)) : null;
+	return { ...pickTraining({ need, gym, gymReachable, crimes, bladeburner }), beside };
+}
+
+/** Starts (or keeps) Bladeburner's Training through bladeburner/workers/train.js. Returns a short line, or null without room for it. */
+function bladeburnerTraining(ns) {
+	if (startHelper(ns, CONFIG.bbTrainHelper, CONFIG.bbTrainImports) === 0) return null;
+	return "Bladeburner Training";
 }
 
 /**
@@ -552,7 +643,7 @@ export function idleStep(ns, state, player, current) {
 function gangStep(ns, state, player, current, invite) {
 	const needs = `needs ${invite.missing.join(", ")}`;
 	if (invite.gym && (GYMS[player.city] || !state.holdCity || !invite.crime)) {
-		const trained = gymStep(ns, state, player, current, invite.gym, "[gang-invite]");
+		const trained = trainStep(ns, state, player, current, invite.gym, "[gang-invite]");
 		if (trained) state.gangGym = true;
 		return trained && `${trained} for the gang: ${needs}`;
 	}
@@ -573,7 +664,8 @@ function stopGangWork(ns, state, current, invite) {
 	if (invite) return current;
 	const running = String(current?.classType ?? "").toUpperCase();
 	const gymRunning = current?.type === "CLASS" && GYM_STATS.some(([, type, className]) => running === className || running === type.toUpperCase());
-	const stop = (state.gangCrime && current?.type === "CRIME") || (state.gangGym && gymRunning);
+	const trainingCrime = state.trainedBy === "crime" && current?.type === "CRIME"; // trainStep's pick for the gang's combat levels
+	const stop = (state.gangCrime && current?.type === "CRIME") || (state.gangGym && (gymRunning || trainingCrime));
 	state.gangCrime = false;
 	state.gangGym = false;
 	if (!stop) return current;
@@ -633,13 +725,13 @@ function stopInviteCrime(ns, state, current, inv) {
 function gapGym(ns, state, player, current, inv, alongside) {
 	if (current && !["CLASS", "CRIME"].includes(current.type)) return null;
 	if (inv?.gym > 0) {
-		const trained = gymStep(ns, state, player, current, inv.gym, "[crime-invite]");
+		const trained = trainStep(ns, state, player, current, inv.gym, "[crime-invite]");
 		if (trained) return `${trained} for ${inv.faction}`;
 	}
 	if (!alongside) return null;
 	if (isCourse(current, state.config.studying.paidCourse)) return null;
 	const lowest = Math.min(...GYM_STATS.map(([stat]) => player.skills[stat]));
-	const trained = gymStep(ns, state, player, current, Math.floor(lowest * (1 + CONFIG.gymBand)) + 1, "[bladeburner]");
+	const trained = trainStep(ns, state, player, current, Math.floor(lowest * (1 + CONFIG.gymBand)) + 1, "[bladeburner]");
 	return trained && `${trained} for Bladeburner's chances (alongside its actions)`;
 }
 

@@ -12,7 +12,7 @@ set of scripts that had run in game.
 | --- | --- | --- |
 | `off` | no Bladeburner API, or the division can't be joined | normal player-work |
 | `boot` | start of a run: hacking 10 and income first (never longer than an hour into a run) | normal player-work |
-| `train` | a combat stat is below 100 (the join requirement), e.g. after an install reset the stats | the gym, via player-work |
+| `train` | a combat stat is below 100 (the join requirement), e.g. after an install reset the stats | player-work trains: gym, crime or Training, whichever is fastest ([`combat-training.md`](combat-training.md)) |
 | `run` | stats ready, division joined | `bb-pass.js`; player-work starts nothing |
 | `hold` | joined, but the route estimate says hacking is faster or Bladeburner isn't worth the time now; or not joined, waiting for Stanek's Gift (below) | normal player-work |
 

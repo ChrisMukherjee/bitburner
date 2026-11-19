@@ -183,6 +183,13 @@ export const DEFAULTS = {
 		idleCrime: true,
 	},
 
+	// Combat training (player-work.js trainStep; docs/combat-training.md): whenever a combat stat must reach a level (Bladeburner,
+	// a gang or crime-faction invite, The Covenant), use whichever is fastest right now: the gym for the lowest stat, a crime that
+	// trains several of the short stats at once, or Bladeburner's Training (members only; beside the work with The Blade's
+	// Simulacrum). Compared from the game's formulas, your exp multipliers, the crime chances and the gym your cash allows.
+	// false = the gym only, as before.
+	combatTraining: { enabled: true },
+
 	// Start stage only (player-work-start.js): create a port opener yourself when your hacking level allows it
 	// and it would take no more than maxMinutes (the darkweb price needs cash the batcher hasn't made yet).
 	createPrograms: { maxMinutes: 30 },

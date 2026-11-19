@@ -234,7 +234,7 @@ function manageWorld({ post = {}, size = 12, assigned = 0, files = {} } = {}) {
 			getPlayer: () => ({ skills: { hacking: 100, strength: 200, defense: 200, dexterity: 200, agility: 200, charisma: 50, intelligence: 1 }, money: 1e9, factions: ["Bladeburners"] }),
 			getTotalScriptIncome: () => [1, 0],
 			bladeburner: {
-				inBladeburner: () => true, getCurrentAction: () => null, stopBladeburnerAction: () => {}, getSkillPoints: () => 0,
+				inBladeburner: () => true, getBonusTime: () => 0, getCurrentAction: () => null, stopBladeburnerAction: () => {}, getSkillPoints: () => 0,
 				getSkillUpgradeCost: () => Infinity, getSkillLevel: () => 0, upgradeSkill: () => false,
 				getTeamSize: (type) => (type ? assigned : size),
 				setTeamSize: (type, name, want) => { assigned = Math.min(want, size); return assigned; },
