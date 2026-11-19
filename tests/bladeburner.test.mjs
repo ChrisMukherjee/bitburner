@@ -11,7 +11,7 @@ import {
 	BB_PORT, readBladeburner, postBladeburner, bladeburnerState, bladeburnerPlan, trainFloor, blackOpsDone, COMBAT_FLOOR,
 } from "/bladeburner/state.js";
 import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
-import { main as manage } from "/bladeburner/bb-manage.js";
+import { main as manage, membership } from "/bladeburner/bb-manage.js";
 import {
 	skillAt, expFor, rawChance, makeBladeburner, bladeburnerClone, bladeburnerAdvance, bestChanceNow, predictRankPerHour,
 	projectRoute, incomeNeeded, DONATE_REP, fitIncomeExponent, levelFactor, modelMults, inviteGate, gateOpen, skillStart, spendSkills, ACTIONS,
@@ -136,7 +136,8 @@ function world({ node = 6, sf = [], augs = [], files = {}, skills = STRONG, mone
 			getPlayer: () => ({ skills, money, factions }),
 			getTotalScriptIncome: () => [income, 0],
 			bladeburner: {
-				inBladeburner: () => inDivision, getBonusTime: () => 0,
+				inBladeburner: () => inDivision,
+				getBonusTime: () => { if (!inDivision) throw new Error("bladeburner.getBonusTime: You must be a member of the Bladeburner division to use this API."); return 0; },
 				joinBladeburnerDivision: () => joins,
 				joinBladeburnerFaction: () => { if (rank < 25) return false; factions.push("Bladeburners"); return true; },
 				getCurrentAction: () => current,
@@ -176,6 +177,16 @@ test("bb-manage: a ready player joins the division and the state is run", async 
 	await manage(w.ns);
 	assert.equal(w.state(), "run");
 	assert.equal(w.ns.called("bladeburner.joinBladeburnerDivision").length, 1);
+});
+
+test("regression: bb-manage asks for bonus time only once the player is in the division (the game throws for a non-member)", async () => {
+	const w = world({ inDivision: false });
+	await manage(w.ns); // the fake throws if getBonusTime is called while not a member
+	assert.equal(w.state(), "run");
+	assert.equal(w.ns.portJson(BB_PORT)?.member, false);
+	assert.equal(w.ns.portJson(BB_PORT)?.bonusMs, 0, "no bonus time without membership");
+	const bb = { inBladeburner: () => true, getBonusTime: () => 90_000 };
+	assert.deepEqual(membership(bb), { member: true, bonusMs: 90_000 }, "a member's bonus time is passed on");
 });
 
 test("bb-manage: a refused join leaves the state off", async () => {

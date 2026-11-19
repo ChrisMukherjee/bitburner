@@ -38,6 +38,16 @@ const TRAINING_CLAIM_MS = 10 * 60_000; // player-work.js re-posts its Training c
  * only input from outside is the route estimate on the same port (`plan`), when one is written.
  * Ported from the other player's bb-manage.js, which has run in game.
  */
+/**
+ * Division membership and bonus time for the port. getBonusTime throws for a non-member, so it is only asked of a member;
+ * a player who hasn't joined has no bonus time.
+ * @param {NS["bladeburner"]} bb
+ */
+export function membership(bb) {
+	const member = bb.inBladeburner();
+	return { member, bonusMs: member ? bb.getBonusTime() : 0 };
+}
+
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
@@ -55,7 +65,7 @@ export async function main(ns) {
 			lines: state === "run" ? undefined : [line], // while playing, bb-pass.js writes the lines
 			// For player-work.js's training choice (utils/training.js): membership survives an install, so Training can be the
 			// fastest way back up even while the stats are under the join floor; bonus time runs it up to 5x as fast
-			member: bb.inBladeburner(), bonusMs: bb.getBonusTime(),
+			...membership(bb),
 		});
 	};
 	// An action left running (for example from before a reset) would fight the gym or the study. Training that player-work.js

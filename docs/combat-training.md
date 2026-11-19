@@ -50,7 +50,7 @@ What this means in practice:
 - [`../singularity/workers/train-options.js`](../singularity/workers/train-options.js) (7.1GB at SF4.3) posts the crime chances
   and the hash multiplier on port 47 every 2 minutes while a stat trains, so player-work keeps its RAM; until it has answered,
   only the gym and Training are compared. Crime times and exp are a table from the game's source.
-- [`../bladeburner/bb-manage.js`](../bladeburner/bb-manage.js) posts `member` and `bonusMs` on port 36. When Training is picked,
+- [`../bladeburner/bb-manage.js`](../bladeburner/bb-manage.js) posts `member` and `bonusMs` on port 36 (`bonusMs` is 0 for a non-member: the game's `getBonusTime` throws unless the player has joined the division, so it is only asked of members). When Training is picked,
   [`../bladeburner/workers/train.js`](../bladeburner/workers/train.js) starts it and notes `training: { time }`; bb-manage's
   "clear a leftover action" leaves Training alone while that note is under 10 minutes old. Training is never picked while
   `bb-pass.js` plays (`run`).
