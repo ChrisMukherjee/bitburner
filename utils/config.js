@@ -7,10 +7,12 @@ import { notify } from "/utils/notify.js";
 export const USER_CONFIG_FILE = "data/config.json";
 // The current BitNode number, written by startup.js (getResetInfo costs 1GB, so loadConfig doesn't call it).
 export const BITNODE_FILE = "data/bitnode.txt";
+// Which challenges apply in the current BitNode run, written by startup.js at the start of each run (utils/challenge.js).
+export const CHALLENGE_STATE_FILE = "data/challenge-state.json";
 
 /**
  * The settings for this player: DEFAULTS from config.js, then the chosen preset, then the
- * settings of each challenge named in `challenges` (CHALLENGES in config.js), then data/config.json; finally what `forbid` rules out is
+ * settings of each challenge named in `challenges` that applies in this run (CHALLENGES in config.js; one set during a run waits for the next, see utils/challenge.js), then data/config.json; finally what `forbid` rules out is
  * taken out of the plan (forbidAdjust). Objects merge key by key; lists and single values replace. 0GB.
  * Each layer may have a `bitnodes` section ({ "2": {...} }); the entry for the current BitNode
  * (from data/bitnode.txt) is laid over that layer right after it.
@@ -36,7 +38,7 @@ export function loadConfig(ns) {
 		notify(ns, "[config]", `unknown profile "${profile}" in ${USER_CONFIG_FILE} (known: ${Object.keys(PRESETS).join(", ")}).`, "error", true);
 		preset = {};
 	}
-	const challenges = challengeLayers(ns, custom.challenges ?? DEFAULTS.challenges);
+	const challenges = challengeLayers(ns, activeChallenges([custom.challenges ?? DEFAULTS.challenges].flat(), challengeState(ns)));
 	const node = currentBitNode(ns);
 	const layers = [DEFAULTS, preset, ...challenges, custom].flatMap((layer) => [layer, layer?.bitnodes?.[node]]);
 	const config = layers.reduce((merged, layer) => mergeOver(merged, layer), {});
@@ -52,6 +54,7 @@ export function loadConfig(ns) {
  * helpers already report the mechanic as not available; this drops the settings that would still steer around it:
  *   bladeburner  the route is hacking, Bladeburner augments aren't worth buying (and the Bladeburner sleeve jobs are worth nothing)
  *   gang         no start-stage gang invite, and karma is worth nothing to the sleeves (the gang was its only use)
+ *   sleeves      the manager gives no job and the shop buys no augmentations (sleeves and memory are still bought)
  * `forbidAdjust` runs after the other adjustments so a Bladeburner route estimate can't put the augments back. 0GB.
  * @param {any} config
  */
@@ -61,6 +64,10 @@ function forbidAdjust(config) {
 		if (config.bladeburner) config.bladeburner.route = "hacking";
 		if (config.augments?.wantStats) config.augments.wantStats = config.augments.wantStats.filter((group) => group !== "bladeburner");
 		if (config.sleeves?.weights) config.sleeves.weights.bladeburner = 0;
+	}
+	if (forbidden("sleeves") && config.sleeves) {
+		config.sleeves.manage = false; // no jobs, so no experience
+		config.sleeves.buy = { ...(config.sleeves.buy ?? {}), augments: false };
 	}
 	if (forbidden("gang")) {
 		if (config.gang) config.gang.startInvite = false;
@@ -146,6 +153,26 @@ function incomeAdjust(ns, config) {
 		for (const stat of stats) factors[stat] = (factors[stat] ?? 0) + (portions[source] ?? 0);
 	}
 	aug.incomeFactors = factors;
+}
+
+/**
+ * The challenges that apply in this run: those named in the config and listed as active in the run's state (utils/challenge.js). One
+ * named while the run was going waits for the next run. No state file (an older save, or a server it wasn't copied to) = all of them.
+ * Pure, 0GB.
+ * @param {string[]} names @param {{ active?: string[] } | null} state
+ */
+export function activeChallenges(names, state) {
+	return state && Array.isArray(state.active) ? names.filter((name) => state.active.includes(name)) : names;
+}
+
+/** The saved run state, or null. */
+function challengeState(ns) {
+	try {
+		const state = JSON.parse(ns.read(CHALLENGE_STATE_FILE));
+		return state && typeof state === "object" ? state : null;
+	} catch {
+		return null;
+	}
 }
 
 /** The override layers of the named challenges (a single name works too); unknown names get a sticky alert. */

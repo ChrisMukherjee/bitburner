@@ -184,8 +184,8 @@ for a run of about a day (86,400 s) the income that makes the next sleeve worth 
 
 **The advice:** do the other BitNodes of the plan first (BitNode 3's corporation is the biggest income step; 7 and 9 come with it),
 and come back to BitNode 10 for one more run once your income is near the line for the next sleeve. The plan cannot schedule that
-run (it counts Source-File levels and BitNode 10 stops at 3), so start it by hand with `next-bitnode 10`, with `challenge clear`
-first if the BitNode 10 challenge is still on. The run gives no Source-File, so go back only when the next sleeve is close; every
+run (it counts Source-File levels and BitNode 10 stops at 3), so start it by hand with `next-bitnode 10`, with the BitNode 10 challenge
+set only if you want it again (it switches itself off when a BitNode 10 run ends). The run gives no Source-File, so go back only when the next sleeve is close; every
 run you spend there without buying one is wasted. Each extra run can buy the sleeves it reaches, one after the other, and the
 hold keeps the run open for each as long as it is worth it. Eight sleeves (Source-File 10.3 plus all five) is also the "You and
 what army" achievement.
@@ -204,7 +204,7 @@ scripts break each challenge is in [`../achievements/README.md`](../achievements
 | 6, 7 | Never join the Bladeburner division | An extra run late in the order: 6,000 hacking at 35% hacking level; `challenge bn6-7` makes the scripts take the hacking route ([`../achievements/bn6-7-challenge.md`](../achievements/bn6-7-challenge.md)) |
 | 8 | No 4S market data | BitNode 8.3 (step 15), if your trading works without 4S |
 | 9 | No hacknet nodes or servers | BitNode 9.3 (step 11), finishing through the Black Ops |
-| 10 | No sleeve holds an augmentation or experience (owning idle sleeves is fine) | BitNode 10.1, the first run of step 8, with `challenge bn10`, finishing through the Black Ops; `challenge clear` before 10.2 |
+| 10 | No sleeve holds an augmentation or experience (owning idle sleeves is fine) | BitNode 10.1, the first run of step 8, with `challenge bn10`, finishing through the Black Ops; it switches itself off when BitNode 10 ends |
 | 12 | Destroy BitNode 12 50 times | Step 18, which the plan runs to level 50 |
 | 13 | No Stanek's Gift | An extra run at the end, since the Gift is BitNode 13's main help |
 | 14 | No Go moves or cheats through the API | BitNode 14.3 (step 13): stop the Go bot and play by hand, or not at all |

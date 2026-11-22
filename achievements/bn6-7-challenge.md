@@ -11,8 +11,9 @@ joins it, nothing trains the combat stats for it, and the route is hacking (Daed
 
 ## Before you start
 
-- **Switch it on before the BitNode starts**, and before the division is joined in it. If you have already joined
-  in the BitNode you are in, the attempt is lost there: `challenge clear` and play on, or go for it on the next run.
+- **Name it before the run you want it for.** It applies from the start of the next run of that BitNode (so you can set it in
+  the run before, or any time earlier), because a run that has already joined the division can't win it. If you are in a run that
+  is still clean, `challenge bn6-7 --now` applies it at once; if you have joined, leave it for the next run.
 - **Expect a long hacking run.** BitNode 6 and 7 cut the hacking level multiplier to 35%, so the daemon needs about
   6,000 hacking ([`docs/bitnode-order.md`](../docs/bitnode-order.md#challenge-achievements)). The scripts' hacking route
   handles it (faction work, the aug reset rule, `auto-destroy.js`); it just takes longer than Bladeburner would. Any level of
@@ -21,7 +22,7 @@ joins it, nothing trains the combat stats for it, and the route is hacking (Daed
 
 ## Steps
 
-1. **Before the BitNode starts**, in the game:
+1. **Before the run starts** (any time earlier), in the game:
 
    ```text
    run /tools/set-config.js challenge bn6-7
@@ -36,9 +37,9 @@ joins it, nothing trains the combat stats for it, and the route is hacking (Daed
 4. **Destroy the BitNode** through `w0r1d_d43m0n` ([`auto-destroy.js`](../singularity/auto-destroy.js) does it once The Red Pill
    is installed and hacking allows). The achievement appears when it goes down.
 5. **Nothing to clear.** When the next BitNode starts, `startup.js` takes that BitNode's challenge out of `challenges` by itself
-   and says so, so a later run plays Bladeburner again. To try again, run the `challenge` command again before that BitNode.
+   and says so, so a later run plays Bladeburner again. To try again, run the `challenge` command again before that run.
 
 ## If it goes wrong
 
 If the division was joined, the attempt is lost for this run; finish the BitNode (or `challenge clear` to use Bladeburner) and
-try again on a later run of it. How it works and why: [`docs/challenges.md`](../docs/challenges.md#no-bladeburner-or-no-gang-bn2-bn6-bn7).
+try again on a later run of it. How it works and why: [`docs/challenges.md`](../docs/challenges.md#forbidden-mechanics-bn2-bn6-bn7-bn10).

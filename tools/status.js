@@ -152,7 +152,7 @@ export async function main(ns) {
 	out.push(`BitNode ${node}: destroying gives SF${node}.${sfAfter}, next ${nextBN} | auto-destroy ` +
 		(destroyer ? (destroyer.args.includes("--dry") ? "running in --dry" : "running") : "not running"));
 	// A challenge that rules a mechanic out (CHALLENGES in config.js): say so, since Bladeburner and the gang then stay off by design
-	const ruledOut = [config.forbid ?? []].flat().map((feature) => feature === "bladeburner" ? "no Bladeburner division" : feature === "gang" ? "no gang" : feature);
+	const ruledOut = [config.forbid ?? []].flat().map((feature) => feature === "bladeburner" ? "no Bladeburner division" : feature === "gang" ? "no gang" : feature === "sleeves" ? "no sleeve jobs or augmentations" : feature);
 	if (ruledOut.length) out.push(`  Challenge on: ${ruledOut.join(", ")} (\`challenge clear\` ends it); the way out is w0r1d_d43m0n`);
 	// What this run lacks (written by tools/api-advice.js every 10 min): one line each; the full text was printed to the terminal.
 	const advice = config.missingApiAdvice?.enabled === false ? null : readJson(ns, "data/api-advice.json");

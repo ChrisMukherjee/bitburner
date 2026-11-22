@@ -6,6 +6,7 @@ import { reserveRoom, releaseRoom } from "/utils/ram-reserve.js";
 // The player's own settings, copied along so loadConfig sees them on another server too.
 const USER_CONFIG_FILE = "data/config.json";
 const BITNODE_FILE = "data/bitnode.txt"; // read by loadConfig for the per-BitNode settings
+const CHALLENGE_STATE_FILE = "data/challenge-state.json"; // read by loadConfig: which challenges apply in this run
 
 /**
  * Starts a one-shot helper script wherever it fits: home first, then the calling script's
@@ -18,7 +19,7 @@ export function startHelper(ns, script, files, ...args) {
 	const ramNeeded = ns.getScriptRam(script, "home");
 	const here = ns.getHostname();
 	const copies = [script, ...files];
-	for (const file of [USER_CONFIG_FILE, BITNODE_FILE]) if (ns.fileExists(file, "home")) copies.push(file);
+	for (const file of [USER_CONFIG_FILE, BITNODE_FILE, CHALLENGE_STATE_FILE]) if (ns.fileExists(file, "home")) copies.push(file);
 
 	const rooted = getAllServers(ns).filter((host) => host !== "home" && ns.hasRootAccess(host));
 	const others = rooted

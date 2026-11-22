@@ -129,7 +129,7 @@ for the $1q one, ten times more for each after it, on a day-long run; see [`bitn
 
 ## The BN10 challenge
 
-`challenge bn10` (see [`challenges.md`](challenges.md)) sets `sleeves.manage: false` (the manager gives no sleeve a job, so none gains
+`challenge bn10` (see [`challenges.md`](challenges.md); `forbid: ["sleeves"]`, which `loadConfig` turns into the two settings below and which switches itself off when BitNode 10 ends) sets `sleeves.manage: false` (the manager gives no sleeve a job, so none gains
 experience) and `sleeves.buy.augments: false` while in BitNode 10. The game checks, at the destroy, that no sleeve holds an
 augmentation or experience; owning idle sleeves is allowed, so the shop still buys sleeves and memory and the hold above still works.
 It is the cheapest in the first BitNode 10 run (see [`bitnode-order.md`](bitnode-order.md#challenge-achievements)).

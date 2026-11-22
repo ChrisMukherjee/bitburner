@@ -10,7 +10,8 @@ sleeves don't grind karma for it.
 
 ## Steps
 
-1. **Before BitNode 2 starts** (and before a gang is formed in it), in the game: `run /tools/set-config.js challenge bn2`. Check
+1. **Before the BitNode 2 run starts** (any time earlier), in the game: `run /tools/set-config.js challenge bn2`. It applies from the
+   start of the next BitNode 2 run; in a run that is still clean (no gang yet) `challenge bn2 --now` applies it at once. Check
    with `run /tools/set-config.js challenge`. Its settings only apply in BitNode 2.
 2. **Enter BitNode 2** and let [`startup.js`](../startup.js) run first (it records the BitNode number).
 3. **Play as normal.** Income comes from hacking, stocks and hacknet only; `status` shows `Challenge on: no gang`. Don't create a
@@ -22,4 +23,4 @@ sleeves don't grind karma for it.
 ## If it goes wrong
 
 If a gang was formed, the attempt is lost for this run; finish it, or `challenge clear` to carry on with the gang. Design:
-[`docs/challenges.md`](../docs/challenges.md#no-bladeburner-or-no-gang-bn2-bn6-bn7).
+[`docs/challenges.md`](../docs/challenges.md#forbidden-mechanics-bn2-bn6-bn7-bn10).

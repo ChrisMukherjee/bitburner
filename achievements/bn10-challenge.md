@@ -20,7 +20,8 @@ the second BitNode 1 run, [`bn1-challenge.md`](bn1-challenge.md).)
 
 ## Steps
 
-1. **Before the run starts** (or at its very start, before sleeves have worked):
+1. **Before the run starts** (any time earlier, for example during BitNode 10.1 for the 10.2 run; it applies from the start of the next
+   run, and `challenge bn10 --now` applies it at once in a run where no sleeve has worked yet):
 
    ```text
    run /tools/set-config.js challenge bn10
@@ -31,6 +32,6 @@ the second BitNode 1 run, [`bn1-challenge.md`](bn1-challenge.md).)
 3. **Check before destroying** if you are unsure a sleeve worked earlier in this run (for example the setting went on late):
    a sleeve's experience is in `ns.sleeve.getSleeve(i).exp` and its augmentations in `ns.sleeve.getSleeveAugmentations(i)`.
    Any non-zero value cannot be undone in this run; then leave the challenge for the next BitNode 10 run.
-4. **After the destroy, `run /tools/set-config.js challenge clear`** so the next BitNode 10 run uses its sleeves.
+4. **Nothing to clear.** When the next BitNode starts, `startup.js` takes `bn10` out of `challenges` by itself (and says so), so the next BitNode 10 run uses its sleeves. To try again, set it again before that run.
 
-Rule and settings: `CHALLENGES.bn10` in [`../config.js`](../config.js); design: [`../docs/challenges.md`](../docs/challenges.md).
+Rule and settings: `CHALLENGES.bn10` in [`../config.js`](../config.js) (`forbid: ["sleeves"]`); design: [`../docs/challenges.md`](../docs/challenges.md#forbidden-mechanics-bn2-bn6-bn7-bn10).

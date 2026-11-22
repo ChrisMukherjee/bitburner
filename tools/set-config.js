@@ -1,7 +1,8 @@
 // Design: docs/config.md
 // @ts-check
 import { DEFAULTS, CHALLENGES, CHALLENGE_GROUPS } from "/config.js";
-import { USER_CONFIG_FILE } from "/utils/config.js";
+import { USER_CONFIG_FILE, CHALLENGE_STATE_FILE } from "/utils/config.js";
+import { armNow, disarm } from "/utils/challenge.js";
 
 /**
  * Changes your overrides in data/config.json without opening an editor. Keeps everything else in the
@@ -21,7 +22,9 @@ import { USER_CONFIG_FILE } from "/utils/config.js";
  *   run /tools/set-config.js skip darknet/dnet-manager.js   add a script startup.js never starts
  *   run /tools/set-config.js skip clear               start everything again
  *   run /tools/set-config.js challenge bn1            go for a challenge achievement (CHALLENGES in config.js);
- *                                                     set it before that BitNode starts (bn6-7 sets the BN6 and BN7 ones)
+ *                                                     it applies from the start of the next run of that BitNode, so it can
+ *                                                     be set in the run before; add --now to apply it in this run if it is
+ *                                                     still clean (bn6-7 sets the BN6 and BN7 ones)
  *   run /tools/set-config.js challenge                list the challenges and which are on
  *   run /tools/set-config.js challenge clear          stop going for them
  *   run /tools/set-config.js set augments.wantStats hacking,rep    any setting by path; a value is JSON,
@@ -30,7 +33,7 @@ import { USER_CONFIG_FILE } from "/utils/config.js";
  */
 /** @param {NS} ns */
 export async function main(ns) {
-	const [command, ...rest] = ns.args.map(String);
+	let [command, ...rest] = ns.args.map(String);
 	const text = ns.read(USER_CONFIG_FILE).trim();
 	let mine = {};
 	if (text) {
@@ -99,8 +102,12 @@ export async function main(ns) {
 			for (const [name, members] of Object.entries(CHALLENGE_GROUPS)) ns.tprint(`    ${name}: sets ${members.join(" and ")}`);
 			return;
 		}
+		const now = rest.includes("--now");
+		rest = rest.filter((name) => name !== "--now");
+		const state = readState(ns);
 		if (rest[0] === "clear") {
 			mine.challenges = [];
+			saveState(ns, disarm(state, on)); // clearing applies at once
 			save(ns, mine, "No challenges any more; the usual settings apply again. Takes effect as scripts restart.");
 			return;
 		}
@@ -111,9 +118,11 @@ export async function main(ns) {
 			return;
 		}
 		mine.challenges = [...new Set([...on, ...names])];
-		save(ns, mine, `challenges = ${JSON.stringify(mine.challenges)}: ` +
+		// A challenge applies from the start of the next BitNode run (utils/challenge.js), unless --now: this run may already have broken it.
+		saveState(ns, now ? armNow(state, names) : disarm(state, names.filter((name) => !on.includes(name)))); // one already on keeps applying
+		save(ns, mine, `challenges = ${JSON.stringify(mine.challenges)}${now ? " (applies NOW, in this run)" : " (applies from the start of the next run of its BitNode; add --now to apply it in this run if it is still clean)"}: ` +
 			names.map((name) => `"${CHALLENGES[name].achievement}" (${CHALLENGES[name].rule})`).join("; ") +
-			". Upgrades and joins already made in that BitNode can't be undone (a Bladeburner division or gang you already have there loses the attempt), so set this before it starts. Details: docs/challenges.md");
+			". Anything already done in that BitNode run (a division joined, a gang formed, home upgraded) can't be undone, so use --now only on a run that is still clean. Details: docs/challenges.md");
 		return;
 	}
 	if (command === "set" || command === "unset") {
@@ -160,6 +169,15 @@ function nextLevel(ns, bitNode) {
 	const info = ns.getResetInfo();
 	const owned = new Map(info.ownedSF).get(bitNode) ?? 0;
 	return owned + (info.currentNode === bitNode ? 1 : 0) + 1;
+}
+
+function readState(ns) {
+	try { return JSON.parse(ns.read(CHALLENGE_STATE_FILE)); } catch { return null; }
+}
+
+/** Writes the run state back (no state file yet = nothing to change: every challenge applies). */
+function saveState(ns, state) {
+	if (state) ns.write(CHALLENGE_STATE_FILE, JSON.stringify(state), "w");
 }
 
 function save(ns, mine, message) {

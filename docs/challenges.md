@@ -10,8 +10,8 @@ The steps for a player are in [`../achievements/bn1-challenge.md`](../achievemen
 Each "BNx: Challenge" achievement is a named set of config overrides in `CHALLENGES`. Naming it in
 `challenges` (in `data/config.json`) lays its settings over the preset, before the player's own
 overrides. A challenge's settings sit under `bitnodes`, so they only apply in the BitNode the challenge
-is about: the player can switch it on any time before that BitNode starts, and the rest of the route is
-untouched.
+is about, and from the start of the next run (see "When it applies" below), so the player can name it any time before
+that run and the rest of the route is untouched.
 
 The scripts only get generic settings the challenge turns on. For BN1 ("at most 128GB and 1 core on
 home") that is `homeUpgrades.ram.maxGB` and `homeUpgrades.cores.max`: the shared home upgrade loop stops
@@ -38,16 +38,16 @@ upgrades: startup's one-shots and `install-augs.js`'s `--spend-all` buy before a
 
 ## BN10: no sleeve experience or augmentations
 
-`bn10` (steps: [`../achievements/bn10-challenge.md`](../achievements/bn10-challenge.md)) is a different kind: instead of capping a purchase it switches a manager off. In BitNode 10 it sets `sleeves.manage: false` (no job, so no experience: [`../sleeves/sleeve-manager.js`](../sleeves/sleeve-manager.js) returns at once) and `sleeves.buy.augments: false` (the shop buys none). The game checks both at the destroy; owning sleeves is allowed, so sleeves and memory are still bought and [the hold](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves) works. An augmentation install keeps a sleeve's experience and augmentations (only the BitNode's end resets them), so anything a sleeve gains during the run counts and the manager stays off for all of it. Rejected: letting sleeves work early and stop later (nothing wipes their experience in between).
+`bn10` (steps: [`../achievements/bn10-challenge.md`](../achievements/bn10-challenge.md)) is a `forbid` challenge like the ones below (`forbid: ["sleeves"]`, retiring when BitNode 10 ends), but what it forbids is not owning sleeves: `loadConfig` (`forbidAdjust`) turns it into `sleeves.manage: false` (no job, so no experience: [`../sleeves/sleeve-manager.js`](../sleeves/sleeve-manager.js) returns at once) and `sleeves.buy.augments: false` (the shop buys none); the sleeve scripts read those two settings, so they didn't change. The game checks both at the destroy; owning sleeves is allowed, so sleeves and memory are still bought and [the hold](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves) works. An augmentation install keeps a sleeve's experience and augmentations (only the BitNode's end resets them), so anything a sleeve gains during the run counts and the manager stays off for all of it. Rejected: letting sleeves work early and stop later (nothing wipes their experience in between).
 
-## No Bladeburner or no gang (BN2, BN6, BN7)
+## Forbidden mechanics (BN2, BN6, BN7, BN10)
 
-`bn6`, `bn7` (the same rule; `bn6-7` sets both, see `CHALLENGE_GROUPS`) and `bn2` forbid a mechanic for the whole BitNode. The game checks
+`bn6`, `bn7` (the same rule; `bn6-7` sets both, see `CHALLENGE_GROUPS`), `bn2` and `bn10` forbid a mechanic for the whole BitNode. The game checks
 `Player.bladeburner === null` (BN6, BN7) or `Player.gang === null` (BN2) when `w0r1d_d43m0n` is destroyed (v3.0.0
 `Achievements.ts`), and neither is undone by an augmentation install, so one join or one `createGang` anywhere in the run loses it.
 Steps: [`../achievements/bn6-7-challenge.md`](../achievements/bn6-7-challenge.md), [`../achievements/bn2-challenge.md`](../achievements/bn2-challenge.md).
 
-- **One setting, `forbid`** (`"bladeburner"`, `"gang"`; default empty; the challenge sets it under `bitnodes` for its own BitNode). The
+- **One setting, `forbid`** (`"bladeburner"`, `"gang"`, `"sleeves"`; default empty; the challenge sets it under `bitnodes` for its own BitNode). The
   capability helpers [`../utils/bladeburner.js`](../utils/bladeburner.js) `bladeburnerAccess(ns, config)` and
   [`../utils/gang.js`](../utils/gang.js) `gangAccess(ns, config)` report a forbidden mechanic as not available (with `forbidden: true` and a
   reason), so startup's ready checks, the managers, `node-eta.js`, `player-work.js` (its route becomes hacking and it can finish) and `status`
@@ -56,20 +56,28 @@ Steps: [`../achievements/bn6-7-challenge.md`](../achievements/bn6-7-challenge.md
 - **Settings that would still steer around it** are dropped by `forbidAdjust` in [`../utils/config.js`](../utils/config.js): the route is
   `hacking`, the `bladeburner` augment group leaves `wantStats`, the sleeves' Bladeburner and karma jobs are worth 0, and the start-stage
   gang invite is off. `routeAdjust` can't put them back (it runs from the Bladeburner state on port 36, which nothing posts).
+- **When it applies.** A challenge named in `challenges` applies from the start of the NEXT run of its BitNode, not at once: a run that
+  is already going may have broken the rule (a division joined, a sleeve trained), and the player should be able to set it for the run
+  after, without being there when it starts (set in BitNode 10.1, active for 10.2). [`../utils/challenge.js`](../utils/challenge.js)
+  keeps `data/challenge-state.json` (`run` = `getResetInfo().lastNodeReset`, `node`, `active`), which `startup.js` rolls over at the start
+  of each run (`retireChallenges`); `loadConfig` lays only the `active` names over the config. `challenge <name> --now` makes it active in
+  this run (for a run that is still clean), `challenge clear` takes effect at once, and a save with no state file (from before this
+  existed) treats every named challenge as active. A challenge costs nothing until its BitNode run starts, since its settings sit
+  under `bitnodes`.
 - **Retiring.** A leftover `bn7` would silently block the division in the next run of BitNode 7, so these challenges are marked `retire`:
-  [`../utils/challenge.js`](../utils/challenge.js) `retireChallenges`, called by `startup.js` once per new run before it records the
-  BitNode, takes a challenge out of `data/config.json` when the BitNode that was left is one of its `nodes`, and says so (with the command
-  to try again). That covers won and lost attempts alike (the game checks only at the destroy). `bn1` and `bn10` don't retire: a cap that
-  does nothing outside its BitNode is harmless, and the BN1 steps keep the challenge on for retries.
+  when a run ends, `retireChallenges` takes the challenges that were active in it out of `data/config.json` and says so (with the command
+  to try again). A challenge named during that run (not active in it) stays and starts now. That covers won and lost attempts alike (the game
+  checks only at the destroy). `bn1` doesn't retire: a cap that does nothing outside its BitNode is harmless, and the BN1 steps keep the
+  challenge on for retries.
 - **Why not detect and clear automatically.** Reading achievements (`getUnlockedAchievements`) costs 5GB x 16/4/1, and a
   join can't be told from the outside for free, so the retire rule uses the one cheap fact there is: the BitNode ended.
 - **Rejected:** a `challenge` flag that every script checks (the capability helpers are the single place scripts already ask, as in
   AGENTS.md); `if (bitNode === 7)` anywhere; turning the challenge on by itself (a player who wants Bladeburner in BN6 would be blocked,
-  so the player opts in, like `bn1` and `bn10`).
+  so the player opts in, like `bn1`).
 - **Cost.** The hacking route is slow in BitNodes 6 and 7 (35% hacking level multiplier, [`bitnode-order.md`](bitnode-order.md#challenge-achievements)):
   that is the point of the challenge, not a bug. In BitNode 2 income loses the gang.
 
 ## Current state
 
-`bn1`, `bn10`, `bn2`, `bn6`, `bn7` exist (`bn6-7` sets both). Later challenges (BN3 without a corporation ...) would add an entry whose
+`bn1`, `bn2`, `bn6`, `bn7`, `bn10` exist (`bn6-7` sets both). Later challenges (BN3 without a corporation ...) would add an entry whose
 settings skip or cap the mechanic the same way: a `forbid` name and a check in its capability helper, once the scripts have one.

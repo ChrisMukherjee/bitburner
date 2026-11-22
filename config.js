@@ -612,8 +612,9 @@ export const DEFAULTS = {
 	// `run /tools/set-config.js challenge bn1` (and `challenge clear` to stop).
 	challenges: [],
 
-	// Mechanics the scripts must not use: "bladeburner" (never join the division) and/or "gang" (never form a gang). Set by the
-	// challenges that need it (CHALLENGES: bn2, bn6, bn7), only in the BitNode they are about; empty = nothing is forbidden. The
+	// Mechanics the scripts must not use: "bladeburner" (never join the division), "gang" (never form a gang) and/or "sleeves" (no
+	// sleeve jobs or augmentations; owning sleeves is fine). Set by the challenges that need it (CHALLENGES: bn2, bn6, bn7, bn10),
+	// only in the BitNode they are about; empty = nothing is forbidden. The
 	// capability helpers (utils/bladeburner.js, utils/gang.js) then report the mechanic as not available, so its manager, ready
 	// check, route estimate and player work stand down, and loadConfig (utils/config.js) drops what only that mechanic needs
 	// (Bladeburner augments, the Bladeburner route, sleeve jobs for it, the gang's karma). A mechanic already joined is not undone.
@@ -668,13 +669,11 @@ export const CHALLENGES = {
 	"bn10": {
 		achievement: "BN10: Challenge",
 		rule: "destroy BitNode 10 with no sleeve holding an augmentation or any experience (owning idle sleeves is fine)",
-		settings: {
-			bitnodes: {
-				// No jobs (work, training and crime give experience) and no sleeve augmentations; buying sleeves and memory
-				// is allowed, so the Covenant hold in BitNode 10 still works.
-				"10": { sleeves: { manage: false, buy: { augments: false } } },
-			},
-		},
+		// `forbid: ["sleeves"]` means no jobs (work, training and crime give experience) and no sleeve augmentations (loadConfig turns it
+		// into sleeves.manage: false and sleeves.buy.augments: false); buying sleeves and memory is allowed, so the Covenant hold
+		// in BitNode 10 still works.
+		nodes: [10], retire: true,
+		settings: { bitnodes: { "10": { forbid: ["sleeves"] } } },
 	},
 };
 

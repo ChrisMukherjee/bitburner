@@ -1,6 +1,6 @@
 // Design: docs/startup.md
 // @ts-check
-import { loadConfig, USER_CONFIG_FILE, BITNODE_FILE } from "/utils/config.js";
+import { loadConfig, USER_CONFIG_FILE, BITNODE_FILE, CHALLENGE_STATE_FILE } from "/utils/config.js";
 import { retireChallenges } from "/utils/challenge.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
@@ -155,10 +155,10 @@ export async function main(ns) {
 	}
 	// For loadConfig's per-BitNode settings (`bitnodes` in config.js). getResetInfo is already paid for below.
 	// A challenge about the BitNode that just ended is over: switch it off before this run's config is read (utils/challenge.js).
-	const previousNode = parseInt(ns.read(BITNODE_FILE), 10);
-	const currentNode = ns.getResetInfo().currentNode;
-	retireChallenges(ns, Number.isFinite(previousNode) ? previousNode : null, currentNode);
-	ns.write(BITNODE_FILE, String(currentNode), "w");
+	// It also makes the challenges named during the run that ended the ones that apply now (utils/challenge.js).
+	const runInfo = ns.getResetInfo();
+	retireChallenges(ns, runInfo.lastNodeReset, runInfo.currentNode);
+	ns.write(BITNODE_FILE, String(runInfo.currentNode), "w");
 	// Costs 1GB (getResetInfo). Doesn't change during a run, so read once.
 	const sf4 = singularityInfo(ns);
 	// A new run (startup.js is started after every reset): every one-shot checks once again.
@@ -434,7 +434,7 @@ function placeOffHome(ns, script, args, ram, hosts) {
 		.sort((first, second) => freeRam(ns, first) - freeRam(ns, second));
 	const files = withImports(ns, script);
 	// The player's own settings, so loadConfig sees them there too.
-	for (const file of [USER_CONFIG_FILE, BITNODE_FILE]) if (ns.fileExists(file, "home")) files.push(file);
+	for (const file of [USER_CONFIG_FILE, BITNODE_FILE, CHALLENGE_STATE_FILE]) if (ns.fileExists(file, "home")) files.push(file);
 	for (const host of fitting) {
 		if (!ns.scp(files, host, "home")) continue;
 		if (ns.exec(script, host, 1, ...args) !== 0) return host;

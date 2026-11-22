@@ -10,7 +10,7 @@ export { karmaNeededFromInfo };
  * already formed is left alone (the attempt is lost, but nothing here can undo it).
  * Costs getResetInfo (1GB); gang.inGang and heart.break are free.
  *
- *   { available, inGang, karmaNeeded, canCreate, forbidden, why }
+ *   { available, inGang, karmaNeeded, canCreate }, plus { forbidden: true, why } only when a challenge is the reason
  *   karmaNeeded: 0 or -54,000; canCreate: karma is low enough (or already in a gang); forbidden: a challenge forbids forming one;
  *   why: the reason when forbidden.
  */
@@ -22,7 +22,7 @@ export function gangAccess(ns, config = null) {
 	const available = inGang || (gangApiFromInfo(info) && !forbidden);
 	const karmaNeeded = karmaNeededFromInfo(info);
 	const canCreate = inGang || (available && ns.heart.break() <= karmaNeeded);
-	return { available, inGang, karmaNeeded, canCreate, forbidden, why: forbidden ? forbiddenWhy("gang") : "" };
+	return { available, inGang, karmaNeeded, canCreate, ...(forbidden ? { forbidden, why: forbiddenWhy("gang") } : {}) };
 }
 
 /** Whether the Gang API works by BitNode and Source-Files alone (BitNode 2 or Source-File 2), from a getResetInfo() result. Pure, 0GB. @param {{ currentNode: number, ownedSF: Map<number, number> }} info */
