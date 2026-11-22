@@ -68,15 +68,20 @@ test("without root it opens ports and nukes before deciding; no root still means
 	assert.ok(world.ns.logs.some((line) => /no root yet/.test(line)));
 });
 
-test("--bn overrides the route; with no route left and no --bn it only tells the player once", async () => {
-	let world = await run({ args: { bn: 12 } });
+test("--bn overrides the route", async () => {
+	const world = await run({ args: { bn: 12 } });
 	assert.equal(destroyCalls(world)[0][3], 12);
-	world = await run({ config: { bitnodeRoute: [{ bitNode: 5, level: 1 }], bitnodePlan: [] } });
-	assert.equal(destroyCalls(world)[0]?.[3], 5, "baseline: the route entry is followed");
-	const doneRoute = [{ bitNode: 1, level: 1 }]; // BitNode 1 destroyed now gives SF1.1, so the route is done
-	world = await run({ config: { bitnodeRoute: doneRoute, bitnodePlan: [] }, passes: 3 });
+});
+
+test("the next unfinished bitnodeRoute entry is the one entered", async () => {
+	const world = await run({ config: { bitnodeRoute: [{ bitNode: 1, level: 1 }, { bitNode: 5, level: 1 }], bitnodePlan: [] } });
+	assert.equal(destroyCalls(world)[0]?.[3], 5, "BitNode 1 destroyed now gives SF1.1, so that entry is done and 5 is next");
+});
+
+test("with no route left and no --bn it destroys nothing and tells the player once, not every minute", async () => {
+	const world = await run({ config: { bitnodeRoute: [{ bitNode: 1, level: 1 }], bitnodePlan: [] }, passes: 3 });
 	assert.equal(destroyCalls(world).length, 0, "nothing to go to: the BitNode stays open");
-	assert.equal(world.ns.toasts.filter((line) => /no BitNode route to follow/.test(line)).length, 1, "the player is told once, not every minute");
+	assert.equal(world.ns.toasts.filter((line) => /no BitNode route to follow/.test(line)).length, 1);
 });
 
 test("a plan suggestion alone (bitnodeRouteAuto off) is shown but never acted on", async () => {

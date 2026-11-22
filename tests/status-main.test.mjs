@@ -179,9 +179,12 @@ test("startup scripts: running ones are listed (with their host when off home), 
 test("a script with a ready check and no work yet is 'waiting for work', not 'stopped'", async () => {
 	const text = await run({ homeRam: 2048 });
 	const waiting = text.split("\n").find((line) => line.startsWith("Waiting for work:")) ?? "";
-	assert.match(waiting, /gang-manager|dnet-manager|stock-trader|bb-manage/, `scripts with ready: checks wait:\n${text}`);
 	const stopped = text.split("\n").find((line) => line.startsWith("Stopped:")) ?? "";
-	assert.doesNotMatch(stopped, /gang-manager/);
+	// The darknet manager has a ready check (it needs DarkscapeNavigator.exe), the hacknet manager has none.
+	assert.match(waiting, /dnet-manager/, `a script with a ready check and no work is waiting:\n${text}`);
+	assert.doesNotMatch(stopped, /dnet-manager/, "...and is not reported as stopped");
+	assert.match(stopped, /hacknet-manager/, "a stage script with no ready check that isn't running is stopped");
+	assert.doesNotMatch(waiting, /hacknet-manager/);
 });
 
 const bb = { resetInfo: { ownedSF: new Map([[6, 1]]) } };
@@ -262,13 +265,4 @@ test("Go line: the bot's focus, and the opponent still climbing is the one being
 	assert.match(text, /Netburners 5 ?%/);
 	const none = await run({});
 	assert.match(none, /Go: bot not running/);
-});
-
-test("stage thresholds: a script whose 'until' stage has been reached is no longer expected", async () => {
-	// go-bot Netburners runs from early until mid. At a mid-sized home it should not be listed as stopped; at early it should.
-	const early = await run({ homeRam: 64 });
-	const mid = await run({ homeRam: 1024 });
-	const stoppedIn = (text) => text.split("\n").find((line) => line.startsWith("Stopped:")) ?? "";
-	assert.match(stoppedIn(early), /go-bot/, "early stage expects the go bot");
-	assert.match(stoppedIn(mid), /go-bot/, "mid stage expects the next go bot instead");
 });

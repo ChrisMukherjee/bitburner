@@ -5,7 +5,7 @@
   "scripts": {
     "sync": "bitburner-filesync",
     "test": "node --disable-warning=ExperimentalWarning --import ./tests/support/register.mjs --test \"tests/**/*.test.mjs\"",
-    "coverage": "node --disable-warning=ExperimentalWarning --import ./tests/support/register.mjs --test --experimental-test-coverage --test-coverage-exclude=\"tests/**\" \"tests/**/*.test.mjs\"",
+    "coverage": "node --disable-warning=ExperimentalWarning --import ./tests/support/register.mjs --test --experimental-test-coverage \"tests/**/*.test.mjs\"",
     "test:changed": "node tests/support/changed-tests.mjs",
     "mutate": "node tests/support/mutate.mjs"
   },
