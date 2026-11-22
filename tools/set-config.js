@@ -245,11 +245,10 @@ function describeRoute(route, auto = autoOn({})) {
 }
 
 /**
- * The `route plan` listing: every step of the plan with done / current / next marks, then who decides (your route or the plan,
- * auto on or off). Pure (info is ns.getResetInfo(): { currentNode, ownedSF }), so a test can run it without the game.
- * "current" is the BitNode you are in while its level isn't owned yet; "next" is the first open step of the lowest open tier
- * (counting the level this BitNode gives when destroyed), and when that tier has several open steps they are all marked "next"
- * because the easiest one goes first (known with Source-File 5).
+ * The `route plan` listing: your own route first when you set one (it is followed before the plan), then the plan, each step with
+ * done / >> marks, then who decides (auto on or off). Pure (info is ns.getResetInfo(): { currentNode, ownedSF }), so a test can run
+ * it without the game. ">>" marks the step you are on or up next: the first open step of your route, else (when the plan is
+ * followed) the open steps of the plan's lowest open tier, counting the level this BitNode gives when destroyed.
  */
 export function describePlan(mine, info) {
 	const plan = mine.bitnodePlan ?? DEFAULTS.bitnodePlan;
@@ -258,25 +257,37 @@ export function describePlan(mine, info) {
 	const owned = new Map(info.ownedSF);
 	const after = new Map(owned);
 	after.set(info.currentNode, (after.get(info.currentNode) ?? 0) + 1);
-	const open = plan.filter((step) => (after.get(step.bitNode) ?? 0) < step.level);
-	const tier = open.length ? Math.min(...open.map((step) => step.tier ?? 1)) : null;
-	const lines = [`bitnodePlan (${plan.length} steps; you are in BitNode ${info.currentNode}):`];
-	const reached = new Map(); // highest level earlier plan steps already take each BitNode to, so a step shows the levels it adds
-	for (const step of plan) {
-		const from = (reached.get(step.bitNode) ?? 0) + 1;
-		reached.set(step.bitNode, Math.max(step.level, reached.get(step.bitNode) ?? 0));
-		const levels = from >= step.level ? `SF${step.bitNode}.${step.level}` : `SF${step.bitNode}.${from}-${step.level}`;
-		const have = owned.get(step.bitNode) ?? 0;
-		let mark = "    ";
-		let note = have ? `you own SF${step.bitNode}.${have}` : `you own none of SF${step.bitNode}`;
-		if (have >= step.level) mark = "done";
-		else if (open.includes(step) && (step.tier ?? 1) === tier) mark = ">>  ";
-		if (step.bitNode === info.currentNode && have < step.level) note += ", you are in it now";
-		lines.push(`  ${mark}  step ${String(step.tier ?? 1).padStart(2)}  BN${String(step.bitNode).padEnd(2)} ${levels.padEnd(10)} (${note})`);
+	const isOpen = (step) => (after.get(step.bitNode) ?? 0) < step.level;
+	const routeOpen = route.filter(isOpen);
+	const planFollowed = routeOpen.length === 0 && (auto || route.length === 0);
+	const planOpen = plan.filter(isOpen);
+	const planTier = planOpen.length ? Math.min(...planOpen.map((step) => step.tier ?? 1)) : null;
+	/** Rows for a list of steps; `number(step, index)` is the step number shown and `isNext(step)` marks >>. */
+	const rows = (steps, number, isNext) => {
+		const reached = new Map(); // highest level earlier steps already take each BitNode to, so a row shows the levels it adds
+		return steps.map((step, index) => {
+			const from = (reached.get(step.bitNode) ?? 0) + 1;
+			reached.set(step.bitNode, Math.max(step.level, reached.get(step.bitNode) ?? 0));
+			const levels = from >= step.level ? `SF${step.bitNode}.${step.level}` : `SF${step.bitNode}.${from}-${step.level}`;
+			const have = owned.get(step.bitNode) ?? 0;
+			let mark = "    ";
+			let note = have ? `you own SF${step.bitNode}.${have}` : `you own none of SF${step.bitNode}`;
+			if (have >= step.level) mark = "done";
+			else if (isNext(step)) mark = ">>  ";
+			if (step.bitNode === info.currentNode && have < step.level) note += ", you are in it now";
+			return `  ${mark}  step ${String(number(step, index)).padStart(2)}  BN${String(step.bitNode).padEnd(2)} ${levels.padEnd(10)} (${note})`;
+		});
+	};
+	const lines = [];
+	if (route.length) {
+		lines.push("Your bitnodeRoute (followed first):");
+		lines.push(...rows(route, (step, index) => index + 1, (step) => step === routeOpen[0]));
+		lines.push(auto ? "Then the plan carries on (auto route is ON):" : "Auto route is OFF, so after your route the plan below is only a suggestion and you pick:");
 	}
-	lines.push(open.length ? ">> is the step you are on or up next. Steps are done in number order. Rows with the same step number can be done in any order; the scripts pick the easiest (needs SF5), otherwise top to bottom." : "Every step of the plan is reached.");
-	if (route.length) lines.push(`Your bitnodeRoute (${describeRoute(route, auto)}) overrides the plan: it is followed first${auto ? ", then the plan carries on" : ", then you pick"}.`);
-	else lines.push("No bitnodeRoute of your own: the plan decides.");
+	lines.push(`bitnodePlan (${plan.length} steps; you are in BitNode ${info.currentNode}):`);
+	lines.push(...rows(plan, (step) => step.tier ?? 1, (step) => planFollowed && planOpen.includes(step) && (step.tier ?? 1) === planTier));
+	lines.push(">> is the step you are on or up next. Steps are done in number order. Rows with the same step number can be done in any order; the scripts pick the easiest (needs SF5), otherwise top to bottom.");
+	if (!route.length) lines.push("No override set, the plan decides. Run afk-route <bitNode:level ...> (e.g. afk-route 4:3 2:1) to set your own route.");
 	lines.push(auto ? "Auto route is ON: auto-destroy enters the next BitNode by itself (autoroute off to only get suggestions)." : "Auto route is OFF: the next BitNode is only suggested (autoroute on to follow it by itself).");
 	return lines;
 }

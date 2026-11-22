@@ -87,11 +87,12 @@ test("route plan lists every plan step, marks the done ones and the next one", a
 
 test("route plan says whether your route overrides the plan and whether auto is on", async () => {
 	const none = await runPlan(resetInfo(1, []));
-	assert.match(none, /No bitnodeRoute of your own: the plan decides/);
+	assert.match(none, /No override set, the plan decides.*afk-route/);
 	assert.match(none, DEFAULTS.bitnodeRouteAuto ? /Auto route is ON/ : /Auto route is OFF/);
 	const own = await runPlan(resetInfo(1, []), { "data/config.json": JSON.stringify({ bitnodeRoute: [{ bitNode: 4, level: 3 }], bitnodeRouteAuto: false }) });
-	assert.match(own, /overrides the plan.*then you pick/s);
-	assert.match(own, /Auto route is OFF/);
+	assert.match(own, /Your bitnodeRoute \(followed first\)/);
+	assert.match(own, /Auto route is OFF, so after your route/, "auto off: the plan below is only a suggestion");
+	assert.doesNotMatch(own, /No override set/);
 });
 
 test("route plan uses the player's own bitnodePlan", async () => {
@@ -111,4 +112,25 @@ test("route plan shows the levels a step adds: BN1 split across tiers, BN4 as on
 	assert.match(text, /step\s+1 +BN1 +SF1\.1 /, "the first BN1 step is level 1 alone");
 	assert.match(text, /step\s+2 +BN1 +SF1\.2 /, "the second adds only level 2");
 	assert.match(text, /step\s+3 +BN4 +SF4\.1-3 /, "BN4 is done to level 3 in one tier, so say levels 1-3");
+});
+
+test("route plan lists your own route first, with the >> on its first open step and none in the plan below", async () => {
+	const files = { "data/config.json": JSON.stringify({ bitnodeRoute: [{ bitNode: 7, level: 3 }, { bitNode: 4, level: 3 }] }) };
+	const text = await runPlan(resetInfo(1, [[4, 3]]), files);
+	const lines = text.split("\n");
+	const routeAt = lines.findIndex((line) => /Your bitnodeRoute/.test(line));
+	const planAt = lines.findIndex((line) => /^bitnodePlan/.test(line));
+	assert.ok(routeAt >= 0 && routeAt < planAt, "the route comes before the plan");
+	const marked = lines.map((line, index) => [line, index]).filter(([line]) => /^ {2}>> /.test(line));
+	assert.equal(marked.length, 1, "only the route has a >>, since the plan waits until the route is done");
+	assert.match(marked[0][0], /BN7 +SF7\.1-3/);
+	assert.ok(marked[0][1] < planAt);
+	assert.match(lines.find((line) => /BN4 +SF4\.1-3/.test(line) && line.indexOf("done") === 2), /done/, "SF4.3 is owned, so that route step is done");
+});
+
+test("route plan marks the plan again once your route is done and auto is on", async () => {
+	const files = { "data/config.json": JSON.stringify({ bitnodeRoute: [{ bitNode: 4, level: 3 }], bitnodeRouteAuto: true }) };
+	const text = await runPlan(resetInfo(1, [[1, 3], [4, 3]]), files);
+	assert.match(text, /Then the plan carries on/);
+	assert.ok(text.split("\n").some((line) => /^ {2}>> /.test(line)), "the plan's next step is marked");
 });
