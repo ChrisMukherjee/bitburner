@@ -78,11 +78,11 @@ const runPlan = (info, files = {}) => {
 test("route plan lists every plan step, marks the done ones and the next one", async () => {
 	const text = await runPlan(resetInfo(1, [[1, 1]]));
 	const lines = text.split("\n");
-	for (const step of DEFAULTS.bitnodePlan) assert.ok(text.includes(`BN${step.bitNode}`) && text.includes(`level ${step.level}`), `step ${step.bitNode}:${step.level} must be listed`);
-	assert.match(lines.find((line) => /tier\s+1 /.test(line)), /^ {2}ok /, "owning SF1.1 marks the first step done");
-	const next = lines.filter((line) => line.includes(">>") && line.includes("tier"));
+	for (const step of DEFAULTS.bitnodePlan) assert.ok(text.includes(`BN${step.bitNode}`) && new RegExp(`SF${step.bitNode}\\.(\\d+-)?${step.level}\\b`).test(text), `step ${step.bitNode}:${step.level} must be listed`);
+	assert.match(lines.find((line) => /step\s+1 /.test(line)), /^ {2}done /, "owning SF1.1 marks the first step done");
+	const next = lines.filter((line) => /^ {2}>> /.test(line));
 	assert.equal(next.length, 1, "one open step in the lowest open tier is marked next");
-	assert.match(next[0], /BN4 +-> level 3/, "in BitNode 1 with SF1.1 owned, destroying gives SF1.2, so the next open step is tier 3 (BN4)");
+	assert.match(next[0], /BN4 +SF4\.1-3/, "in BitNode 1 with SF1.1 owned, destroying gives SF1.2, so the next open step is tier 3 (BN4)");
 });
 
 test("route plan says whether your route overrides the plan and whether auto is on", async () => {
@@ -104,4 +104,11 @@ test("route plan uses the player's own bitnodePlan", async () => {
 test("an empty route's one-line answer points at route plan", async () => {
 	const ns = await run(["route"]);
 	assert.match(ns.terminal.join("\n"), /afk-route plan/);
+});
+
+test("route plan shows the levels a step adds: BN1 split across tiers, BN4 as one run of levels 1-3", async () => {
+	const text = await runPlan(resetInfo(1, []));
+	assert.match(text, /step\s+1 +BN1 +SF1\.1 /, "the first BN1 step is level 1 alone");
+	assert.match(text, /step\s+2 +BN1 +SF1\.2 /, "the second adds only level 2");
+	assert.match(text, /step\s+3 +BN4 +SF4\.1-3 /, "BN4 is done to level 3 in one tier, so say levels 1-3");
 });
