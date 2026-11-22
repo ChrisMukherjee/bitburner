@@ -55,7 +55,12 @@ export async function main(ns) {
 	const flags = ns.flags([["no-buy", false], ["no-war", false]]);
 	const settings = loadConfig(ns).gang;
 
-	if (!gangAccess(ns).available) {
+	const access = gangAccess(ns, loadConfig(ns));
+	if (access.forbidden) {
+		ns.tprint(`${TAG} no gang in this run: ${access.why}; exiting.`);
+		return;
+	}
+	if (!access.available) {
 		ns.tprint(`${TAG} the Gang API isn't available in this run (needs BitNode 2 or Source-File 2); exiting.`);
 		adviseMissing(ns, "gang", ns.getResetInfo(), loadConfig(ns));
 		return;

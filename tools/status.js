@@ -151,6 +151,9 @@ export async function main(ns) {
 	const sfAfter = (resetInfo.ownedSF.get(node) ?? 0) + 1;
 	out.push(`BitNode ${node}: destroying gives SF${node}.${sfAfter}, next ${nextBN} | auto-destroy ` +
 		(destroyer ? (destroyer.args.includes("--dry") ? "running in --dry" : "running") : "not running"));
+	// A challenge that rules a mechanic out (CHALLENGES in config.js): say so, since Bladeburner and the gang then stay off by design
+	const ruledOut = [config.forbid ?? []].flat().map((feature) => feature === "bladeburner" ? "no Bladeburner division" : feature === "gang" ? "no gang" : feature);
+	if (ruledOut.length) out.push(`  Challenge on: ${ruledOut.join(", ")} (\`challenge clear\` ends it); the way out is w0r1d_d43m0n`);
 	// What this run lacks (written by tools/api-advice.js every 10 min): one line each; the full text was printed to the terminal.
 	const advice = config.missingApiAdvice?.enabled === false ? null : readJson(ns, "data/api-advice.json");
 	if (advice?.nodeReset === resetInfo.lastNodeReset) {
@@ -160,7 +163,7 @@ export async function main(ns) {
 	const planFresh = plan?.checkedAt >= lastReset;
 	const bbPost = peekJson(ns, 36);
 	const verdict = bbPost?.plan && now - (bbPost.plan.time ?? 0) < 30 * 60_000 ? bbPost.plan : null; // node-eta.js' route verdict
-	const showBladeburner = config.status?.routeProgress !== false && bladeburnerAccess(ns).available;
+	const showBladeburner = config.status?.routeProgress !== false && bladeburnerAccess(ns, config).available;
 	const installedCount = resetInfo.ownedAugs.size;
 	const daemonExists = ns.serverExists(DAEMON);
 	const fmt = { number: (value) => ns.format.number(value), int: (value) => Math.round(value).toLocaleString("en-US"), time: (ms) => ns.format.time(ms), money };

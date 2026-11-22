@@ -2,7 +2,7 @@
 
 Gang manager. Design: [`docs/gang.md`](../docs/gang.md). RAM figures are approximate; `mem <script>` in game gives the exact cost. Figures follow the game's static RAM check (base 1.6GB plus each NS function named in the script and what it imports).
 
-Requires column: see the [requirement tags](../README.md#requirements). The manager and its equipment worker need the Gang API (SF2), which only works in BitNode 2 or with Source-File 2. Outside BitNode 2 the gang also needs karma -54,000 (see [`utils/gang.js`](../utils/gang.js)). The manager exits cleanly without the API. The invite worker is `SF4`: it uses crimes and the gym.
+Requires column: see the [requirement tags](../README.md#requirements). The manager and its equipment worker need the Gang API (SF2), which only works in BitNode 2 or with Source-File 2. Outside BitNode 2 the gang also needs karma -54,000 (see [`utils/gang.js`](../utils/gang.js)). The manager exits cleanly without the API. The invite worker is `SF4`: it uses crimes and the gym. While the BN2 challenge is on (`forbid: ["gang"]`, `challenge bn2`) no gang is formed and the manager is not started; a gang that already exists keeps running.
 
 Every decision is logged: tail `gang/gang-manager.js` if something looks off. `gang-report` (alias in the [root README](../README.md)) shows how well it is doing: money against the ceiling, members training or idle, ascensions per hour, land per hour. Settings, the maths and the measurements: [`docs/gang.md`](../docs/gang.md).
 

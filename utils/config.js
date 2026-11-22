@@ -10,7 +10,8 @@ export const BITNODE_FILE = "data/bitnode.txt";
 
 /**
  * The settings for this player: DEFAULTS from config.js, then the chosen preset, then the
- * settings of each challenge named in `challenges` (CHALLENGES in config.js), then data/config.json. Objects merge key by key; lists and single values replace. 0GB.
+ * settings of each challenge named in `challenges` (CHALLENGES in config.js), then data/config.json; finally what `forbid` rules out is
+ * taken out of the plan (forbidAdjust). Objects merge key by key; lists and single values replace. 0GB.
  * Each layer may have a `bitnodes` section ({ "2": {...} }); the entry for the current BitNode
  * (from data/bitnode.txt) is laid over that layer right after it.
  *
@@ -42,7 +43,29 @@ export function loadConfig(ns) {
 	config.bitnode = node; // null until startup.js has run once
 	incomeAdjust(ns, config);
 	routeAdjust(ns, config);
+	forbidAdjust(config);
 	return config;
+}
+
+/**
+ * Logic, not config: what follows from `forbid` (a challenge that rules a mechanic out, CHALLENGES in config.js). The capability
+ * helpers already report the mechanic as not available; this drops the settings that would still steer around it:
+ *   bladeburner  the route is hacking, Bladeburner augments aren't worth buying (and the Bladeburner sleeve jobs are worth nothing)
+ *   gang         no start-stage gang invite, and karma is worth nothing to the sleeves (the gang was its only use)
+ * `forbidAdjust` runs after the other adjustments so a Bladeburner route estimate can't put the augments back. 0GB.
+ * @param {any} config
+ */
+function forbidAdjust(config) {
+	const forbidden = (feature) => [config.forbid ?? []].flat().includes(feature); // as utils/forbid.js (workers copy this file alone)
+	if (forbidden("bladeburner")) {
+		if (config.bladeburner) config.bladeburner.route = "hacking";
+		if (config.augments?.wantStats) config.augments.wantStats = config.augments.wantStats.filter((group) => group !== "bladeburner");
+		if (config.sleeves?.weights) config.sleeves.weights.bladeburner = 0;
+	}
+	if (forbidden("gang")) {
+		if (config.gang) config.gang.startInvite = false;
+		if (config.sleeves?.weights) config.sleeves.weights.karma = 0;
+	}
 }
 
 // Port 36 is the Bladeburner state (bladeburner/state.js); read raw here so this file imports nothing from that folder

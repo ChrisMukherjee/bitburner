@@ -60,7 +60,7 @@ const CONFIG = {
 	planHelper: "singularity/workers/city-plan.js",
 	planImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	gangHelper: "gang/workers/invite.js",
-	gangImports: ["utils/gang.js", "utils/gang-karma.js"],
+	gangImports: ["utils/gang.js", "utils/gang-karma.js", "utils/forbid.js"],
 	crimeInviteHelper: "singularity/workers/crime-invites.js",
 	crimeInviteImports: ["utils/config.js", "config.js", "utils/notify.js", "utils/aug-filter.js"],
 	graftScanHelper: "singularity/workers/graft-scan.js",
@@ -239,7 +239,7 @@ async function onePass(ns, state) {
 
 	if (!state.gangDone && Date.now() - state.gangAt >= CONFIG.gangRefreshMs) {
 		const { factions, inviteCrimes: crimes, inviteGym: gym } = config.gang;
-		const arg = JSON.stringify({ factions, crimes, gym: gym !== false });
+		const arg = JSON.stringify({ factions, crimes, gym: gym !== false, forbid: config.forbid ?? [] });
 		// Once the gang faction is joined, startup.js starts gang/gang-manager.js by itself (gang/ready.js).
 		const fresh = await runHelper(ns, CONFIG.gangHelper, CONFIG.gangImports, GANG_PORT, arg);
 		if (fresh) Object.assign(state, { gang: fresh, gangAt: Date.now(), gangDone: !fresh.applies });
@@ -298,7 +298,7 @@ export function currentFocus(ns, config, player) {
 	} catch {
 		// no plan yet
 	}
-	const route = bladeburnerPlan(ns)?.route ?? (bladeburnerAccess(ns).available ? config.bladeburner?.route : "hacking");
+	const route = bladeburnerPlan(ns)?.route ?? (bladeburnerAccess(ns, config).available ? config.bladeburner?.route : "hacking");
 	return routeFocus({
 		enabled: config.routeFocus?.enabled !== false, route, hacking: player.skills.hacking, daemonLevel: daemonLevelFor(info.currentNode),
 		daedalusJoined: player.factions.includes("Daedalus"), redPillInstalled: info.ownedAugs?.has("The Red Pill") ?? false, invite,
@@ -390,7 +390,7 @@ export function workStep(ns, state, player) {
 	const companies = state.noCompany ? [] : companyWork.companies.filter((entry) =>
 		!joined.has(entry.faction) && ns.singularity.getCompanyRep(entry.company) < companyWork.repNeeded);
 	// Never done while Bladeburner is possible: bladeburner/bb-manage.js may ask for the gym or the whole player later.
-	const done = hacking >= state.studyLevel && factionDone && companies.length === 0 && state.gangDone && !bladeburnerAccess(ns).available;
+	const done = hacking >= state.studyLevel && factionDone && companies.length === 0 && state.gangDone && !bladeburnerAccess(ns, state.config).available;
 
 	// 0. Bladeburner (bladeburner/bb-manage.js posts its state): "run" = bb-pass.js plays, and anything else started
 	// here would cancel its action, unless The Blade's Simulacrum is installed (then the game runs both: go on below);

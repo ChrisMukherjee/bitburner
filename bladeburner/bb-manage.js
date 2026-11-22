@@ -51,9 +51,10 @@ export function membership(bb) {
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	const access = bladeburnerAccess(ns);
+	const access = bladeburnerAccess(ns, loadConfig(ns));
 	if (!access.available) {
 		ns.print(`No Bladeburner in this run: ${access.why}.`);
+		if (access.forbidden) return; // a challenge, not a missing feature: nothing to advise
 		adviseMissing(ns, "bladeburner", ns.getResetInfo(), loadConfig(ns), /^needs /.test(access.why) ? undefined : access.why);
 		return;
 	}

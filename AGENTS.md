@@ -40,6 +40,7 @@ Several APIs only exist after a BitNode or Source-File (Singularity SF4, multipl
 ## Settings
 
 - Choices that depend on the player's progress (aug stats worth buying, reset rule, faction/company order, study target, city groups, spending stages, startup stages, BitNode route) belong in [`config.js`](config.js) (`DEFAULTS`, `PRESETS`), read with `loadConfig(ns)` from [`utils/config.js`](utils/config.js) (0GB). Don't hardcode new ones in scripts.
+- A challenge that rules a mechanic out sets `forbid` (`bladeburner`, `gang`; [`docs/challenges.md`](docs/challenges.md)). Capability helpers take the config (`bladeburnerAccess(ns, config)`, `gangAccess(ns, config)`) and report a forbidden mechanic as not available, so a new script that asks them already honours it; pass the config in, and never join Bladeburner or create a gang by another route.
 - Each player's overrides are in-game `data/config.json`, merged over the defaults (objects merge, lists replace). Never assume it exists.
 - "Worth buying" for augments is `wantedBoosts` in [`utils/aug-filter.js`](utils/aug-filter.js); buy-augs, faction-goals and city-plan all use it.
 - Workers that load the config and are copied to another server need [`config.js`](config.js), [`utils/config.js`](utils/config.js), [`utils/notify.js`](utils/notify.js) (and [`utils/aug-filter.js`](utils/aug-filter.js)) copied too.

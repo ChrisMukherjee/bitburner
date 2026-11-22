@@ -98,9 +98,9 @@ The per-BitNode challenge rules, and which default scripts break them:
 | Challenge | Rule | Conflict in the default setup |
 | --- | --- | --- |
 | BN1 | destroy with at most 128GB home and 1 core | home RAM/core upgrades (also run by `install-augs.js`); steps in [`bn1-challenge.md`](bn1-challenge.md) |
-| BN2 | no gang | `gang/` starts by itself |
+| BN2 | no gang | `gang/` starts by itself; `challenge bn2` forbids it in BitNode 2 (steps in [`bn2-challenge.md`](bn2-challenge.md)) |
 | BN3 | no corporation | none (no corp scripts) |
-| BN6, BN7 | no Bladeburner division | `bladeburner/` is the default route in BN6 |
+| BN6, BN7 | no Bladeburner division (never joined in the run) | `bladeburner/` is the default route in BN6; `challenge bn6-7` forbids it in both and the route is hacking (steps in [`bn6-7-challenge.md`](bn6-7-challenge.md)) |
 | BN8 | no 4S market data | `stocks/stock-trader.js` buys 4S |
 | BN9 | no hacknet nodes or servers | `hacknet/hacknet-manager.js` |
 | BN10 | no sleeve augmentations or experience (owning idle sleeves is fine) | the sleeve manager and shop; `challenge bn10` switches them off in BitNode 10 (best on 10.1; steps in [`bn10-challenge.md`](bn10-challenge.md)) |
@@ -112,7 +112,7 @@ The per-BitNode challenge rules, and which default scripts break them:
 ## Suggested order
 
 1. First BN1 rerun: BN1 challenge, and watch the under-2-days achievement.
-2. A BitNode between BN1 runs: nothing special. Note the BN7 challenge forbids Bladeburner.
+2. A BitNode between BN1 runs: nothing special. Set `challenge bn6-7` before BitNode 6 or 7 if you want those achievements (no Bladeburner), and `challenge bn2` before BitNode 2 (no gang); each switches itself off when its BitNode ends.
 3. Last BN1 level: 40 queued augmentations, 8 cores, IPvGO anticheat (not while a BN14 challenge is active).
 4. Any BitNode with Source-File 9 or 14: the hashnet and darknet sets.
 5. Corporation and sleeves only for a full set, since each is a project.

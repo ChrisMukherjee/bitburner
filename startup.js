@@ -1,6 +1,7 @@
 // Design: docs/startup.md
 // @ts-check
 import { loadConfig, USER_CONFIG_FILE, BITNODE_FILE } from "/utils/config.js";
+import { retireChallenges } from "/utils/challenge.js";
 import { getAllServers } from "/utils/get-all-servers.js";
 import { nukeAllServers } from "/utils/nuke-all.js";
 import { notify } from "/utils/notify.js";
@@ -153,7 +154,11 @@ export async function main(ns) {
 		if (proc.filename === ns.getScriptName() && proc.pid !== ns.pid) ns.kill(proc.pid);
 	}
 	// For loadConfig's per-BitNode settings (`bitnodes` in config.js). getResetInfo is already paid for below.
-	ns.write(BITNODE_FILE, String(ns.getResetInfo().currentNode), "w");
+	// A challenge about the BitNode that just ended is over: switch it off before this run's config is read (utils/challenge.js).
+	const previousNode = parseInt(ns.read(BITNODE_FILE), 10);
+	const currentNode = ns.getResetInfo().currentNode;
+	retireChallenges(ns, Number.isFinite(previousNode) ? previousNode : null, currentNode);
+	ns.write(BITNODE_FILE, String(currentNode), "w");
 	// Costs 1GB (getResetInfo). Doesn't change during a run, so read once.
 	const sf4 = singularityInfo(ns);
 	// A new run (startup.js is started after every reset): every one-shot checks once again.

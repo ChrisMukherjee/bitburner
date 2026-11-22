@@ -199,9 +199,9 @@ scripts break each challenge is in [`../achievements/README.md`](../achievements
 | BitNode | Condition | Where it fits |
 | --- | --- | --- |
 | 1 | At most 128GB home RAM and 1 core | BitNode 1.2 or 1.3 (steps 2 and 5), with `challenge bn1` ([`../achievements/bn1-challenge.md`](../achievements/bn1-challenge.md)) |
-| 2 | No gang | BitNode 2.2 or 2.3 (step 12), finishing through the Black Ops |
+| 2 | No gang | BitNode 2.2 or 2.3 (step 12), with `challenge bn2` ([`../achievements/bn2-challenge.md`](../achievements/bn2-challenge.md)), finishing through the Black Ops |
 | 3 | No corporation | BitNode 3.3 (step 10), with a gang or Bladeburner |
-| 6, 7 | Never join the Bladeburner division | An extra run late in the order: 6,000 hacking at 35% hacking level |
+| 6, 7 | Never join the Bladeburner division | An extra run late in the order: 6,000 hacking at 35% hacking level; `challenge bn6-7` makes the scripts take the hacking route ([`../achievements/bn6-7-challenge.md`](../achievements/bn6-7-challenge.md)) |
 | 8 | No 4S market data | BitNode 8.3 (step 15), if your trading works without 4S |
 | 9 | No hacknet nodes or servers | BitNode 9.3 (step 11), finishing through the Black Ops |
 | 10 | No sleeve holds an augmentation or experience (owning idle sleeves is fine) | BitNode 10.1, the first run of step 8, with `challenge bn10`, finishing through the Black Ops; `challenge clear` before 10.2 |

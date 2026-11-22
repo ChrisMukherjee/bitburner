@@ -33,18 +33,18 @@ const FAIL_SHARE = 0.25;
  * and the crimes that give str/def exp need str/def to succeed. Crimes train them with gym = false, or while
  * player-work.js waits for a faction invite in a city without a gym.
  *
- *   args: JSON {"factions": [...], "crimes": [...] or null (every ns.enums.CrimeType), "gym": true}
+ *   args: JSON {"factions": [...], "crimes": [...] or null (every ns.enums.CrimeType), "gym": true, "forbid": [...]}
  *   (gang.factions, gang.inviteCrimes and gang.inviteGym in the config)
  */
 /** @param {NS} ns */
 export async function main(ns) {
-	const { factions, crimes, gym } = JSON.parse(String(ns.args[0]));
+	const { factions, crimes, gym, forbid } = JSON.parse(String(ns.args[0]));
 	const post = (data) => {
 		ns.clearPort(INVITE_PORT);
 		ns.writePort(INVITE_PORT, JSON.stringify({ time: Date.now(), ...data }));
 	};
 	const player = ns.getPlayer();
-	const access = gangAccess(ns);
+	const access = gangAccess(ns, { forbid }); // a challenge that forbids gangs: nothing to get an invite for
 	const gangFactionJoined = factions.some((faction) => player.factions.includes(faction));
 	const karmaGrind = access.karmaNeeded < 0 && player.karma > access.karmaNeeded;
 	if (!access.available || access.inGang || (gangFactionJoined && !karmaGrind)) {

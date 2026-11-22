@@ -2,7 +2,7 @@
 
 Bladeburner. Design: [`docs/bladeburner.md`](../docs/bladeburner.md). RAM figures follow the game's static RAM check (base 1.6GB plus each NS function named in the script and what it imports); `mem <script>` in game gives the exact cost. State lives on port 36 and [`startup.js`](../startup.js) runs the one-shots.
 
-Requires column: see the [requirement tags](../README.md#requirements). The Bladeburner API (SF6/7) only works in BitNode 6 or 7, or with Source-File 6 or 7, and not where the BitNode's multipliers give no rank or its options disable it. The scripts exit cleanly without it (see [`utils/bladeburner.js`](../utils/bladeburner.js)). The BitNode's multipliers (SF5) are optional: without them a BitNode with no rank is found only by the join attempt, and the route estimate's first guess assumes no nerf.
+Requires column: see the [requirement tags](../README.md#requirements). The Bladeburner API (SF6/7) only works in BitNode 6 or 7, or with Source-File 6 or 7, and not where the BitNode's multipliers give no rank or its options disable it. The scripts exit cleanly without it (see [`utils/bladeburner.js`](../utils/bladeburner.js)). While a BN6 or BN7 challenge is on (`forbid: ["bladeburner"]`, `challenge bn6-7`) the division is treated as not available: nothing here is started, nothing joins it, and the route is hacking ([`achievements/bn6-7-challenge.md`](../achievements/bn6-7-challenge.md)). The BitNode's multipliers (SF5) are optional: without them a BitNode with no rank is found only by the join attempt, and the route estimate's first guess assumes no nerf.
 
 | Script | What it does | Flags | Requires | RAM |
 | --- | --- | --- | --- | --- |

@@ -1,6 +1,6 @@
 // Design: docs/config.md
 // @ts-check
-import { DEFAULTS, CHALLENGES } from "/config.js";
+import { DEFAULTS, CHALLENGES, CHALLENGE_GROUPS } from "/config.js";
 import { USER_CONFIG_FILE } from "/utils/config.js";
 
 /**
@@ -21,7 +21,7 @@ import { USER_CONFIG_FILE } from "/utils/config.js";
  *   run /tools/set-config.js skip darknet/dnet-manager.js   add a script startup.js never starts
  *   run /tools/set-config.js skip clear               start everything again
  *   run /tools/set-config.js challenge bn1            go for a challenge achievement (CHALLENGES in config.js);
- *                                                     set it before that BitNode starts
+ *                                                     set it before that BitNode starts (bn6-7 sets the BN6 and BN7 ones)
  *   run /tools/set-config.js challenge                list the challenges and which are on
  *   run /tools/set-config.js challenge clear          stop going for them
  *   run /tools/set-config.js set augments.wantStats hacking,rep    any setting by path; a value is JSON,
@@ -96,6 +96,7 @@ export async function main(ns) {
 			for (const [name, challenge] of Object.entries(CHALLENGES)) {
 				ns.tprint(`${on.includes(name) ? "ON " : "off"} ${name}: "${challenge.achievement}", ${challenge.rule}`);
 			}
+			for (const [name, members] of Object.entries(CHALLENGE_GROUPS)) ns.tprint(`    ${name}: sets ${members.join(" and ")}`);
 			return;
 		}
 		if (rest[0] === "clear") {
@@ -103,15 +104,16 @@ export async function main(ns) {
 			save(ns, mine, "No challenges any more; the usual settings apply again. Takes effect as scripts restart.");
 			return;
 		}
-		const unknown = rest.filter((name) => !(name in CHALLENGES));
+		const names = rest.flatMap((name) => CHALLENGE_GROUPS[name] ?? [name]);
+		const unknown = names.filter((name) => !(name in CHALLENGES));
 		if (unknown.length) {
-			ns.tprint(`ERROR unknown challenge ${unknown.join(", ")}. Known: ${Object.keys(CHALLENGES).join(", ")}. Nothing changed.`);
+			ns.tprint(`ERROR unknown challenge ${unknown.join(", ")}. Known: ${[...Object.keys(CHALLENGES), ...Object.keys(CHALLENGE_GROUPS)].join(", ")}. Nothing changed.`);
 			return;
 		}
-		mine.challenges = [...new Set([...on, ...rest])];
+		mine.challenges = [...new Set([...on, ...names])];
 		save(ns, mine, `challenges = ${JSON.stringify(mine.challenges)}: ` +
-			rest.map((name) => `"${CHALLENGES[name].achievement}" (${CHALLENGES[name].rule})`).join("; ") +
-			". Upgrades already bought in that BitNode can't be undone, so set this before it starts. Details: docs/challenges.md");
+			names.map((name) => `"${CHALLENGES[name].achievement}" (${CHALLENGES[name].rule})`).join("; ") +
+			". Upgrades and joins already made in that BitNode can't be undone (a Bladeburner division or gang you already have there loses the attempt), so set this before it starts. Details: docs/challenges.md");
 		return;
 	}
 	if (command === "set" || command === "unset") {
@@ -220,7 +222,7 @@ function help(ns, mine) {
 		"  auto on / auto off     let auto-destroy follow the plan's next BitNode by itself / only suggest it (auto shows which; alias autoroute)",
 		"                         your own route (afk-route) is followed first; with auto on the plan carries on after it",
 		"  skip <script...>       scripts startup.js never starts (skip clear to undo)",
-		`  challenge <name>       go for a challenge achievement (${Object.keys(CHALLENGES).join(", ")}); challenge clear to stop`,
+		`  challenge <name>       go for a challenge achievement (${[...Object.keys(CHALLENGES), ...Object.keys(CHALLENGE_GROUPS)].join(", ")}); challenge clear to stop`,
 		"  set <path> <value>     any setting, e.g. set augments.wantStats hacking,rep",
 		"  unset <path>           back to the default",
 		`Your overrides: ${Object.keys(mine).length ? JSON.stringify(mine) : "none"}`,

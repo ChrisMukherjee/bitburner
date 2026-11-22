@@ -70,7 +70,7 @@ export async function main(ns) {
 
 	// The gang invite comes before port openers and cash crimes: a gang out-earns them by far. Only where the invite
 	// is all a gang needs (no karma -54,000 grind), no gang faction is joined yet and `gang.startInvite` is on.
-	const access = gangAccess(ns);
+	const access = gangAccess(ns, config);
 	if (gang.startInvite !== false && access.available && !access.inGang && access.karmaNeeded === 0 &&
 		!gang.factions.some((faction) => player.factions.includes(faction))) {
 		ns.scp(GANG, ns.getHostname(), "home");

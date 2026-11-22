@@ -333,7 +333,8 @@ any, below), and calibrated against the measured rank per hour. The readable rep
 - **No division where the BitNode gives no rank.** `utils/bladeburner.js` reports Bladeburner unavailable when the saved
   multipliers give `BladeburnerRank` 0 (the game then refuses `joinBladeburnerDivision`) or the BitNode's advanced options
   disable it, so nothing trains for a division that never opens. Without Source-File 5 only the join attempt can tell
-  (`bb-manage.js` posts `off`).
+  (`bb-manage.js` posts `off`). A challenge that forbids the division (`forbid`, the BN6 and BN7 challenges) does the same with `forbidden: true`,
+  and the route is then hacking: see [`challenges.md`](challenges.md#no-bladeburner-or-no-gang-bn2-bn6-bn7).
 - **Real levels.** The models start from the multipliers the levels really grow with: the player's own mults times the
   BitNode's level multiplier, read back from the live level and exp (`modelMults` in `route-model.js`, the same reading
   `buy-augs.js` uses after The Red Pill; no Source-File 5 needed). `player.mults` leaves the BitNode's multiplier out, so

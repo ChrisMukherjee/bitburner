@@ -54,7 +54,7 @@ const fmt = (s) => !Number.isFinite(s) ? "unknown" : s < 90 ? `${Math.ceil(s)} s
 /** @param {NS} ns */
 export async function main(ns) {
 	ns.disableLog("ALL");
-	if (!hasSingularity(ns) || !bladeburnerAccess(ns).available) {
+	if (!hasSingularity(ns) || !bladeburnerAccess(ns, loadConfig(ns)).available) {
 		ns.print("The route estimate needs the Singularity and Bladeburner APIs.");
 		return;
 	}

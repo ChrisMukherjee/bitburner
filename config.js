@@ -611,6 +611,13 @@ export const DEFAULTS = {
 	// Challenge achievements to go for: names from CHALLENGES below, e.g. ["bn1"]. Set it with
 	// `run /tools/set-config.js challenge bn1` (and `challenge clear` to stop).
 	challenges: [],
+
+	// Mechanics the scripts must not use: "bladeburner" (never join the division) and/or "gang" (never form a gang). Set by the
+	// challenges that need it (CHALLENGES: bn2, bn6, bn7), only in the BitNode they are about; empty = nothing is forbidden. The
+	// capability helpers (utils/bladeburner.js, utils/gang.js) then report the mechanic as not available, so its manager, ready
+	// check, route estimate and player work stand down, and loadConfig (utils/config.js) drops what only that mechanic needs
+	// (Bladeburner augments, the Bladeburner route, sleeve jobs for it, the gang's karma). A mechanic already joined is not undone.
+	forbid: [],
 };
 
 // Challenge achievements ("BN1: Challenge" ...): each one is a set of overrides, laid over the preset (before
@@ -619,6 +626,10 @@ export const DEFAULTS = {
 //   achievement - the game's name for it
 //   rule        - what the game checks when the BitNode is destroyed
 //   settings    - the overrides
+//   nodes       - the BitNode(s) it is about (only for `retire`)
+//   retire      - true: startup.js takes it out of `challenges` by itself once that BitNode has ended (the attempt is over,
+//                 won or lost), so a later run of the same BitNode plays normally; set it again to retry. Used where leaving
+//                 it on would keep blocking a mechanic the player wants in later runs.
 export const CHALLENGES = {
 	"bn1": {
 		achievement: "BN1: Challenge",
@@ -633,6 +644,27 @@ export const CHALLENGES = {
 			},
 		},
 	},
+	// "Destroy the BitNode without joining the Bladeburner division" (BN6 and BN7): the game checks `Player.bladeburner === null` at the
+	// destroy, and joining sticks until the BitNode ends, so one join anywhere in the run loses it. The way out is then the hacking route.
+	"bn6": {
+		achievement: "BN6: Challenge",
+		rule: "destroy BitNode 6 without ever joining the Bladeburner division (the way out is w0r1d_d43m0n)",
+		nodes: [6], retire: true,
+		settings: { bitnodes: { "6": { forbid: ["bladeburner"] } } },
+	},
+	"bn7": {
+		achievement: "BN7: Challenge",
+		rule: "destroy BitNode 7 without ever joining the Bladeburner division (the way out is w0r1d_d43m0n)",
+		nodes: [7], retire: true,
+		settings: { bitnodes: { "7": { forbid: ["bladeburner"] } } },
+	},
+	// "Destroy BitNode 2 without forming a gang": the game checks `Player.gang === null` at the destroy.
+	"bn2": {
+		achievement: "BN2: Challenge",
+		rule: "destroy BitNode 2 without ever forming a gang",
+		nodes: [2], retire: true,
+		settings: { bitnodes: { "2": { forbid: ["gang"] } } },
+	},
 	"bn10": {
 		achievement: "BN10: Challenge",
 		rule: "destroy BitNode 10 with no sleeve holding an augmentation or any experience (owning idle sleeves is fine)",
@@ -644,6 +676,12 @@ export const CHALLENGES = {
 			},
 		},
 	},
+};
+
+// Names that stand for several challenges at once, for `challenge <name>` (tools/set-config.js): the BN6 and BN7 challenges are the
+// same rule, so one command sets both and each retires by itself when its own BitNode ends.
+export const CHALLENGE_GROUPS = {
+	"bn6-7": ["bn6", "bn7"],
 };
 
 // Named sets of overrides, applied over DEFAULTS (and its `bitnodes` entry) before data/config.json. Pick one with
