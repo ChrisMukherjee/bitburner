@@ -14,6 +14,11 @@ Scripts are charged RAM up front by a static check, so RAM shapes the design mor
   pays the helper's RAM only for the moment it runs. Helpers report back on a port (list in
   [`NETSCRIPT.md`](NETSCRIPT.md)) and are started by path, never imported, or their cost would be charged
   to the caller.
+- **When every call is heavy, call by name.** The corporation's functions cost 10-20GB each, too many for any fixed
+  helper, so [`../corp/workers/call.js`](../corp/workers/call.js) looks each one up by name (`ns.corporation[fn]`, which the
+  static check can't see: 1.6GB) and is started by `startHelperRam` with `RunOptions.ramOverride` set to 1.6GB plus each
+  distinct function its batch calls, from `ns.getFunctionRamCost` (0GB). The game checks every call against that, so the
+  sum must be exact ([`corporation.md`](corporation.md)).
 - **Pure logic is free.** [`../go/choose-move.js`](../go/choose-move.js) and [`../config.js`](../config.js)
   make no NS calls, so importing them costs nothing.
 

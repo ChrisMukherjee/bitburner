@@ -429,6 +429,86 @@ export const DEFAULTS = {
 	// While the player has other work only augments no joined faction sells are grafted; with nothing else to do, any.
 	grafting: { enabled: true, maxFraction: 0.5, safety: 1.25, minValue: 0.05, entropy: true },
 
+	// Corporation (corp/; BitNode 3, or anywhere with Source-File 3). Design: docs/corporation.md. enabled: false = never started.
+	// The manager follows the in-game guide (Documentation -> Advanced Mechanics -> Corporation): a material division, then a
+	// support division that feeds it, then a product division fed by both, all six cities each, the four investment rounds,
+	// then public with no new shares and dividends. corp/plan.js decides each pass from the game's state and formulas.
+	//   name:          the corporation's name.  selfFund: outside BitNode 3 (no seed money) create one with the player's own cash
+	//                  ($150b) once the cash is selfFundCash x that; false = only in BitNode 3.
+	//   industries:    the division for each role (materials -> support -> product, and the cheap "dummy" divisions that raise
+	//                  the valuation before going public). mainCity: where products are developed (the biggest office).
+	//   rounds:        rounds 1 and 2 follow the guide: office size per role, Advert levels per role, the support division's
+	//                  warehouse level, and the research points each division gathers (everyone on research) before its office
+	//                  switches to production and the offer may be taken.
+	//   offers:        take an offer once its growth over the last windowMinutes falls below minGrowthPerHour (relative), or
+	//                  after maxHours in the round. acceptOffers: false = never take one (watch the offers only). ipo: go public
+	//                  after the fourth round.
+	//   boostShare:    the most of a warehouse boost materials may fill (less twice the room the division's own work used lately);
+	//                  supportBoostShare: the share of round 2's money left that goes to the support division's boosts.
+	//   reserveCycles: market cycles of expenses always kept (plus, during a research phase, the loss until its target).
+	//   keepUpWithin:  tea and parties when energy or morale is more than this below its maximum.
+	//   warehouseFull: from round 3 a warehouse gets a level once it is this full. officeStep: offices grow this many at a time;
+	//                  supportOfficeRatio: the product division's other offices grow to this share of its main office.
+	//   productInvestShare: design and marketing investment of a new product, each, as a share of the funds.
+	//   dummyDivisions: before going public, buy cheap divisions while the valuation each adds is worth more than its price.
+	//   budget:        from round 3, the share of the money left each pass that each part may spend (wilson: Wilson Analytics
+	//                  whenever its price is within this share, advert: the product division's Advert, office: its main office,
+	//                  upgrades: the corporation upgrades below (cheapest level first), productStorage: its warehouses and boosts,
+	//                  supportOffices: its other offices, support: each material division's warehouses, boosts and offices,
+	//                  dummy: dummy divisions, tribute: Shady Accounting and Government Partnership once public).
+	//   researchOrder: the order research is bought in from round 3 (the guide's), each when it costs at most `pointShare` of
+	//                  the division's research points; `with` buys more than one together (Market-TA.I is only worth it with II).
+	//   price:         product prices before Market-TA.II: market price x a multiplier that goes up while stock sells out and
+	//                  down while it piles up, steps of `step` growing to maxStep until both sides are known, then halving the
+	//                  gap; never below minK.
+	//   dividends:     once public, keep enough profit to afford the next purchase within waitMinutes and pay out the rest (at
+	//                  most maxRate), changing the rate by at least minChange.
+	//   bribes:        spend `cashShare` of the money left each pass on the reputation the augmentation plan still needs (needs a
+	//                  valuation of $100t and the Singularity API at 1x or 4x RAM to read faction reputation).
+	corp: {
+		enabled: true,
+		name: "Corp",
+		selfFund: true,
+		selfFundCash: 2,
+		industries: { materials: "Agriculture", support: "Chemical", product: "Tobacco", dummy: "Restaurant" },
+		mainCity: "Sector-12",
+		rounds: {
+			1: { office: { materials: 4 }, advert: { materials: 2 }, rp: { materials: 55 } },
+			2: { office: { materials: 8, support: 3 }, advert: { materials: 8 }, warehouse: { support: 2 }, rp: { materials: 700, support: 390 } },
+		},
+		offers: { windowMinutes: 10, minGrowthPerHour: 0.2, maxHours: 8 },
+		acceptOffers: true,
+		ipo: true,
+		reserveCycles: 3,
+		keepUpWithin: 0.5,
+		boostShare: 0.8,
+		supportBoostShare: 0.5,
+		warehouseFull: 0.7,
+		officeStep: 15,
+		supportOfficeRatio: 0.5,
+		productInvestShare: 0.01,
+		dummyDivisions: true,
+		budget: { wilson: 1, advert: 0.2, office: 0.3, upgrades: 0.3, productStorage: 0.15, supportOffices: 0.1, support: 0.1, dummy: 0.5, tribute: 0.5 },
+		upgrades: ["FocusWires", "Neural Accelerators", "Speech Processor Implants", "Nuoptimal Nootropic Injector Implants", "Smart Factories", "Smart Storage", "ABC SalesBots", "Project Insight"],
+		researchOrder: [
+			{ name: "Hi-Tech R&D Laboratory", pointShare: 0.5 },
+			{ name: "Market-TA.I", with: ["Market-TA.II"], pointShare: 0.5, productsOnly: true },
+			{ name: "Overclock", pointShare: 0.2 },
+			{ name: "Sti.mu", pointShare: 0.2 },
+			{ name: "Automatic Drug Administration", pointShare: 0.2 },
+			{ name: "Go-Juice", pointShare: 0.2 },
+			{ name: "CPH4 Injections", pointShare: 0.2 },
+			{ name: "Drones", pointShare: 0.1 },
+			{ name: "Drones - Assembly", pointShare: 0.1 },
+			{ name: "Self-Correcting Assemblers", pointShare: 0.1 },
+			{ name: "uPgrade: Fulcrum", pointShare: 0.1, productsOnly: true },
+			{ name: "Drones - Transport", pointShare: 0.1 },
+		],
+		price: { step: 1.2, maxStep: 4, minK: 1 },
+		dividends: { enabled: true, waitMinutes: 10, maxRate: 0.9, minChange: 0.05 },
+		bribes: { enabled: true, cashShare: 0.5 },
+	},
+
 	// Sleeves (sleeves/; BitNode 10, or anywhere with Source-File 10). Design: docs/sleeves.md. enabled: false = never started.
 	// The manager gives each sleeve one job every pass (sleeves/plan.js): shock recovery, then synchronization, then training
 	// where a stat is missing, then the job the run needs most (the gang's karma, Bladeburner contracts, faction rep, company
@@ -612,10 +692,11 @@ export const DEFAULTS = {
 	// `run /tools/set-config.js challenge bn1` (and `challenge clear` to stop).
 	challenges: [],
 
-	// Mechanics the scripts must not use: "bladeburner" (never join the division), "gang" (never form a gang) and/or "sleeves" (no
-	// sleeve jobs or augmentations; owning sleeves is fine). Set by the challenges that need it (CHALLENGES: bn2, bn6, bn7, bn10),
+	// Mechanics the scripts must not use: "bladeburner" (never join the division), "gang" (never form a gang), "corporation" (never
+	// create one) and/or "sleeves" (no sleeve jobs or augmentations; owning sleeves is fine). Set by the challenges that need it
+	// (CHALLENGES: bn2, bn3, bn6, bn7, bn10),
 	// only in the BitNode they are about; empty = nothing is forbidden. The
-	// capability helpers (utils/bladeburner.js, utils/gang.js) then report the mechanic as not available, so its manager, ready
+	// capability helpers (utils/bladeburner.js, utils/gang.js, utils/corporation.js) then report the mechanic as not available, so its manager, ready
 	// check, route estimate and player work stand down, and loadConfig (utils/config.js) drops what only that mechanic needs
 	// (Bladeburner augments, the Bladeburner route, sleeve jobs for it, the gang's karma). A mechanic already joined is not undone.
 	forbid: [],
@@ -665,6 +746,13 @@ export const CHALLENGES = {
 		rule: "destroy BitNode 2 without ever forming a gang",
 		nodes: [2], retire: true,
 		settings: { bitnodes: { "2": { forbid: ["gang"] } } },
+	},
+	// "Destroy BitNode 3 without a corporation": the game checks `Player.corporation === null` at the destroy, and an install keeps one.
+	"bn3": {
+		achievement: "BN3: Challenge",
+		rule: "destroy BitNode 3 without ever creating a corporation",
+		nodes: [3], retire: true,
+		settings: { bitnodes: { "3": { forbid: ["corporation"] } } },
 	},
 	"bn10": {
 		achievement: "BN10: Challenge",

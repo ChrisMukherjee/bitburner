@@ -55,7 +55,7 @@ Before writing or changing a script, read [`docs/NETSCRIPT.md`](docs/NETSCRIPT.m
 
 ## Tests
 
-- `npm test` (Node 22+) runs [`tests/`](tests/README.md); run it after changing a script and keep it passing. GitHub also runs it and the type check on every push ([`.github/workflows/test.yml`](.github/workflows/test.yml)); a red cross on a commit means one of them failed. See [`docs/testing.md`](docs/testing.md).
+- `npm test` (Node 22+) runs [`tests/`](tests/README.md); run it after changing a script and keep it passing. GitHub also runs it and the type check on every push ([`.github/workflows/test.yml`](.github/workflows/test.yml)); a red cross on a commit means one of them failed. See [`docs/testing.md`](docs/testing.md). `npm run coverage` shows what the suite does not run (use it to find where tests are missing, then check the new tests with `npm run mutate`).
 - A bug fix comes with a test that fails without the fix, where the logic can run outside the game. New decision logic gets tests in the same change.
 - To test a function, export it from its script (adding `export` changes neither behaviour nor RAM); move logic into a pure helper only when that is low risk. Tests are `.mjs` files in `tests/`, never synced.
 - **Test kinds** (a tag at the start of the name): `regression:` a fixed bug, `game:` a formula or rule copied from the game's source, `choice:` a default, threshold or wording picked by us; no tag is a rule the script promises (an ordering, a branch, a property). Assert the rule, not the number: derive expected values from the inputs, the config or the game's formula, and say why in the assertion message. Tag a test `choice:` only when pinning the value is the point.

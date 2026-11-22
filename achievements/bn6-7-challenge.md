@@ -42,4 +42,4 @@ joins it, nothing trains the combat stats for it, and the route is hacking (Daed
 ## If it goes wrong
 
 If the division was joined, the attempt is lost for this run; finish the BitNode (or `challenge clear` to use Bladeburner) and
-try again on a later run of it. How it works and why: [`docs/challenges.md`](../docs/challenges.md#forbidden-mechanics-bn2-bn6-bn7-bn10).
+try again on a later run of it. How it works and why: [`docs/challenges.md`](../docs/challenges.md#forbidden-mechanics-bn2-bn3-bn6-bn7-bn10).

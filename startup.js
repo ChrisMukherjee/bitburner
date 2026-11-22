@@ -12,6 +12,7 @@ import { gangReady } from "/gang/ready.js";
 import { dnetReady } from "/darknet/ready.js";
 import { bladeburnerReady, bladeburnerRunning } from "/bladeburner/ready.js";
 import { sleevesReady } from "/sleeves/ready.js";
+import { corpReady } from "/corp/ready.js";
 import { pservReady } from "/pserv/ready.js";
 import { bitnodeMultsReady } from "/utils/sf5.js";
 import { batcherReady, hackIsWorthless } from "/hack/ready.js";
@@ -61,6 +62,10 @@ export const SCRIPTS = [
 	{ stage: "start", script: "tools/api-advice.js", oneShot: true, every: 600_000, homeOnly: true },
 	// Mechanics, one folder each. Started only once their ready check says there is work.
 	{ stage: "start", script: "gang/gang-manager.js", ready: gangReady },
+	// Corporation (BitNode 3 or Source-File 3): created on seed money in BitNode 3, self-funded elsewhere once affordable. After
+	// every corporation cycle the manager reads, plans and acts; every corporation call runs in one worker started with just the
+	// RAM its functions cost, so the manager itself stays small.
+	{ stage: "start", script: "corp/corp-manager.js", ready: corpReady },
 	// Bladeburner (BitNode 6/7 or Source-File 6/7): the manager decides the state every 3 minutes, the pass plays
 	// every 30 s while the state is "run"; player-work.js does the gym. One-shots, so their RAM is only held for a moment.
 	{ stage: "early", script: "bladeburner/bb-manage.js", oneShot: true, every: 180_000, ready: bladeburnerReady },

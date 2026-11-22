@@ -33,6 +33,7 @@ change a script, so they don't undo a choice that was made on purpose.
 - [`challenges.md`](challenges.md): challenge achievements as named config overrides; the home RAM and core cap for BN1, sleeves off for BN10, and `forbid` (no Bladeburner division for BN6/BN7, no gang for BN2) with auto-retiring.
 - [`bladeburner.md`](bladeburner.md): state manager, action pass, route estimate, gym via player-work, state on a port.
 - [`sleeves.md`](sleeves.md): sleeve manager: one job per sleeve from the run's state (shock and sync, training, the gang's karma, Bladeburner contracts, faction and company rep, cash crime), refusals fall back, buying sleeves, memory and augmentations by spending stage, keeping BitNode 10 open while the next Covenant sleeve is worth the wait, the BN10 challenge, and why the work is split into small workers.
+- [`corporation.md`](corporation.md): corporation manager: the in-game guide's three divisions through the four investment rounds, going public, dividends and bribes; every corporation call through one worker started with exactly the RAM its batch needs; research phases, the stuck-setup offer rule, product pricing before Market-TA.II.
 - [`install-persistence.md`](install-persistence.md): what an augmentation install keeps per mechanic (gang, Bladeburner, favor, stock access...) and what the scripts do with it.
 
 ## Writing one

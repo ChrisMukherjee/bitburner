@@ -70,6 +70,12 @@ export const FEATURES = {
 		fallback: "Augmentations come from faction rep and installs only",
 		gain: "level 1 unlocks it (BitNode 10 itself has it too)",
 	},
+	corporation: {
+		label: "Corporation API (SF3)", sources: [3],
+		lacks: "no corporation (divisions, products, investment rounds, dividends and bribes for faction reputation)",
+		fallback: "Hacking, crime and the other mechanics carry the run",
+		gain: "level 1 lets you start one anywhere for $150b, level 3 also gives the Office and Warehouse APIs free with it",
+	},
 	bladeburner: {
 		label: "Bladeburner API (SF6/7)", sources: [6, 7],
 		lacks: "no Bladeburner division (ranks, skills, Black Ops as a way to end the BitNode)",

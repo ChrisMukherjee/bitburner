@@ -16,7 +16,17 @@ const CHALLENGE_STATE_FILE = "data/challenge-state.json"; // read by loadConfig:
  * another server (utils/ram-reserve.js), so the batcher lets it free up for the next try.
  */
 export function startHelper(ns, script, files, ...args) {
-	const ramNeeded = ns.getScriptRam(script, "home");
+	return startHelperRam(ns, script, files, ns.getScriptRam(script, "home"), ...args);
+}
+
+/**
+ * startHelper for a helper that calls NS functions by name (corp/workers/call.js), so the static RAM check can't see them:
+ * it is started with `ramNeeded` GB (RunOptions.ramOverride) instead of its static cost, and placed and reserved by that.
+ * The game still checks every call against it, so `ramNeeded` must cover each function the helper will call.
+ */
+export function startHelperRam(ns, script, files, ramNeeded, ...args) {
+	const staticRam = ns.getScriptRam(script, "home");
+	const options = ramNeeded > staticRam ? { threads: 1, ramOverride: ramNeeded } : 1;
 	const here = ns.getHostname();
 	const copies = [script, ...files];
 	for (const file of [USER_CONFIG_FILE, BITNODE_FILE, CHALLENGE_STATE_FILE]) if (ns.fileExists(file, "home")) copies.push(file);
@@ -32,7 +42,7 @@ export function startHelper(ns, script, files, ...args) {
 	for (const host of ["home", ...(here === "home" ? [] : [here]), ...others]) {
 		try {
 			if (host !== "home" && !ns.scp(copies, host, "home")) continue;
-			const pid = ns.exec(script, host, 1, ...args);
+			const pid = ns.exec(script, host, options, ...args);
 			if (pid !== 0) {
 				releaseRoom(ns, script);
 				return pid;

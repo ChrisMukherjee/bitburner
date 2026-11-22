@@ -148,10 +148,17 @@ to go on: accept the Gift at the Church of the Machine God in Chongqing, or
 `run /tools/set-config.js set bladeburner.stanekFirst false`. It is on by default in BitNode 13 only; set it to `true`
 for any other run where you want the Gift ([`bladeburner.md`](bladeburner.md)).
 
+### Source-File 3: corporations
+
+The Corporation API ([`../corp/`](../corp/README.md), `SF3`) works in BitNode 3 or with Source-File 3. In BitNode 3 the
+manager starts a corporation on seed money and takes it through the four investment rounds to public, then pays dividends
+and bribes factions for the reputation the augmentation plan needs ([`corporation.md`](corporation.md)). Elsewhere it costs
+$150b of your cash, which the manager spends once you have twice that; below SF3.3 the Office and Warehouse APIs are $50b
+each out of the corporation's own funds, so that start is slow. SF3.3 makes the corporation a strong income in every later run.
+
 ### Source-Files with no manager here yet
 
 - **SF10, sleeves and grafting:** [`../sleeves/`](../sleeves/README.md) gives every sleeve a job (shock and sync, training, karma, Bladeburner contracts, faction and company rep, cash crime) and buys sleeves, memory and sleeve augmentations. Grafting (the player grafts augmentations for money and an hour or two in New Tokyo, no rep needed) is a step of player-work.js: [`grafting.md`](grafting.md).
-- **SF3, corporations:** no corporation scripts.
 - **SF9, hacknet servers:** SF9 replaces hacknet nodes with hacknet servers in every BitNode, and
   [`../hacknet/hacknet-manager.js`](../hacknet/hacknet-manager.js) only handles nodes that earn money: it stands down
   once they make hashes, which is every run from step 11 on. Spend hashes by hand.
@@ -200,7 +207,7 @@ scripts break each challenge is in [`../achievements/README.md`](../achievements
 | --- | --- | --- |
 | 1 | At most 128GB home RAM and 1 core | BitNode 1.2 or 1.3 (steps 2 and 5), with `challenge bn1` ([`../achievements/bn1-challenge.md`](../achievements/bn1-challenge.md)) |
 | 2 | No gang | BitNode 2.2 or 2.3 (step 12), with `challenge bn2` ([`../achievements/bn2-challenge.md`](../achievements/bn2-challenge.md)), finishing through the Black Ops |
-| 3 | No corporation | BitNode 3.3 (step 10), with a gang or Bladeburner |
+| 3 | No corporation | BitNode 3.3 (step 10), with a gang or Bladeburner, and `challenge bn3` ([`../achievements/bn3-challenge.md`](../achievements/bn3-challenge.md)) |
 | 6, 7 | Never join the Bladeburner division | An extra run late in the order: 6,000 hacking at 35% hacking level; `challenge bn6-7` makes the scripts take the hacking route ([`../achievements/bn6-7-challenge.md`](../achievements/bn6-7-challenge.md)) |
 | 8 | No 4S market data | BitNode 8.3 (step 15), if your trading works without 4S |
 | 9 | No hacknet nodes or servers | BitNode 9.3 (step 11), finishing through the Black Ops |

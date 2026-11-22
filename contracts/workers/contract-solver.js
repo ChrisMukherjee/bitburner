@@ -73,7 +73,7 @@ function byHand(ns, server, file) {
 }
 
 // --- MASTER ROUTER ---
-function solveContract(type, data) {
+export function solveContract(type, data) {
   switch (type) {
     case "Subarray with Maximum Sum":
       return maxSubarraySum(data);

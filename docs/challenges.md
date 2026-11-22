@@ -40,19 +40,19 @@ upgrades: startup's one-shots and `install-augs.js`'s `--spend-all` buy before a
 
 `bn10` (steps: [`../achievements/bn10-challenge.md`](../achievements/bn10-challenge.md)) is a `forbid` challenge like the ones below (`forbid: ["sleeves"]`, retiring when BitNode 10 ends), but what it forbids is not owning sleeves: `loadConfig` (`forbidAdjust`) turns it into `sleeves.manage: false` (no job, so no experience: [`../sleeves/sleeve-manager.js`](../sleeves/sleeve-manager.js) returns at once) and `sleeves.buy.augments: false` (the shop buys none); the sleeve scripts read those two settings, so they didn't change. The game checks both at the destroy; owning sleeves is allowed, so sleeves and memory are still bought and [the hold](sleeves.md#holding-bitnode-10-for-the-covenants-sleeves) works. An augmentation install keeps a sleeve's experience and augmentations (only the BitNode's end resets them), so anything a sleeve gains during the run counts and the manager stays off for all of it. Rejected: letting sleeves work early and stop later (nothing wipes their experience in between).
 
-## Forbidden mechanics (BN2, BN6, BN7, BN10)
+## Forbidden mechanics (BN2, BN3, BN6, BN7, BN10)
 
-`bn6`, `bn7` (the same rule; `bn6-7` sets both, see `CHALLENGE_GROUPS`), `bn2` and `bn10` forbid a mechanic for the whole BitNode. The game checks
-`Player.bladeburner === null` (BN6, BN7) or `Player.gang === null` (BN2) when `w0r1d_d43m0n` is destroyed (v3.0.0
-`Achievements.ts`), and neither is undone by an augmentation install, so one join or one `createGang` anywhere in the run loses it.
-Steps: [`../achievements/bn6-7-challenge.md`](../achievements/bn6-7-challenge.md), [`../achievements/bn2-challenge.md`](../achievements/bn2-challenge.md).
+`bn6`, `bn7` (the same rule; `bn6-7` sets both, see `CHALLENGE_GROUPS`), `bn2`, `bn3` and `bn10` forbid a mechanic for the whole BitNode. The game checks
+`Player.bladeburner === null` (BN6, BN7), `Player.gang === null` (BN2) or `Player.corporation === null` (BN3) when `w0r1d_d43m0n` is destroyed (v3.0.0
+`Achievements.ts`), and none is undone by an augmentation install, so one join, one `createGang` or one `createCorporation` anywhere in the run loses it.
+Steps: [`../achievements/bn6-7-challenge.md`](../achievements/bn6-7-challenge.md), [`../achievements/bn2-challenge.md`](../achievements/bn2-challenge.md), [`../achievements/bn3-challenge.md`](../achievements/bn3-challenge.md).
 
-- **One setting, `forbid`** (`"bladeburner"`, `"gang"`, `"sleeves"`; default empty; the challenge sets it under `bitnodes` for its own BitNode). The
-  capability helpers [`../utils/bladeburner.js`](../utils/bladeburner.js) `bladeburnerAccess(ns, config)` and
-  [`../utils/gang.js`](../utils/gang.js) `gangAccess(ns, config)` report a forbidden mechanic as not available (with `forbidden: true` and a
+- **One setting, `forbid`** (`"bladeburner"`, `"gang"`, `"corporation"`, `"sleeves"`; default empty; the challenge sets it under `bitnodes` for its own BitNode). The
+  capability helpers [`../utils/bladeburner.js`](../utils/bladeburner.js) `bladeburnerAccess(ns, config)`,
+  [`../utils/gang.js`](../utils/gang.js) `gangAccess(ns, config)` and [`../utils/corporation.js`](../utils/corporation.js) `corpAccess(ns, config)` report a forbidden mechanic as not available (with `forbidden: true` and a
   reason), so startup's ready checks, the managers, `node-eta.js`, `player-work.js` (its route becomes hacking and it can finish) and `status`
-  stand down through the check they already make, with no per-BitNode branch. A gang that already exists is left alone (`inGang` wins):
-  the attempt is lost, and the manager keeps running what exists.
+  stand down through the check they already make, with no per-BitNode branch. A gang or corporation that already exists is left alone
+  (`inGang`, `hasCorp` win): the attempt is lost, and the manager keeps running what exists.
 - **Settings that would still steer around it** are dropped by `forbidAdjust` in [`../utils/config.js`](../utils/config.js): the route is
   `hacking`, the `bladeburner` augment group leaves `wantStats`, the sleeves' Bladeburner and karma jobs are worth 0, and the start-stage
   gang invite is off. `routeAdjust` can't put them back (it runs from the Bladeburner state on port 36, which nothing posts).
@@ -79,5 +79,5 @@ Steps: [`../achievements/bn6-7-challenge.md`](../achievements/bn6-7-challenge.md
 
 ## Current state
 
-`bn1`, `bn2`, `bn6`, `bn7`, `bn10` exist (`bn6-7` sets both). Later challenges (BN3 without a corporation ...) would add an entry whose
+`bn1`, `bn2`, `bn3`, `bn6`, `bn7`, `bn10` exist (`bn6-7` sets both). Later challenges would add an entry whose
 settings skip or cap the mechanic the same way: a `forbid` name and a check in its capability helper, once the scripts have one.

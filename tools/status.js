@@ -33,6 +33,7 @@ import { sleevesApiFromInfo } from "/utils/sleeves.js";
  *            manager listed in MECHANIC_PORTS posts ready-made lines the same way)
  *   port 36  Bladeburner state + lines (bladeburner/bb-manage.js and bb-pass.js, one-shots)
  *   port 40  sleeve summary            (sleeves/sleeve-manager.js, one-shot)
+ *   port 48  corporation summary       (corp/corp-manager.js)
  *   data/aug-plan.json   reset advice + rep rates, Red Pill rep/price and Daedalus invite needs
  *                        (buy-augs.js --plan, every 10 min via auto-reset.js)
  *   data/go-bonus.json   Go bonus history (go/go-bot.js)
@@ -44,7 +45,7 @@ const GOALS_PORT = 23;
 const CITY_PORT = 25;
 const STOCK_SUMMARY_PORT = 26;
 // Ports where mechanic managers post { time, title, script, lines }; add one per mechanic folder.
-const MECHANIC_PORTS = [28, 36, 40];
+const MECHANIC_PORTS = [28, 36, 40, 48];
 const PLAN_FILE = "data/aug-plan.json";
 const GO_FILE = "data/go-bonus.json";
 const REP_FILE = "data/status-rep.json";
@@ -152,7 +153,7 @@ export async function main(ns) {
 	out.push(`BitNode ${node}: destroying gives SF${node}.${sfAfter}, next ${nextBN} | auto-destroy ` +
 		(destroyer ? (destroyer.args.includes("--dry") ? "running in --dry" : "running") : "not running"));
 	// A challenge that rules a mechanic out (CHALLENGES in config.js): say so, since Bladeburner and the gang then stay off by design
-	const ruledOut = [config.forbid ?? []].flat().map((feature) => feature === "bladeburner" ? "no Bladeburner division" : feature === "gang" ? "no gang" : feature === "sleeves" ? "no sleeve jobs or augmentations" : feature);
+	const ruledOut = [config.forbid ?? []].flat().map((feature) => feature === "bladeburner" ? "no Bladeburner division" : feature === "gang" ? "no gang" : feature === "corporation" ? "no corporation" : feature === "sleeves" ? "no sleeve jobs or augmentations" : feature);
 	if (ruledOut.length) out.push(`  Challenge on: ${ruledOut.join(", ")} (\`challenge clear\` ends it); the way out is w0r1d_d43m0n`);
 	// What this run lacks (written by tools/api-advice.js every 10 min): one line each; the full text was printed to the terminal.
 	const advice = config.missingApiAdvice?.enabled === false ? null : readJson(ns, "data/api-advice.json");

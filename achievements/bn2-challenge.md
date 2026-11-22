@@ -23,4 +23,4 @@ sleeves don't grind karma for it.
 ## If it goes wrong
 
 If a gang was formed, the attempt is lost for this run; finish it, or `challenge clear` to carry on with the gang. Design:
-[`docs/challenges.md`](../docs/challenges.md#forbidden-mechanics-bn2-bn6-bn7-bn10).
+[`docs/challenges.md`](../docs/challenges.md#forbidden-mechanics-bn2-bn3-bn6-bn7-bn10).

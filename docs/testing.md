@@ -106,8 +106,18 @@ check that the test fails when its rule breaks, and on a script before trusting 
     time box still works while "an hour later" is one call. Tests check who is played and when it moves on, the hourly retry of
     a skipped opponent, a game in progress, history across restarts and installs, the plan and the flags. The scripted games say
     nothing about which point the search plays; that stays with the tiny-board tests.
+- `tests/status-main.test.mjs`, `tests/auto-destroy.test.mjs`, `tests/auto-reset-main.test.mjs`, `tests/donate-rep.test.mjs` and
+  `tests/buy-augs-plan.test.mjs` run those scripts' `main` on [`fake-world.mjs`](../tests/support/fake-world.mjs) or the plain fake
+  `ns`, with a scripted planner or game state, and check what they decide (what status says about work, goals, reset advice, the route
+  and which scripts are down; when the BitNode is destroyed and when not; which resets are held; how much is donated; what the plan
+  file lists). `tests/contract-solver.test.mjs` checks every coding-contract solver against a brute-force answer or a worked example,
+  because a wrong answer burns one of the contract's few tries.
 - Not covered yet: the stock trader's `main` runs only a few ticks in a fake market; `bladeburner/bb-manage.js`'s state machine
   is tested one pass at a time, not over a run. The simulators above are the model for testing those loops.
+- Finding what is not covered: `npm run coverage` runs the suite with Node's built-in coverage report (the tests folder left out)
+  and prints a table of line, branch and function coverage per script with the uncovered lines. Use it to pick where to write the
+  next tests, not as a target: a line that runs can still have nothing asserting on it, which `npm run mutate` measures. The
+  `npm test -- --experimental-test-coverage` form does not work, because the extra flag lands after the test file pattern.
 - The Go search is random and time-boxed, so its tests use boards where one move is clearly right and check the move,
   not the win-chance figure.
 - RAM is not checked by the tests. The offline port of the game's RAM check needs the game's source and npm packages, so
@@ -118,7 +128,7 @@ modules (the tests would check a copy, not the synced script); end-to-end runs a
 drive scripts or read their state); snapshot files of whole outputs (they fail on every intended change, so they get
 re-recorded without a look); making tests read-only or needing approval to edit (a rule change has to update its test,
 and the report already shows each edit); a line-coverage target (a line can run without any assertion depending on it;
-the mutation check measures that directly); a full mutation tool such as Stryker (npm dependencies and long runs; the
+the mutation check measures that directly; `npm run coverage` is for finding gaps only); a full mutation tool such as Stryker (npm dependencies and long runs; the
 negation flips catch most of what matters here).
 
 **Audit (2026-11-10).** Of 428 tests, 16 were `regression:`, 21 checked the game's formulas (now tagged `game:`) and six
@@ -144,10 +154,10 @@ counted when respect let the next update recruit a replacement before the plan l
 branches live in `route-model.js`). What is left is mostly log wording, the rank-per-second pricing of a waiting Black Op and
 model inputs that only change the figures. No script bug turned up; the tests only pin behaviour.
 
-**Current state:** about 757 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
+**Current state:** about 970 tests across the reset rule and the reset itself (sell, buy, install), the augmentation price
 step, home-upgrade hold, Daedalus and Bladeburner settings, batcher thread math, landing order and prep with and without
 Formulas.exe, RAM pool, the batcher's main loop in a hacking simulator, startup.js stages and one-shots, gym and study
 choice, player-work's passes in a player simulator, income curve, augment filter, BitNode route,
-Go plan order and move search, the gang manager's per-pass decisions and its main loop in a gang simulator, the sleeve planner and the sleeve manager and shop in a sleeve world, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
-state machine (with the wait for Stanek's Gift), route model, `bb-pass.js` and `node-eta.js` in a Bladeburner simulator, the Go bot's main loop in a Go simulator, the darknet's solvers, migration and storm rule, the program order, repo checks,
-and the two test tools. Tagged: 19 `regression:`, 21 `game:`, 5 `choice:`; the rest are rules. GitHub runs them and the type check on every push.
+Go plan order and move search, the gang manager's per-pass decisions and its main loop in a gang simulator, the sleeve planner and the sleeve manager and shop in a sleeve world, the corporation's formulas and planner and its manager in a corporation simulator, the stock trader's sell and buy rules (cost-aware buying, cycle clock, rotation, cash held for other buyers), the Bladeburner
+state machine (with the wait for Stanek's Gift), route model, `bb-pass.js` and `node-eta.js` in a Bladeburner simulator, the Go bot's main loop in a Go simulator, the darknet's solvers, migration and storm rule, the program order, the coding-contract solvers, `tools/status.js`, auto-destroy, auto-reset's loop, donate-rep, the buy-augs plan file, repo checks,
+and the two test tools. Tagged: 44 `regression:`, 44 `game:`, 8 `choice:`; the rest are rules. GitHub runs them and the type check on every push.

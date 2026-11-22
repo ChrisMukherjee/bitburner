@@ -8,10 +8,11 @@ import { gangApiFromInfo } from "/utils/gang.js";
 import { sleevesApiFromInfo } from "/utils/sleeves.js";
 import { graftingApiFromInfo } from "/utils/grafting.js";
 import { bladeburnerAccess } from "/utils/bladeburner.js";
+import { corpApiFromInfo } from "/utils/corporation.js";
 
 /**
  * One-shot: finds which APIs and items the scripts can use but this run lacks (Singularity, BitNode multipliers, Formulas.exe,
- * Gang, Sleeves, Bladeburner), prints what to do about each once per BitNode run (what is missing, what the scripts do meanwhile, which
+ * Gang, Sleeves, Corporation, Bladeburner), prints what to do about each once per BitNode run (what is missing, what the scripts do meanwhile, which
  * BitNode to destroy or what to buy), and leaves the list in data/api-advice.json for `status`. startup.js runs it every
  * 10 minutes, so the advice drops away when you get the thing (Formulas.exe bought, a Source-File earned) and comes
  * back changed as your Source-Files change. `missingApiAdvice.enabled: false` in the config turns it off.
@@ -29,6 +30,7 @@ export async function main(ns) {
 		gang: gangApiFromInfo(info),
 		sleeves: sleevesApiFromInfo(info),
 		grafting: graftingApiFromInfo(info),
+		corporation: corpApiFromInfo(info),
 		bladeburner: bladeburnerAccess(ns),
 	};
 	const missing = missingList(info, have, { plan: config.bitnodePlan, tor: ns.hasTorRouter() });

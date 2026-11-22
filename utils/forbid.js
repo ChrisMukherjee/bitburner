@@ -3,12 +3,12 @@
 
 /**
  * Mechanics a challenge can forbid (config `forbid`, set by CHALLENGES in config.js): "bladeburner" (BN6 and BN7 challenges: don't
- * join the division), "gang" (BN2 challenge: don't form a gang) and "sleeves" (BN10 challenge: no sleeve jobs or augmentations;
- * owning sleeves is fine, so the sleeve scripts read the two settings loadConfig derives, not a capability helper). The capability helpers (utils/bladeburner.js, utils/gang.js)
+ * join the division), "gang" (BN2 challenge: don't form a gang), "corporation" (BN3 challenge: don't create one) and "sleeves" (BN10 challenge: no sleeve jobs or augmentations;
+ * owning sleeves is fine, so the sleeve scripts read the two settings loadConfig derives, not a capability helper). The capability helpers (utils/bladeburner.js, utils/gang.js, utils/corporation.js)
  * report a forbidden mechanic as not available, so every manager, ready check and planner that asks them stands down by itself.
  * Pure, 0GB, no imports (workers copy it alone).
  */
-export const FORBIDDABLE = ["bladeburner", "gang", "sleeves"];
+export const FORBIDDABLE = ["bladeburner", "gang", "corporation", "sleeves"];
 
 /**
  * True when the config forbids the mechanic. Accepts the whole config, or just a list of names.

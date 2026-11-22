@@ -55,7 +55,8 @@ strong BitNode.
 ## Custom script or manual play
 
 - **Corporation set** (create a corporation, lobbying, production multiplier 1000, 3000 employees, Real Estate):
-  there is no `corp/` folder yet, so this is a project. Do not do it in BN3 if you want the BN3 challenge.
+  [`corp/`](../corp/README.md) creates the corporation by itself; the others are not aimed at (it follows the guide's
+  Agriculture, Chemical and Tobacco route, with no Real Estate division). Not in a BN3 run that goes for the BN3 challenge.
 - **You and what army (8 sleeves):** needs Source-File 10 level 3 and all five Covenant sleeves ($10t up to $100q, BitNode 10 only,
   kept for good). [`sleeves/`](../sleeves/README.md) buys them and keeps BitNode 10 open while the next one is worth the wait
   ([`docs/sleeves.md`](../docs/sleeves.md#holding-bitnode-10-for-the-covenants-sleeves)); the last two need large income, so
@@ -99,7 +100,7 @@ The per-BitNode challenge rules, and which default scripts break them:
 | --- | --- | --- |
 | BN1 | destroy with at most 128GB home and 1 core | home RAM/core upgrades (also run by `install-augs.js`); steps in [`bn1-challenge.md`](bn1-challenge.md) |
 | BN2 | no gang | `gang/` starts by itself; `challenge bn2` forbids it in BitNode 2 (steps in [`bn2-challenge.md`](bn2-challenge.md)) |
-| BN3 | no corporation | none (no corp scripts) |
+| BN3 | no corporation | `corp/` starts by itself in BitNode 3; `challenge bn3` forbids it there (steps in [`bn3-challenge.md`](bn3-challenge.md)) |
 | BN6, BN7 | no Bladeburner division (never joined in the run) | `bladeburner/` is the default route in BN6; `challenge bn6-7` forbids it in both and the route is hacking (steps in [`bn6-7-challenge.md`](bn6-7-challenge.md)) |
 | BN8 | no 4S market data | `stocks/stock-trader.js` buys 4S |
 | BN9 | no hacknet nodes or servers | `hacknet/hacknet-manager.js` |
@@ -112,7 +113,7 @@ The per-BitNode challenge rules, and which default scripts break them:
 ## Suggested order
 
 1. First BN1 rerun: BN1 challenge, and watch the under-2-days achievement.
-2. A BitNode between BN1 runs: nothing special. Set `challenge bn6-7` before BitNode 6 or 7 if you want those achievements (no Bladeburner), and `challenge bn2` before BitNode 2 (no gang); each switches itself off when its BitNode ends.
+2. A BitNode between BN1 runs: nothing special. Set `challenge bn6-7` before BitNode 6 or 7 if you want those achievements (no Bladeburner), and `challenge bn2` before BitNode 2 (no gang), `challenge bn3` before BitNode 3 (no corporation); each switches itself off when its BitNode ends.
 3. Last BN1 level: 40 queued augmentations, 8 cores, IPvGO anticheat (not while a BN14 challenge is active).
 4. Any BitNode with Source-File 9 or 14: the hashnet and darknet sets.
 5. Corporation and sleeves only for a full set, since each is a project.

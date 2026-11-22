@@ -43,6 +43,7 @@ in the capability helpers, so each rule is still written once.
 | Sleeves (SF10) | `sleeve-manager.js`, `sleeve-shop.js` | managers print their reason and exit; `startup.js` only starts them when `sleeves/ready.js` says the API works | tool, manager exit |
 | Grafting (SF10) | `singularity/player-work.js` (graft step) | the step is skipped; `tools/api-advice.js` prints the advice | tool |
 | Bladeburner (SF6/7) | `bb-manage.js`, `bb-pass.js`, `node-eta.js` | the route stays hacking; manager exits | tool, manager exit |
+| Corporation (SF3) | `corp-manager.js` | manager prints the advice and exits (a `challenge bn3` gets one line instead); `startup.js` only starts it when `corp/ready.js` says a corporation exists or can be made; no corporation dividends or bribes | tool, manager exit |
 | TIX / 4S data | `stock-trader.js` | buys TIX itself once cash allows, waits with a terminal line; without 4S it forecasts from price history | none (it buys them by itself) |
 | Darknet (`DarkscapeNavigator.exe`) | `dnet-manager.js` | `startup.js` waits for the program; `buy-programs.js` buys it | none (bought automatically with the Singularity API; without it `reminders.js` lists it) |
 | IPvGO cheat (SF14.2) | `go/anticheat.js` | says it needs SF14.2 and stops | its own message |

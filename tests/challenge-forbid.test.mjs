@@ -1,4 +1,4 @@
-// Challenges that rule a mechanic out (CHALLENGES bn2, bn6, bn7; `forbid` in the config): the config they produce, the capability
+// Challenges that rule a mechanic out (CHALLENGES bn2, bn3, bn6, bn7, bn10; `forbid` in the config): the config they produce, the capability
 // helpers that report the mechanic as not available, what loadConfig drops with it, and retiring a challenge when its BitNode ends.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,6 +10,8 @@ import { bladeburnerAccess } from "/utils/bladeburner.js";
 import { gangAccess } from "/utils/gang.js";
 import { bladeburnerReady } from "/bladeburner/ready.js";
 import { gangReady } from "/gang/ready.js";
+import { corpAccess } from "/utils/corporation.js";
+import { corpReady } from "/corp/ready.js";
 import { main as setConfig } from "/tools/set-config.js";
 import { rollChallenges, retireChallenges, armNow, disarm } from "/utils/challenge.js";
 import { CHALLENGE_STATE_FILE, activeChallenges } from "/utils/config.js";
@@ -77,6 +79,25 @@ test("startup's ready checks: neither mechanic is started while a challenge forb
 	ns.getPlayer = () => ({ factions: DEFAULTS.gang.factions });
 	assert.equal(gangReady(ns, gang), false, "a gang faction is joined and the karma is there, yet no manager starts to form it");
 	assert.equal(gangReady(ns, loadConfig(fakeNs())), true, "the same run without the challenge forms the gang");
+});
+
+test("corpAccess and corpReady: the BN3 challenge keeps a corporation from being made; one that exists is left alone", () => {
+	const config = loadConfig(withChallenges(["bn3"], 3));
+	assert.ok(forbids(config, "corporation"), "bn3 forbids it in BitNode 3");
+	assert.ok(!forbids(loadConfig(withChallenges(["bn3"], 1)), "corporation"), "and nowhere else");
+	const corpNs = (has) => fakeNs({
+		money: 1e15,
+		overrides: { getResetInfo: () => info(3), corporation: { hasCorporation: () => has, canCreateCorporation: () => (has ? "CorporationExists" : "Success") } },
+	});
+	const none = corpAccess(corpNs(false), config);
+	assert.deepEqual([none.available, none.canCreate, none.forbidden], [false, false, true]);
+	assert.match(none.why, /challenge/);
+	assert.equal(corpReady(corpNs(false), config), false, "startup doesn't start the manager to create one");
+	assert.equal(corpReady(corpNs(false), loadConfig(fakeNs())), true, "the same run without the challenge does");
+	const made = corpAccess(corpNs(true), config);
+	assert.deepEqual([made.available, made.hasCorp, !!made.forbidden], [true, true, false], "created already: the manager keeps running it");
+	assert.equal(corpReady(corpNs(true), config), true);
+	assert.equal(corpAccess(corpNs(false)).available, true, "no config passed: unchanged behaviour");
 });
 
 test("gangAccess: forbidden until a gang exists; an existing gang is left alone", () => {

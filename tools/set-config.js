@@ -177,7 +177,7 @@ function nextLevel(ns, bitNode) {
 	return owned + (info.currentNode === bitNode ? 1 : 0) + 1;
 }
 
-/** The challenges as [name, challenge] in BitNode order (bn1, bn2, bn6, bn7, bn10), whatever order config.js lists them in. */
+/** The challenges as [name, challenge] in BitNode order (bn1, bn2, bn3, bn6, bn7, bn10), whatever order config.js lists them in. */
 export function sortedChallenges() {
 	const number = (name) => parseInt(name.replace(/\D+/, ""), 10) || 0;
 	return Object.entries(CHALLENGES).sort(([first], [second]) => number(first) - number(second));

@@ -34,4 +34,4 @@ the second BitNode 1 run, [`bn1-challenge.md`](bn1-challenge.md).)
    Any non-zero value cannot be undone in this run; then leave the challenge for the next BitNode 10 run.
 4. **Nothing to clear.** When the next BitNode starts, `startup.js` takes `bn10` out of `challenges` by itself (and says so), so the next BitNode 10 run uses its sleeves. To try again, set it again before that run.
 
-Rule and settings: `CHALLENGES.bn10` in [`../config.js`](../config.js) (`forbid: ["sleeves"]`); design: [`../docs/challenges.md`](../docs/challenges.md#forbidden-mechanics-bn2-bn6-bn7-bn10).
+Rule and settings: `CHALLENGES.bn10` in [`../config.js`](../config.js) (`forbid: ["sleeves"]`); design: [`../docs/challenges.md`](../docs/challenges.md#forbidden-mechanics-bn2-bn3-bn6-bn7-bn10).
