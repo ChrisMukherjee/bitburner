@@ -14,6 +14,8 @@ import { armNow, disarm } from "/utils/challenge.js";
  *                                                     (a bare 5 means one more level of 5 than you will own);
  *                                                     done in order, owned ones skipped
  *   run /tools/set-config.js route                    show the route
+ *   run /tools/set-config.js route plan               list every step of the plan (done / next marks), whether your route
+ *                                                     overrides it and whether auto is on
  *   run /tools/set-config.js route clear              empty the route (the plan decides when auto is on, which it is by default;
  *                                                     with auto off auto-destroy waits for you)
  *   run /tools/set-config.js auto on                 let auto-destroy follow the plan's next BitNode by itself
@@ -49,6 +51,10 @@ export async function main(ns) {
 		return;
 	}
 	if (command === "route") {
+		if (rest[0] === "plan") {
+			ns.tprint(describePlan(mine, ns.getResetInfo()).join("\n"));
+			return;
+		}
 		if (rest.length === 0) {
 			ns.tprint(`bitnodeRoute: ${describeRoute(mine.bitnodeRoute ?? DEFAULTS.bitnodeRoute, autoOn(mine))}`);
 			return;
@@ -235,7 +241,40 @@ export function routeClearedText(mine) {
 }
 
 function describeRoute(route, auto = autoOn({})) {
-	return route.length ? route.map((step) => `BN${step.bitNode} level ${step.level}`).join(" -> ") : auto ? "empty (the plan decides)" : "empty (auto-destroy waits for you)";
+	return route.length ? route.map((step) => `BN${step.bitNode} level ${step.level}`).join(" -> ") : auto ? "empty (the plan decides; afk-route plan lists it)" : "empty (auto-destroy waits for you; afk-route plan lists the plan)";
+}
+
+/**
+ * The `route plan` listing: every step of the plan with done / current / next marks, then who decides (your route or the plan,
+ * auto on or off). Pure (info is ns.getResetInfo(): { currentNode, ownedSF }), so a test can run it without the game.
+ * "current" is the BitNode you are in while its level isn't owned yet; "next" is the first open step of the lowest open tier
+ * (counting the level this BitNode gives when destroyed), and when that tier has several open steps they are all marked "next"
+ * because the easiest one goes first (known with Source-File 5).
+ */
+export function describePlan(mine, info) {
+	const plan = mine.bitnodePlan ?? DEFAULTS.bitnodePlan;
+	const route = mine.bitnodeRoute ?? DEFAULTS.bitnodeRoute;
+	const auto = autoOn(mine);
+	const owned = new Map(info.ownedSF);
+	const after = new Map(owned);
+	after.set(info.currentNode, (after.get(info.currentNode) ?? 0) + 1);
+	const open = plan.filter((step) => (after.get(step.bitNode) ?? 0) < step.level);
+	const tier = open.length ? Math.min(...open.map((step) => step.tier ?? 1)) : null;
+	const lines = [`bitnodePlan (${plan.length} steps; you are in BitNode ${info.currentNode}):`];
+	for (const step of plan) {
+		const have = owned.get(step.bitNode) ?? 0;
+		let mark = "  ";
+		let note = `SF${step.bitNode} ${have}/${step.level}`;
+		if (have >= step.level) { mark = "ok"; note += " done"; }
+		else if (open.includes(step) && (step.tier ?? 1) === tier) { mark = ">>"; note += step.bitNode === info.currentNode ? " current, next after it ends" : " next"; }
+		else if (step.bitNode === info.currentNode) note += " current";
+		lines.push(`  ${mark} tier ${String(step.tier ?? 1).padStart(2)}  BN${String(step.bitNode).padEnd(2)} -> level ${step.level}  (${note})`);
+	}
+	lines.push(open.length ? "ok = done, >> = next up (the easiest of a tier goes first when several share it)." : "Every step of the plan is reached.");
+	if (route.length) lines.push(`Your bitnodeRoute (${describeRoute(route, auto)}) overrides the plan: it is followed first${auto ? ", then the plan carries on" : ", then you pick"}.`);
+	else lines.push("No bitnodeRoute of your own: the plan decides.");
+	lines.push(auto ? "Auto route is ON: auto-destroy enters the next BitNode by itself (autoroute off to only get suggestions)." : "Auto route is OFF: the next BitNode is only suggested (autoroute on to follow it by itself).");
+	return lines;
 }
 
 function help(ns, mine) {
@@ -243,6 +282,7 @@ function help(ns, mine) {
 		"set-config: change data/config.json without an editor.",
 		"  route 4:3 2:1 5:1      BitNode route (bitNode:level), done in order, owned ones skipped",
 		"  route / route clear    show / empty the route",
+		"  route plan             list the whole plan with done / next marks (alias: afk-route plan)",
 		"  auto on / auto off     let auto-destroy follow the plan's next BitNode by itself / only suggest it (auto shows which; alias autoroute)",
 		"                         your own route (afk-route) is followed first; with auto on the plan carries on after it",
 		"  skip <script...>       scripts startup.js never starts (skip clear to undo)",

@@ -235,7 +235,7 @@ for `w0r1d_d43m0n`, or every Black Op done).
   any save: one that did BitNode 4 before 1.2 is sent back for 1.2 first. Within a tier it picks the BitNode whose
   multipliers make it easiest when you own SF5, otherwise the listed order.
 - **Set your own route.** `afk-route 4:3 2:1 5:1` stores `bitnodeRoute` in `data/config.json`: BitNode:level pairs, done
-  in order. Source-Files you already have are skipped, so you can list the whole plan. `afk-route` alone shows it,
+  in order. Source-Files you already have are skipped, so you can list the whole plan. `afk-route` alone shows it, `afk-route plan` lists every step of the plan with done / next marks (and says whether your route overrides it and whether auto is on),
   `afk-route clear` empties it (with `autoroute` on, the default, that is all it takes: `singularity/auto-destroy.js` is started by `startup.js` and follows the plan; there is no separate auto-destroy switch, and the message `afk-route clear` prints says what it will do for your current settings). A route of your own is followed before the plan; with `autoroute on` the plan carries on once your route is done, and `afk-route` overrides it any time.
 - **Go now.** `next-bitnode 5` ends the BitNode (same checks) and enters BitNode 5 directly; use it for a one-off
   choice or an achievement run.
