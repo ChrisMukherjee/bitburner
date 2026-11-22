@@ -10,7 +10,7 @@ import { sleevesApiFromInfo, sleevesBuyableFromInfo } from "/utils/sleeves.js";
 import { GYMS, GYM_CASH_SECONDS } from "/utils/gyms.js";
 import { sleevesReady } from "/sleeves/ready.js";
 import {
-	planSleeves, jobValues, crimeChance, pickCashCrime, needsRecovery, needsSync, trainingFor, combatTarget, pickStage, budgetFor, nextPurchase, sameTask, family, karmaSlots, charismaTarget, charismaTraining, JOB_EFFECTIVENESS,
+	planSleeves, jobValues, crimeChance, pickCashCrime, needsRecovery, needsSync, trainingFor, combatTarget, pickStage, budgetFor, nextPurchase, sameTask, family, karmaSlots, contractSlots, charismaTarget, charismaTraining, JOB_EFFECTIVENESS,
 } from "/sleeves/plan.js";
 import { main as manage, CONFIG as MANAGER_CONFIG } from "/sleeves/sleeve-manager.js";
 import { main as shop } from "/sleeves/sleeve-shop.js";
@@ -541,4 +541,17 @@ test("sameTask: infiltrating is told apart from contracts", () => {
 	const infiltrate = { kind: "bb", action: "Infiltrate Synthoids" };
 	assert.equal(sameTask({ type: "INFILTRATE" }, infiltrate), true);
 	assert.equal(sameTask({ type: "BLADEBURNER", actionName: "Tracking" }, infiltrate), false);
+});
+
+test("regression: only as many sleeves take Bladeburner contracts as there are whole counts left (the game refuses a contract with none)", () => {
+	const names = rule.bladeburner.contracts;
+	const bb = (contractCounts) => ({ state: "run", trainFloor: 100, route: "combat", freeShare: 0, contractCounts });
+	const eight = Array.from({ length: 8 }, (_, index) => sleeve(index));
+	const onContracts = (counts) => planOf(state(eight, { bb: bb(counts) })).filter((item) => item.role === "bladeburner").length;
+	assert.equal(contractSlots(state(eight, { bb: bb(undefined) }), rule, 8), 8, "no reading: every sleeve is tried");
+	assert.equal(onContracts(Object.fromEntries(names.map((name) => [name, 0]))), 0, "no counts left: nobody is sent to be refused");
+	assert.equal(onContracts({ ...Object.fromEntries(names.map((name) => [name, 0])), [names[0]]: 2.9, [names[1]]: 1 }), 3, "whole counts across the configured contracts (2.9 is 2)");
+	const open = planOf(state(eight, { bb: bb(undefined) })).filter((item) => item.role === "bladeburner").length;
+	assert.equal(onContracts(Object.fromEntries(names.map((name) => [name, 99]))), open, "plenty of counts changes nothing (the value ranking still decides how many)");
+	assert.ok(planOf(state(eight, { bb: bb(Object.fromEntries(names.map((name) => [name, 0]))) })).every((item) => !String(item.why).includes("refused")));
 });

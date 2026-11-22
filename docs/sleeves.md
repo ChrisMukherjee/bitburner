@@ -44,7 +44,9 @@ otherwise ([`api-advice.md`](api-advice.md)).
      it as finish the karma still missing within `weights.karmaHours` (2), at least one; the rest go to other jobs.
    - *Bladeburner contracts* (50) while the state is `run`, in `sleeves.bladeburner.contracts` order. x `BladeburnerRank` (0 = no
      division), x 0.25 while the route estimate says hacking, x the share of passes where counts are left (1 - `freeShare` from
-     bb-pass.js on port 36).
+     bb-pass.js on port 36). The game refuses a contract with no count left, so only as many sleeves
+     take it as there are whole counts across `sleeves.bladeburner.contracts` (the rows bb-pass.js posts, at most 15 minutes old; without
+     a reading every sleeve is tried); the rest go to the next job, usually cash crime.
    - *Infiltrate Synthoids* (the Bladeburner weight x `freeShare`): the sleeve-only action that adds action counts. Worth little while
      contracts still have counts, and takes over the Bladeburner sleeves once every safe action's counts are used up.
    - *Faction rep* (20): each joined faction in `factionWork.order` with a rep goal above 0 (port 23), except the faction the player
@@ -61,7 +63,7 @@ otherwise ([`api-advice.md`](api-advice.md)).
    time (chance = weighted skills / 975 / difficulty x the crime success multiplier, the game's formula); without them
    `crimeLadder` (least average combat level per crime).
 
-If the game refuses a job (a faction another sleeve works for, a work type the faction lacks, Bladeburner not joined), the manager tries
+If the game refuses a job (a faction another sleeve works for, a work type the faction lacks, Bladeburner not joined, a contract whose count ran out between readings), the manager tries
 the job's next candidate, and then falls back to the cash crime in the same pass, so a sleeve is never idle because of a refusal.
 
 **Buying** ([`../sleeves/sleeve-shop.js`](../sleeves/sleeve-shop.js)): in BitNode 10 a sleeve first (the Covenant's `purchaseSleeve`: five at most, $10t, $100t, $1q, $10q and $100q, on top of the three Source-File 10 gives, so eight in all; it may use `sleeves.sleeveFraction` of the cash above the reserve, since it is permanent and priced far above a stage's share), then memory upgrades for the
@@ -129,7 +131,7 @@ for the $1q one, ten times more for each after it, on a day-long run; see [`bitn
 
 ## The BN10 challenge
 
-`challenge bn10` (see [`challenges.md`](challenges.md); `forbid: ["sleeves"]`, which `loadConfig` turns into the two settings below and which switches itself off when BitNode 10 ends) sets `sleeves.manage: false` (the manager gives no sleeve a job, so none gains
+`challenge bn10` (see [`challenges.md`](challenges.md)) sets `sleeves.manage: false` (the manager gives no sleeve a job, so none gains
 experience) and `sleeves.buy.augments: false` while in BitNode 10. The game checks, at the destroy, that no sleeve holds an
 augmentation or experience; owning idle sleeves is allowed, so the shop still buys sleeves and memory and the hold above still works.
 It is the cheapest in the first BitNode 10 run (see [`bitnode-order.md`](bitnode-order.md#challenge-achievements)).

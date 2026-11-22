@@ -71,7 +71,7 @@ export async function main(ns) {
 		goals: fresh(ns, GOALS_PORT, GOALS_MAX_AGE_MS)?.goals ?? null,
 		playerFaction: String(peekJson(ns, PLAYER_WORK_PORT)?.lastGoalFaction ?? ""),
 		invite: fresh(ns, INVITE_PORT, INVITE_MAX_AGE_MS),
-		bb: { state: bladeburnerState(ns), trainFloor: trainFloor(ns), route: bladeburnerPlan(ns)?.route, freeShare: readBladeburner(ns).freeShare },
+		bb: { state: bladeburnerState(ns), trainFloor: trainFloor(ns), route: bladeburnerPlan(ns)?.route, freeShare: readBladeburner(ns).freeShare, contractCounts: contractCounts(ns) },
 		karmaLeft: Math.max(0, player.karma - karmaNeededFromInfo(info)), karmaRate: karma.rate,
 		mults: bitnodeMults(ns), incomePerSecond: readIncomeRate(ns).perSecond,
 		crimes, focus: readRouteFocus(ns),
@@ -117,6 +117,18 @@ export async function main(ns) {
 	const onKarma = roles.filter((role) => role === "karma").length;
 	if (onKarma && karma.rate > 0) lines.splice(1, 0, `karma: ${Math.round(state.karmaLeft)} to go, about ${Math.round(karma.rate)} an hour per sleeve (${Math.round(state.karmaLeft / (karma.rate * onKarma) * 10) / 10} hours at ${onKarma} sleeves)`);
 	post(ns, lines, roles, { time: Date.now(), value: player.karma, sleeves: onKarma, rate: karma.rate });
+}
+
+/**
+ * Contracts' remaining counts as bb-pass.js last read them ({ name: count }), or null when that reading is missing or older than
+ * 15 minutes (the planner then tries every sleeve and the game's refusal decides).
+ */
+function contractCounts(ns) {
+	const actions = readBladeburner(ns).actions;
+	if (!actions?.rows || Date.now() - (actions.t ?? 0) > 15 * 60_000) return null;
+	const counts = {};
+	for (const row of actions.rows) if (row.type === "Contracts") counts[row.name] = Number(row.count);
+	return counts;
 }
 
 /** Posts the summary `status` shows (port 40) and the pass log `debug-report` reads. */

@@ -270,7 +270,7 @@ export function planSleeves(state, config) {
 	}
 	if (state.bb?.state === "run") {
 		const contracts = rule.bladeburner.contracts.map((contract) => ({ kind: "bb", action: "Take on contracts", contract }));
-		for (let at = 0; at < count; at++) jobs.push({ role: "bladeburner", why: "Bladeburner contracts", candidates: contracts, value: values.bladeburner * decay ** at });
+		for (let at = 0; at < contractSlots(state, rule, count); at++) jobs.push({ role: "bladeburner", why: "Bladeburner contracts", candidates: contracts, value: values.bladeburner * decay ** at });
 		// Infiltrating adds action counts, which is what limits contracts once every safe action's counts are used up.
 		if (auto) for (let at = 0; at < count; at++) jobs.push({ role: "infiltrate", why: "infiltrating for action counts", candidates: [{ kind: "bb", action: INFILTRATE }], value: values.infiltrate * decay ** at });
 	}
@@ -323,6 +323,18 @@ export function karmaSlots(state, rule, count) {
 	const rate = state.karmaRate;
 	if (!(rate > 0) || !(state.karmaLeft >= 0)) return count;
 	return Math.min(count, Math.max(1, Math.ceil(state.karmaLeft / (rate * (rule.weights?.karmaHours ?? 2)))));
+}
+
+/**
+ * How many sleeves may take Bladeburner contracts: the game refuses a contract with no count left, so with the counts bb-pass.js
+ * read (`state.bb.contractCounts`, { name: remaining }) only as many sleeves as there are whole counts across the configured
+ * contracts; without a reading, all of them (the worker's refusal then falls back to cash crime).
+ */
+export function contractSlots(state, rule, count) {
+	const counts = state.bb?.contractCounts;
+	if (!counts) return count;
+	const left = rule.bladeburner.contracts.reduce((sum, name) => sum + Math.floor(Math.max(0, Number(counts[name]) || 0)), 0);
+	return Math.min(count, left);
 }
 
 /**

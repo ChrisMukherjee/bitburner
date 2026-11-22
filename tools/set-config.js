@@ -96,7 +96,7 @@ export async function main(ns) {
 	if (command === "challenge") {
 		const on = [mine.challenges ?? DEFAULTS.challenges].flat();
 		if (rest.length === 0) {
-			for (const [name, challenge] of Object.entries(CHALLENGES)) {
+			for (const [name, challenge] of sortedChallenges()) {
 				ns.tprint(`${on.includes(name) ? "ON " : "off"} ${name}: "${challenge.achievement}", ${challenge.rule}`);
 			}
 			for (const [name, members] of Object.entries(CHALLENGE_GROUPS)) ns.tprint(`    ${name}: sets ${members.join(" and ")}`);
@@ -114,7 +114,7 @@ export async function main(ns) {
 		const names = rest.flatMap((name) => CHALLENGE_GROUPS[name] ?? [name]);
 		const unknown = names.filter((name) => !(name in CHALLENGES));
 		if (unknown.length) {
-			ns.tprint(`ERROR unknown challenge ${unknown.join(", ")}. Known: ${[...Object.keys(CHALLENGES), ...Object.keys(CHALLENGE_GROUPS)].join(", ")}. Nothing changed.`);
+			ns.tprint(`ERROR unknown challenge ${unknown.join(", ")}. Known: ${[...sortedChallenges().map(([name]) => name), ...Object.keys(CHALLENGE_GROUPS)].join(", ")}. Nothing changed.`);
 			return;
 		}
 		mine.challenges = [...new Set([...on, ...names])];
@@ -169,6 +169,12 @@ function nextLevel(ns, bitNode) {
 	const info = ns.getResetInfo();
 	const owned = new Map(info.ownedSF).get(bitNode) ?? 0;
 	return owned + (info.currentNode === bitNode ? 1 : 0) + 1;
+}
+
+/** The challenges as [name, challenge] in BitNode order (bn1, bn2, bn6, bn7, bn10), whatever order config.js lists them in. */
+export function sortedChallenges() {
+	const number = (name) => parseInt(name.replace(/\D+/, ""), 10) || 0;
+	return Object.entries(CHALLENGES).sort(([first], [second]) => number(first) - number(second));
 }
 
 function readState(ns) {
@@ -240,7 +246,7 @@ function help(ns, mine) {
 		"  auto on / auto off     let auto-destroy follow the plan's next BitNode by itself / only suggest it (auto shows which; alias autoroute)",
 		"                         your own route (afk-route) is followed first; with auto on the plan carries on after it",
 		"  skip <script...>       scripts startup.js never starts (skip clear to undo)",
-		`  challenge <name>       go for a challenge achievement (${[...Object.keys(CHALLENGES), ...Object.keys(CHALLENGE_GROUPS)].join(", ")}); challenge clear to stop`,
+		`  challenge <name>       go for a challenge achievement (${[...sortedChallenges().map(([name]) => name), ...Object.keys(CHALLENGE_GROUPS)].join(", ")}); challenge clear to stop`,
 		"  set <path> <value>     any setting, e.g. set augments.wantStats hacking,rep",
 		"  unset <path>           back to the default",
 		`Your overrides: ${Object.keys(mine).length ? JSON.stringify(mine) : "none"}`,

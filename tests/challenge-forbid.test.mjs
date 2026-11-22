@@ -10,6 +10,7 @@ import { bladeburnerAccess } from "/utils/bladeburner.js";
 import { gangAccess } from "/utils/gang.js";
 import { bladeburnerReady } from "/bladeburner/ready.js";
 import { gangReady } from "/gang/ready.js";
+import { main as setConfig } from "/tools/set-config.js";
 import { rollChallenges, retireChallenges, armNow, disarm } from "/utils/challenge.js";
 import { CHALLENGE_STATE_FILE, activeChallenges } from "/utils/config.js";
 
@@ -175,4 +176,13 @@ test("retireChallenges: takes it out of data/config.json, keeps the rest, and te
 	const broken = fakeNs({ files: { "data/config.json": "{ nope" } });
 	assert.deepEqual(retireChallenges(broken, 2, 10), []);
 	assert.equal(broken.files["data/config.json"], "{ nope", "a file that isn't JSON is never rewritten");
+});
+
+test("challenge with no arguments lists the challenges in BitNode order", async () => {
+	const ns = fakeNs({ overrides: { args: ["challenge"] } });
+	await setConfig(ns);
+	const names = ns.terminal.filter((line) => /^(ON |off) /.test(line)).map((line) => line.split(/\s+/)[1].replace(":", ""));
+	const numbers = names.map((name) => parseInt(name.replace(/\D+/, ""), 10));
+	assert.deepEqual(names.length, Object.keys(CHALLENGES).length, "every challenge is listed");
+	assert.deepEqual(numbers, [...numbers].sort((first, second) => first - second), "bn1, bn2, bn6, bn7, bn10, not the order config.js happens to list them in");
 });
