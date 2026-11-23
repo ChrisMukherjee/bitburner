@@ -2,6 +2,9 @@
 import { candidatePasswords, fitsDetails } from "darknet/hint-interpreter.js";
 import { FACTORIOS_MODEL, DEEPGREEN_MODEL, OVERFLOW_MODEL, PACKET_SNIFFER_MODEL, GUESS_NUMBER_MODEL, NIL_MODEL, solveNil, solveNumberGuess, solveDivisibility, solveMastermind, solveOverflow, solvePacketSniffer } from "darknet/feedback-solvers.js";
 import { readLogs } from "darknet/heartbleed.js";
+import {
+	modelCandidates, parseClueFiles, solveRomanRange, solveTiming, solveTripleModulo, ROMAN_MODEL, TIMING_MODEL, MODULO_MODEL,
+} from "darknet/model-solvers.js";
 import { login } from "darknet/auth.js";
 import {
 	REPORT_PORT, CRAWLER_SCRIPT, PHISH_SCRIPT, STASIS_SCRIPT, MIGRATE_SCRIPT, MIGRATE, MIGRATE_TARGET_FILE,
@@ -27,7 +30,7 @@ export async function main(ns) {
 	const passwords = loadPasswords(ns);
 	// opened: neighbours we hold a session on, whose blocked RAM we keep freeing. failed: neighbours whose
 	// hint we couldn't solve, not retried until the next restart.
-	const crawl = { self, port, earn, stasis, migrate, passwords, opened: [], failed: new Set(), pushed: new Map(), seedSeen: false, stormAt: 0 };
+	const crawl = { self, port, earn, stasis, migrate, passwords, opened: [], failed: new Set(), pushed: new Map(), seedSeen: false, stormAt: 0, clues: { byHost: {}, loose: [] } };
 	report(ns, port, { kind: "server", host: self, details: safeDetails(ns, self), maxRam: ns.getServerMaxRam(self) });
 
 	await spread(ns, crawl);
@@ -40,7 +43,9 @@ export async function main(ns) {
  * while earning, because the darknet keeps moving servers: new ones drift next to us, and a neighbour whose
  * crawler died (it went offline, or moved and came back) gets a fresh one.
  */
-async function spread(ns, { self, port, earn, stasis, migrate, passwords, opened, failed }) {
+async function spread(ns, crawl) {
+	const { self, port, earn, stasis, migrate, passwords, opened, failed } = crawl;
+	crawl.clues = readClues(ns, self);
 	for (const neighbour of ns.dnet.probe()) {
 		if (neighbour === "home" || failed.has(neighbour)) continue;
 		const details = safeDetails(ns, neighbour);
@@ -60,7 +65,7 @@ async function spread(ns, { self, port, earn, stasis, migrate, passwords, opened
 		}
 		let attempts = [];
 		if (password === undefined) {
-			const cracked = await crack(ns, neighbour, details, passwords);
+			const cracked = await crack(ns, neighbour, details, passwords, crawl.clues);
 			if (cracked.later) { retryLater(ns, port, neighbour, cracked.later); continue; }
 			({ password, attempts } = cracked);
 		}
@@ -106,12 +111,15 @@ async function spread(ns, { self, port, earn, stasis, migrate, passwords, opened
  * Returns { later: result } instead when the server answered something other than "wrong password" (see
  * auth.js), so a timeout or a server drifting away mid-crack doesn't get it marked unsolvable.
  */
-async function crack(ns, host, details, passwords) {
+async function crack(ns, host, details, passwords, clues = { byHost: {}, loose: [] }) {
 	// The server's logs first: another login's success, passcodes a model leaks, passwords already known to be wrong,
 	// and Mastermind replies that narrow DeepGreen. Costs one cheap call per neighbour.
 	const logs = await readLogs(ns, host);
 	const attempts = [];
-	const tryFirst = [...logs.winners, ...logs.leaked].filter((candidate) => fitsDetails(candidate, details));
+	// Then what this server's clue files say about it, and what the model's hint gives away (model-solvers.js).
+	const fromClues = [clues.byHost[host], ...clues.loose].filter((candidate) => candidate !== undefined);
+	const tryFirst = [...logs.winners, ...logs.leaked, ...fromClues, ...modelCandidates(details)]
+		.filter((candidate) => fitsDetails(candidate, details) && !logs.wrong.has(candidate));
 	for (const candidate of new Set(tryFirst)) {
 		const result = await login(ns, host, candidate);
 		if (result.verdict === "ok") return { password: candidate, attempts };
@@ -125,6 +133,12 @@ async function crack(ns, host, details, passwords) {
 	if (details.modelId === PACKET_SNIFFER_MODEL) return await solvePacketSniffer(ns, host, details);
 	if (details.modelId === NIL_MODEL) return await solveNil(ns, host, details);
 	if (details.modelId === GUESS_NUMBER_MODEL) return await solveNumberGuess(ns, host, details, logs.wrong);
+	if (details.modelId === ROMAN_MODEL) {
+		const range = await solveRomanRange(ns, host, details); // the range form; the single numeral was tried above
+		if (range.password !== undefined || range.later) return range;
+	}
+	if (details.modelId === TIMING_MODEL) return await solveTiming(ns, host, details);
+	if (details.modelId === MODULO_MODEL) return await solveTripleModulo(ns, host, details);
 	const { candidates } = candidatePasswords(details);
 	// Last resort, after the hint's own candidates: passwords that opened other servers (people reuse them), capped.
 	const found = [...new Set(Object.values(passwords))].filter((candidate) => fitsDetails(candidate, details) && !candidates.includes(candidate));
@@ -261,6 +275,19 @@ export function syncStorm(ns, crawl) {
 	crawl.stormAt = order.at;
 	report(ns, crawl.port, { kind: "storm", host: crawl.self });
 	ns.dnet.unleashStormSeed();
+}
+
+/**
+ * Passwords this server's clue files (".data.txt", dropped by caches and cleared RAM blocks) give away; see
+ * model-solvers.js parseClueFiles. Read each re-check, since new files appear while we earn.
+ * @param {NS} ns
+ */
+function readClues(ns, self) {
+	try {
+		return parseClueFiles(ns.ls(self, ".data.txt").map((file) => ns.read(file)));
+	} catch {
+		return { byHost: {}, loose: [] };
+	}
 }
 
 function readList(ns, file) {

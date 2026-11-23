@@ -4,8 +4,11 @@
 // logins' attempts on that server: a code-200 entry is a password that worked, a code-401 entry one that did not (with the
 // reply data, for Mastermind servers), and some models write the passcode into a message. Ported from the other player's
 // lib-auth.js, which has run in game.
+import { login } from "/darknet/auth.js";
+
 const LOGS_TO_READ = 12; // peek: the lines stay on the server
 export const MAX_LOGS = 200; // the game keeps at most this many lines per server
+const REPLY_LINES = 10; // our attempt is the newest line unless other logins or noise landed in between
 
 /**
  * Mastermind reply (DeepGreen) as { exact, misplaced }, or undefined. The game sends data "1,2" and the message
@@ -80,6 +83,38 @@ export async function readLogs(ns, host, lines = LOGS_TO_READ) {
 		if (fromData) result.leaked.push(fromData);
 	}
 	return result;
+}
+
+/**
+ * login, plus the server's reply to a wrong guess. ns.dnet.authenticate answers a wrong password with only "Unauthorized":
+ * the model's reply (its message and data: Mastermind counts, "divisible" true/false, NIL's yes/yesn't, a captured packet...)
+ * goes into the server's log instead (bitburner-src DarkNet/effects/authentication.ts getAuthResult -> logPasswordAttempt;
+ * NetscriptFunctions/Darknet.ts returns data only for labyrinth servers). So after a wrong guess this peeks at the newest log
+ * lines and lifts the entry for that guess onto the result. A result that already carries data is returned as it is.
+ * @param {NS} ns
+ * @param {string} host
+ * @param {string} password
+ */
+export async function loginReply(ns, host, password) {
+	const result = await login(ns, host, password);
+	if (result.verdict !== "wrong" || result.data !== undefined) return result;
+	const entry = await replyFromLog(ns, host, password);
+	return entry ? { ...result, message: entry.message ?? result.message, data: entry.data } : result;
+}
+
+/**
+ * The newest log entry for a wrong attempt with this password, or undefined (no charisma for heartbleed, server gone, or
+ * the line already pushed out).
+ * @param {NS} ns
+ */
+export async function replyFromLog(ns, host, password, lines = REPLY_LINES) {
+	let reply;
+	try {
+		reply = await ns.dnet.heartbleed(host, { peek: true, logsToCapture: lines });
+	} catch {
+		return undefined;
+	}
+	return parseLogs(reply).find((entry) => entry.code === 401 && String(entry.passwordAttempted) === password);
 }
 
 /** Normalises heartbleed output into [{ message, passwordAttempted, code, data }]. */

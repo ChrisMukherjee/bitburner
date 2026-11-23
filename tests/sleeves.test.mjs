@@ -8,6 +8,7 @@ import { DEFAULTS } from "/config.js";
 import { loadConfig } from "/utils/config.js";
 import { sleevesApiFromInfo, sleevesBuyableFromInfo } from "/utils/sleeves.js";
 import { GYMS, GYM_CASH_SECONDS } from "/utils/gyms.js";
+import { factionWorkOrder, FACTION_WORK } from "/utils/faction-work.js";
 import { sleevesReady } from "/sleeves/ready.js";
 import {
 	planSleeves, jobValues, crimeChance, pickCashCrime, needsRecovery, needsSync, trainingFor, combatTarget, pickStage, budgetFor, nextPurchase, sameTask, family, karmaSlots, contractSlots, charismaTarget, charismaTraining, JOB_EFFECTIVENESS,
@@ -223,7 +224,7 @@ test("priority auto: unknown multipliers and an unknown crime rate fall back to 
 test("a sleeve already doing a job keeps it (the job goes to it, not to the lowest-numbered sleeve)", () => {
 	const [first] = config.factionWork.order;
 	const goals = { [first]: { rep: 1000 } };
-	const working = sleeve(1, { task: { type: "FACTION", factionName: first, factionWorkType: config.factionWork.workType } });
+	const working = sleeve(1, { task: { type: "FACTION", factionName: first, factionWorkType: factionWorkOrder(first, config.factionWork.workType)[0] } });
 	const plan = planOf(state([sleeve(0), working], { goals, joined: [first] }));
 	assert.equal(plan[1].role, "faction");
 	assert.equal(plan[1].keep, true, "nothing is sent for a sleeve that already does it");
@@ -338,12 +339,12 @@ test("manager: a shocked sleeve recovers, a healthy one commits a crime, the sum
 	assert.equal(sim.ns.called("exec").length, workers, "sleeves already doing their job are left alone: no worker starts");
 });
 
-test("manager: a faction the game refuses falls back to cash crime in the same pass", async () => {
+test("manager: a faction the game refuses falls back to cash crime in the same pass, after every work type it offers", async () => {
 	const [first] = config.factionWork.order;
 	const sim = sleeveWorld({ sleeves: [{}], refuse: ["faction"], ports: { 23: { time: Date.now(), goals: { [first]: { rep: 5000 } } } } });
 	sim.player.factions.push(first);
 	await manage(sim.ns);
-	assert.equal(sim.calls("setToFactionWork").length, config.factionWork.workType ? 3 : 0, "every work type was tried");
+	assert.equal(sim.calls("setToFactionWork").length, FACTION_WORK[first].length, "every work type the faction offers was tried");
 	assert.equal(sim.sleeves[0].task?.type, "CRIME");
 	assert.match(sim.ns.portJson(40).lines.join("\n"), /refused/);
 });

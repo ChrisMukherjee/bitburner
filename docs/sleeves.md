@@ -49,9 +49,10 @@ otherwise ([`api-advice.md`](api-advice.md)).
      a reading every sleeve is tried); the rest go to the next job, usually cash crime.
    - *Infiltrate Synthoids* (the Bladeburner weight x `freeShare`): the sleeve-only action that adds action counts. Worth little while
      contracts still have counts, and takes over the Bladeburner sleeves once every safe action's counts are used up.
-   - *Faction rep* (20): each joined faction in `factionWork.order` with a rep goal above 0 (port 23), except the faction the player
-     grinds now (`lastGoalFaction` on port 35), one sleeve each. x `FactionWorkRepGain`, x 0.5 on the Bladeburner route. Work types
-     are tried in order (`factionWork.workType` first), since the game refuses types a faction does not offer.
+   - *Faction rep* (20): each joined faction in `factionWork.order` (then any other joined faction that offers work) with a rep goal
+     above 0 (port 23), except the faction the player grinds now (`lastGoalFaction` on port 35), one sleeve each. x `FactionWorkRepGain`,
+     x 0.5 on the Bladeburner route. Only the work types the faction offers are tried ([`../utils/faction-work.js`](../utils/faction-work.js),
+     a fixed `factionWork.workType` first), in case the game still refuses one.
    - *Company rep* (6): each company in `companyWork.companies` where the player holds a job, one sleeve each; the slowest rep there is.
    - *Cash* (10, the bar the others must beat): x `CrimeMoney`, times the share of the money the sleeve's crime would be next to the
      run's income, so cash is worth little once hacking pays millions a second. Half the weight where the crime stats are unknown.

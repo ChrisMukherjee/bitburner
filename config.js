@@ -215,8 +215,13 @@ export const DEFAULTS = {
 			"Fulcrum Secret Technologies",
 			// City factions last, and only once joined (player-work.js decides which, see `cities`).
 			"Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven",
+			// Any other joined faction that offers work (a crime faction, Silhouette, The Covenant, Illuminati, the other
+			// megacorps) comes after these, in the order joined: worked for once joined, never waited for.
 		],
-		workType: "hacking", // "hacking", "field" or "security"
+		// "auto": the kind of work the faction offers that earns the most rep from the player's skills (utils/faction-work.js;
+		// some factions offer no hacking work, and field work wins once combat skills and charisma are high).
+		// "hacking", "field" or "security": that kind wherever the faction offers it, else the best one it does offer.
+		workType: "auto",
 	},
 
 	// Megacorp jobs (player-work.js, when no faction needs rep) that lead to faction invites, in order.

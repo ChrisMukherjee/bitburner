@@ -18,6 +18,21 @@ Order, one at a time: study (free course to hacking 50), the gang invite (BitNod
 the karma, the gym for the combat stats), the crime-faction invite (Bladeburner route), faction work, then megacorp jobs when
 no faction needs rep.
 
+## Which faction, which work
+
+Rep goals are set for the factions in `factionWork.order`, then for any other joined faction that offers work (a crime faction joined
+for its augments, Silhouette, The Covenant, Illuminati, the megacorps not listed), in the order joined. Those extra factions are only
+there once joined, so nothing waits for their invites. Before, a joined faction missing from the order was never worked for, which left
+the crime factions the Bladeburner route joins for their augments at zero rep.
+
+The kind of work is picked per faction ([`../utils/faction-work.js`](../utils/faction-work.js), `factionWork.workType: "auto"`): among the
+kinds the faction offers (the game's table, `FactionInfo.tsx`), the one with the highest rep rate from the player's skills, by the
+game's formulas (`reputation.ts`: hacking work is hacking + intelligence/3; security and field weigh the four combat skills, field also
+charisma; the factors all three share, favor and multipliers, cancel out). Share power is counted as 1, which undervalues hacking work
+a little while sharing runs; reading it would cost the script 0.2GB. A kind the game still refuses is remembered and skipped until the
+script restarts. Setting `workType` to `"hacking"`, `"field"` or `"security"` puts that kind first wherever the faction offers it.
+Before, hacking was always asked for, which Slum Snakes and Tetrads refuse, and field work was never used even when it paid more.
+
 ## Route focus
 
 On the hacking route player-work.js posts what the way out waits for (port 44, [`route-focus.md`](route-focus.md)). While there is a clear next

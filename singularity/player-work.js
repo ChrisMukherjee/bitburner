@@ -18,6 +18,7 @@ import { bitnodeMults } from "/utils/bitnode-mults.js";
 import { routeFocus, postRouteFocus, pickGoalFaction } from "/utils/route-focus.js";
 import { daemonLevelFor } from "/utils/route-progress.js";
 import { sleeveTrainFloor } from "/utils/sleeve-hold.js";
+import { factionWorkOrder, goalFactions } from "/utils/faction-work.js";
 
 // Ports the one-shot helpers write to (not imported: the static RAM check would charge their
 // Singularity calls to this script too).
@@ -112,7 +113,8 @@ const CONFIG = {
  *      combat skill is under 850, the lowest goes to the gym (covenantStep); join-factions.js accepts the invite, and the shop buys.
  *   2c. Grafting (BitNode 10 or Source-File 10, docs/grafting.md): the augmentations no joined faction sells, when they are worth it; with nothing
  *      else to do (step 4's gap), any wanted one. A graft in progress is never interrupted.
- *   3. Faction work: factionWork.workType for the first joined faction (factionWork.order) still
+ *   3. Faction work (the kind it offers that earns the most rep, utils/faction-work.js, unless factionWork.workType names one)
+ *      for the first joined faction (factionWork.order, then any other joined faction that offers work) still
  *      below its real rep goal, from singularity/workers/faction-goals.js on port 23: the highest rep needed
  *      among the augments worth buying there (utils/aug-filter.js) that this run can afford and reach
  *      within the reset rule's horizon, with the BitNode's rep-cost multiplier. When a faction reaches
@@ -211,7 +213,7 @@ export async function main(ns) {
 async function onePass(ns, state) {
 	const config = state.config;
 	let player = ns.getPlayer();
-	const order = config.factionWork.order;
+	const order = goalFactions(config.factionWork.order, player.factions);
 	const joinedKey = order.filter((faction) => player.factions.includes(faction)).join("|");
 	const reached = state.lastGoalFaction && state.goals &&
 		ns.singularity.getFactionRep(state.lastGoalFaction) >= state.goals[state.lastGoalFaction].rep;
@@ -340,6 +342,27 @@ function saveState(ns, state, resetAt) {
 
 // --- Work: study, then gang-invite crimes, then faction work, then company work ---
 
+/**
+ * Works for a faction at the kind of work that earns it the most rep among those it offers (utils/faction-work.js), or the
+ * configured factionWork.workType when the faction offers it. Some factions offer no hacking work (Slum Snakes, Tetrads), and
+ * field work beats hacking once combat skills and charisma are high. A kind the game refuses is remembered and not asked for
+ * again this run. Returns the work type started, or "" when the current work already is the best (or nothing was accepted).
+ * @param {NS} ns
+ */
+export function factionWorkStep(ns, state, player, current, faction) {
+	const sf15 = ns.getResetInfo().ownedSF.get(15) ?? 0;
+	state.refusedWork ??= {};
+	const types = factionWorkOrder(faction, state.config.factionWork.workType, player, { sf15 })
+		.filter((type) => !state.refusedWork[`${faction}:${type}`]);
+	if (current?.type === "FACTION" && current.factionName === faction && current.factionWorkType === types[0]) return "";
+	for (const type of types) {
+		if (current?.type === "FACTION" && current.factionName === faction && current.factionWorkType === type) return "";
+		if (ns.singularity.workForFaction(faction, /** @type {Parameters<NS["singularity"]["workForFaction"]>[1]} */ (type), state.focus)) return type;
+		state.refusedWork[`${faction}:${type}`] = true;
+	}
+	return "";
+}
+
 /** Starts or keeps the right kind of work. Returns { message, done }. */
 export function workStep(ns, state, player) {
 	const hacking = player.skills.hacking;
@@ -366,7 +389,7 @@ export function workStep(ns, state, player) {
 	} else {
 		const goals = state.goals;
 		// A city faction we haven't joined isn't waited for (its invite may never come).
-		const open = factionWork.order.filter((faction) => goals[faction]?.rep > 0 &&
+		const open = goalFactions(factionWork.order, player.factions).filter((faction) => goals[faction]?.rep > 0 &&
 			(joined.has(faction) ? ns.singularity.getFactionRep(faction) < goals[faction].rep : !CITY_FACTIONS.includes(faction)));
 		factionDone = open.length === 0;
 		goalFaction = pickGoalFaction(open.filter((faction) => joined.has(faction)), goals, (faction) => ns.singularity.getFactionRep(faction), !!state.routeState?.binding);
@@ -435,10 +458,8 @@ export function workStep(ns, state, player) {
 	if (unreachable) return { message: unreachable, done };
 	// 3. Faction work.
 	if (goalFaction) {
-		const already = current?.type === "FACTION" && current.factionName === goalFaction;
-		if (!already && ns.singularity.workForFaction(goalFaction, factionWork.workType, state.focus)) {
-			notify(ns, "[faction-work]", `${factionWork.workType} work for ${goalFaction}`, "info");
-		}
+		const started = factionWorkStep(ns, state, player, current, goalFaction);
+		if (started) notify(ns, "[faction-work]", `${started} work for ${goalFaction}`, "info");
 		const goal = state.goals[goalFaction];
 		const rep = ns.singularity.getFactionRep(goalFaction);
 		return {

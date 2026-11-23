@@ -2,6 +2,7 @@
 // @ts-check
 import { GYMS, GYM_CITY, GYM_CASH_SECONDS, GYM_STATS } from "/utils/gyms.js";
 import { pickCourse, CHARISMA_COURSES } from "/utils/study.js";
+import { factionWorkOrder, goalFactions } from "/utils/faction-work.js";
 
 /**
  * The decisions of the sleeve manager, as pure functions of plain values (0GB), so `npm test` covers them and the
@@ -275,11 +276,12 @@ export function planSleeves(state, config) {
 		if (auto) for (let at = 0; at < count; at++) jobs.push({ role: "infiltrate", why: "infiltrating for action counts", candidates: [{ kind: "bb", action: INFILTRATE }], value: values.infiltrate * decay ** at });
 	}
 	const joined = new Set(state.joined);
-	const factions = (config.factionWork?.order ?? [])
+	const factions = goalFactions(config.factionWork?.order ?? [], state.joined ?? [])
 		.filter((faction) => joined.has(faction) && faction !== state.playerFaction && state.goals?.[faction]?.rep > 0);
 	const factionSlots = auto ? factions.length : Math.min(factions.length, Math.ceil(count * rule.factionShare));
 	for (const faction of factions.slice(0, factionSlots)) {
-		const types = [config.factionWork.workType, ...["hacking", "field", "security"].filter((type) => type !== config.factionWork.workType)];
+		// The kinds of work the faction offers (a refused one falls back to the next); a fixed factionWork.workType goes first.
+		const types = factionWorkOrder(faction, config.factionWork.workType);
 		jobs.push({ role: "faction", why: `${faction} rep`, candidates: types.map((work) => ({ kind: "faction", faction, work })), value: values.faction });
 	}
 	const companies = (config.companyWork?.companies ?? []).map((entry_) => entry_.company).filter((company) => state.jobs[company]);

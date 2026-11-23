@@ -4,10 +4,12 @@
 // of primes, and each wrong attempt replies whether the password is divisible by what we sent (data "true"
 // or "false"). We build the password up one prime factor at a time: if it's divisible by found * p, then p
 // is another factor. An attempt that equals the password simply succeeds. Imported by the crawler; it only
-// uses authenticate, which the crawler already pays for, so it adds no RAM.
+// uses authenticate and heartbleed, which the crawler already pays for, so it adds no RAM.
+// The game answers a wrong guess with only "Unauthorized" and writes the reply into the server's log, so every guess whose
+// reply matters goes through loginReply (heartbleed.js), which reads it back from there.
 
 import { login } from "darknet/auth.js";
-import { readLogs, parseMastermindReply, MAX_LOGS } from "darknet/heartbleed.js";
+import { readLogs, parseMastermindReply, MAX_LOGS, loginReply } from "darknet/heartbleed.js";
 import { fitsDetails } from "darknet/hint-interpreter.js";
 
 export const FACTORIOS_MODEL = "Factori-Os";
@@ -53,7 +55,7 @@ export async function solveDivisibility(ns, host, details = {}) {
 	let later;
 	const tryValue = async (value) => {
 		tried.add(String(value));
-		const result = await login(ns, host, String(value));
+		const result = await loginReply(ns, host, String(value));
 		if (result.verdict === "ok") return "match";
 		if (result.verdict === "later") { later = result; return "later"; }
 		attempts.push({ password: String(value), code: result.code, message: result.message, data: result.data });
@@ -199,7 +201,7 @@ export async function solveMastermind(ns, host, details, observed = [], clues = 
 		if (candidates.length === 0) break;
 
 		const guess = candidates[Math.floor(random() * candidates.length)];
-		const result = await login(ns, host, guess);
+		const result = await loginReply(ns, host, guess);
 		if (result.verdict === "ok") return { password: guess, attempts: [] };
 		if (result.verdict === "later") return { later: result };
 		attempts.push({ password: guess, code: result.code, message: result.message, data: result.data });
@@ -323,7 +325,7 @@ export async function solvePacketSniffer(ns, host, details) {
 	const wrong = new Set();
 	let common;
 	const guessWith = async (word) => {
-		const result = await login(ns, host, word);
+		const result = await loginReply(ns, host, word);
 		if (result.verdict === "ok") return { password: word };
 		if (result.verdict === "later") return { later: result };
 		wrong.add(word);
@@ -408,7 +410,7 @@ export async function solveNumberGuess(ns, host, details, wrong = new Set(), ran
 		if (open.length === 0) break;
 		const guess = String(open[Math.floor(random() * open.length)]);
 		tried.add(guess);
-		const result = await login(ns, host, guess);
+		const result = await loginReply(ns, host, guess);
 		if (result.verdict === "ok") return { password: guess, attempts: [] };
 		if (result.verdict === "later") return { later: result };
 		attempts.push({ password: guess, code: result.code, message: result.message, data: result.data });
@@ -463,7 +465,7 @@ export async function solveNil(ns, host, details = {}) {
 	for (const char of nilCharset(details)) {
 		if (known && letters.every((c) => c)) break;
 		const guess = letters.map((c) => c || char).join("");
-		const result = await login(ns, host, guess);
+		const result = await loginReply(ns, host, guess);
 		if (result.verdict === "ok") return { password: guess, attempts: [] };
 		if (result.verdict === "later") return { later: result };
 		attempts.push({ password: guess, code: result.code, message: result.message, data: result.data });

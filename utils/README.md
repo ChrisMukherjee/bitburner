@@ -4,6 +4,7 @@ Shared helpers, plus one capability check per API. None of them run on their own
 
 | File | What it does | Requires | RAM |
 | --- | --- | --- | --- |
+| [`faction-work.js`](faction-work.js) | `factionWorkOrder`: the kinds of work a faction offers (the game's table), best rep rate first by the game's formulas, or the configured `factionWork.workType` first; `goalFactions`: the configured faction order plus other joined factions that offer work. Design: [`docs/player-work.md`](../docs/player-work.md) | none | 0GB |
 | [`config.js`](config.js) | `loadConfig`: defaults, per-BitNode section and `data/config.json` merged. Design: [`docs/config.md`](../docs/config.md) | none | 0GB |
 | [`aug-filter.js`](aug-filter.js) | `wantedBoosts`: the one "worth buying" rule for augments; `augValue` for the reset rule, with money stats weighed by the income mix; `entropyStackCost`, what one Entropy stack from a graft costs in the same units. Design: [`docs/config.md`](../docs/config.md) | none | 0GB |
 | [`aug-price.js`](aug-price.js) | `augPriceStep`: how much dearer each augment bought makes the rest (1.9, less with Source-File 11); pass `getResetInfo().ownedSF`. Design: [`docs/aug-reset.md`](../docs/aug-reset.md) | none | 0GB |

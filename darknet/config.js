@@ -50,7 +50,7 @@ export const STORM = {
 export const CRAWLER_FILES = [
 	"darknet/crawler.js", "darknet/hint-interpreter.js", "darknet/config.js",
 	"darknet/phish.js", "darknet/stasis.js", "darknet/feedback-solvers.js", "darknet/auth.js", "darknet/heartbleed.js",
-	"darknet/migrate.js",
+	"darknet/migrate.js", "darknet/model-solvers.js",
 ];
 /** Known passwords ({ host: password }), copied along with the crawler so it can re-open sessions. */
 export const PASSWORD_FILE = "darknet/passwords.txt";
