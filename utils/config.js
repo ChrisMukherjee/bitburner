@@ -157,7 +157,8 @@ function incomeAdjust(ns, config) {
 
 /**
  * The challenges that apply in this run: those named in the config and listed as active in the run's state (utils/challenge.js). One
- * named while the run was going waits for the next run. No state file (an older save, or a server it wasn't copied to) = all of them.
+ * named while the run was going waits for the next run. No state file (a server it wasn't copied to, or startup.js not run since this
+ * existed) = all of them; startup.js writes one at every start, and a name it finds with no record there waits for the next run.
  * Pure, 0GB.
  * @param {string[]} names @param {{ active?: string[] } | null} state
  */

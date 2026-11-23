@@ -37,7 +37,9 @@ joins it, nothing trains the combat stats for it, and the route is hacking (Daed
 4. **Destroy the BitNode** through `w0r1d_d43m0n` ([`auto-destroy.js`](../singularity/auto-destroy.js) does it once The Red Pill
    is installed and hacking allows). The achievement appears when it goes down.
 5. **Nothing to clear.** When the next BitNode starts, `startup.js` takes that BitNode's challenge out of `challenges` by itself
-   and says so, so a later run plays Bladeburner again. To try again, run the `challenge` command again before that run.
+   and says so, so a later run plays Bladeburner again. To try again, run the `challenge` command again before that run. Named
+   during a run of the same BitNode (in 7.1 for 7.2), it waits for that next run and is not switched off when 7.1 ends; named again
+   in a run where it already applies, it carries on into the next run too. `challenge` alone shows each as ON (this run) or NEXT.
 
 ## If it goes wrong
 

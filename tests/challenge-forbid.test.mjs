@@ -13,7 +13,7 @@ import { gangReady } from "/gang/ready.js";
 import { corpAccess } from "/utils/corporation.js";
 import { corpReady } from "/corp/ready.js";
 import { main as setConfig } from "/tools/set-config.js";
-import { rollChallenges, retireChallenges, armNow, disarm } from "/utils/challenge.js";
+import { rollChallenges, retireChallenges, nameChallenges, disarm } from "/utils/challenge.js";
 import { CHALLENGE_STATE_FILE, activeChallenges } from "/utils/config.js";
 
 const withChallenges = (challenges, node, extra = {}) => fakeNs({
@@ -161,24 +161,129 @@ test("rollChallenges: a challenge that was active in the run that ended retires;
 	const rolled = rollChallenges({ run: 1, node: 7, active: ["bn7", "bn1"] }, 2, 10, names);
 	assert.deepEqual(rolled.retired, ["bn7"], "bn7 was active in the BitNode 7 run that ended");
 	assert.deepEqual(rolled.names, ["bn10", "bn1"]);
-	assert.deepEqual(rolled.state, { run: 2, node: 10, active: ["bn10", "bn1"] }, "bn10 (named during the run) and bn1 (kept) apply now");
+	assert.deepEqual([rolled.state.run, rolled.state.node, rolled.state.active], [2, 10, ["bn10", "bn1"]], "bn10 (named during the run) and bn1 (kept) apply now");
 	assert.equal(rollChallenges({ run: 1, node: 7, active: ["bn7"] }, 2, 7, ["bn7"]).retired.length, 1, "the next run of the same BitNode retires it too");
 });
 
-test("rollChallenges: inside the same run nothing changes, and with no saved state everything applies", () => {
-	const same = rollChallenges({ run: 5, node: 7, active: ["bn7"] }, 5, 7, ["bn7", "bn2"]);
-	assert.deepEqual([same.changed, same.retired, same.state.active], [false, [], ["bn7"]], "bn2 named mid-run is not active yet");
+test("rollChallenges: inside the same run nothing changes once records exist; a name with no record waits for the next run", () => {
+	const settled = rollChallenges({ run: 5, node: 7, active: ["bn7"] }, 5, 7, ["bn7", "bn2"]).state;
+	assert.deepEqual(settled.active, ["bn7"], "bn2 named mid-run (an older state file) is not active yet");
+	const again = rollChallenges(settled, 5, 7, ["bn7", "bn2"]);
+	assert.deepEqual([again.changed, again.retired, again.state.active], [false, [], ["bn7"]], "a second start in the same run changes nothing");
 	const fresh = rollChallenges(null, 5, 7, ["bn7", "bn2"]);
-	assert.deepEqual(fresh.state.active, ["bn7", "bn2"], "an older save (no state file) keeps its challenges");
-	assert.deepEqual(fresh.retired, []);
-	assert.deepEqual(activeChallenges(["bn7", "bn2"], null), ["bn7", "bn2"], "no state: all apply");
+	assert.deepEqual(fresh.state.active, [], "no state file: nothing says which run they were meant for, so they wait instead of applying (and retiring) now");
+	assert.deepEqual(fresh.adopted, ["bn7", "bn2"], "and the player is told, so --now is one command away");
+	assert.deepEqual(rollChallenges(fresh.state, 6, 7, ["bn7", "bn2"]).state.active, ["bn7", "bn2"], "the next run applies them");
+	assert.deepEqual(activeChallenges(["bn7", "bn2"], null), ["bn7", "bn2"], "loadConfig with no state file at all (a server it wasn't copied to): all apply");
 	assert.deepEqual(activeChallenges(["bn7", "bn2"], { active: ["bn7"] }), ["bn7"]);
 });
 
-test("--now makes it apply in this run, and naming or clearing it again takes it back out", () => {
-	assert.deepEqual(armNow({ run: 1, node: 7, active: [] }, ["bn7"]).active, ["bn7"]);
-	assert.deepEqual(disarm({ run: 1, node: 7, active: ["bn7", "bn1"] }, ["bn7"]).active, ["bn1"]);
-	assert.equal(armNow(null, ["bn7"]), null, "no state file: nothing to arm, everything already applies");
+test("nameChallenges: a new name waits; --now applies it at once; one that applies stays on and is marked to carry on", () => {
+	const state = { run: 1, node: 7, active: [], named: {} };
+	assert.deepEqual(nameChallenges(state, ["bn7"], false).state.active, [], "named mid-run: for the next run");
+	const armed = nameChallenges(state, ["bn7"], true).state;
+	assert.deepEqual(armed.active, ["bn7"], "--now: applies in this run");
+	const again = nameChallenges(armed, ["bn7"], false);
+	assert.deepEqual(again.already, ["bn7"]);
+	assert.deepEqual(again.state.active, ["bn7"], "naming it again never stops an attempt that is going on");
+	assert.equal(again.state.named.bn7.again, 1, "and marks it for the next run too");
+	assert.deepEqual(disarm(again.state, ["bn7"]), { run: 1, node: 7, active: [], named: {} }, "clear takes it out at once");
+});
+
+// A start of startup.js in a run (getResetInfo().lastNodeReset is when the BitNode run started): it settles the challenges, then
+// records the BitNode for loadConfig.
+const runAt = (ns, run, node) => {
+	ns.getResetInfo = () => ({ currentNode: node, lastNodeReset: run, ownedSF: new Map(), bitNodeOptions: {} });
+	const retired = retireChallenges(ns, run, node);
+	ns.write("data/bitnode.txt", String(node), "w");
+	return retired;
+};
+const named = (ns) => JSON.parse(ns.files["data/config.json"]).challenges ?? [];
+const challengeNs = (files = {}) => fakeNs({ files: { "data/config.json": "{}", ...files } });
+
+test("regression: bn7 named during BitNode 7.1 (no state file yet) is still on and applies in 7.2", async () => {
+	// The reported bug: the run-state code arrived mid-run, so 7.1 had no state file. The first start after that treated every named
+	// challenge as applying in 7.1, and the end of 7.1 then retired bn7 as a finished attempt before the 7.2 run it was set for.
+	const ns = challengeNs({ "data/bitnode.txt": "7" });
+	ns.getResetInfo = () => ({ currentNode: 7, lastNodeReset: 100, ownedSF: new Map(), bitNodeOptions: {} });
+	ns.args = ["challenge", "bn7"];
+	await setConfig(ns);
+	assert.deepEqual(named(ns), ["bn7"]);
+	assert.ok(!forbids(loadConfig(ns), "bladeburner"), "7.1 is not the run it was named for");
+	runAt(ns, 100, 7); // startup.js again in 7.1 (an augmentation install)
+	assert.ok(!forbids(loadConfig(ns), "bladeburner"), "an install inside 7.1 doesn't start it either");
+	assert.deepEqual(runAt(ns, 200, 7), [], "7.1 ends: bn7 was waiting, not tried, so it doesn't retire");
+	assert.deepEqual(named(ns), ["bn7"], "still named in data/config.json");
+	assert.ok(forbids(loadConfig(ns), "bladeburner"), "and applies in 7.2");
+	assert.deepEqual(runAt(ns, 300, 1), ["bn7"], "7.2 ends: that was its run, so it retires");
+});
+
+test("regression: a challenge named by an older version (no state file) waits for the next run instead of retiring with this one", () => {
+	const ns = challengeNs({ "data/config.json": JSON.stringify({ challenges: ["bn7"] }), "data/bitnode.txt": "7" });
+	runAt(ns, 100, 7); // first start with records, in the middle of 7.1
+	assert.ok(!forbids(loadConfig(ns), "bladeburner"));
+	assert.match(ns.toasts.join("\n"), /challenge bn7 --now/, "the player is told how to apply it in this run if it is still clean");
+	assert.deepEqual(runAt(ns, 200, 7), []);
+	assert.ok(forbids(loadConfig(ns), "bladeburner"), "applies in 7.2");
+});
+
+test("regression: naming a challenge again while it applies carries it into the next run instead of retiring it", async () => {
+	const ns = challengeNs({ "data/bitnode.txt": "7" });
+	runAt(ns, 100, 7);
+	ns.args = ["challenge", "bn7", "--now"];
+	await setConfig(ns);
+	assert.ok(forbids(loadConfig(ns), "bladeburner"), "--now: on in 7.1");
+	ns.args = ["challenge", "bn7"]; // the player wants 7.2 too (7.1 joined the division by hand, say)
+	await setConfig(ns);
+	assert.ok(forbids(loadConfig(ns), "bladeburner"), "still on in 7.1: naming it again never lifts an attempt");
+	assert.match(ns.terminal.join("\n"), /already applies in this run and carries on into the next run/);
+	runAt(ns, 100, 7); // startup.js again inside 7.1 (an augmentation install) keeps the mark
+	assert.deepEqual(runAt(ns, 200, 7), [], "7.1 ends: not retired");
+	assert.ok(forbids(loadConfig(ns), "bladeburner"), "on in 7.2");
+	assert.deepEqual(runAt(ns, 300, 7), ["bn7"], "7.2 ends without being named again: retired");
+});
+
+test("every retiring challenge: named in one run of its BitNode, it applies in the next and retires when that one ends", async () => {
+	for (const [name, challenge] of Object.entries(CHALLENGES).filter(([, challenge]) => challenge.retire)) {
+		const node = challenge.nodes[0];
+		const ns = challengeNs({ "data/bitnode.txt": String(node) });
+		runAt(ns, 100, node);
+		ns.args = ["challenge", name];
+		await setConfig(ns);
+		const forbidden = challenge.settings.bitnodes[node].forbid[0];
+		assert.ok(!forbids(loadConfig(ns), forbidden), `${name}: not in the run it was named in`);
+		assert.deepEqual(runAt(ns, 200, node), [], `${name}: kept when that run ends`);
+		assert.ok(forbids(loadConfig(ns), forbidden), `${name}: applies in the next run of BitNode ${node}`);
+		assert.deepEqual(runAt(ns, 300, node), [name], `${name}: retires when the run it applied in ends`);
+		assert.ok(!forbids(loadConfig(ns), forbidden), `${name}: the run after that plays normally`);
+	}
+});
+
+test("a challenge named in another BitNode waits through runs of other BitNodes and retires only after its own", async () => {
+	const ns = challengeNs({ "data/bitnode.txt": "10" });
+	runAt(ns, 100, 10);
+	ns.args = ["challenge", "bn6-7"];
+	await setConfig(ns);
+	assert.deepEqual(runAt(ns, 200, 1), [], "BitNode 10 ended: neither was about it");
+	assert.deepEqual(runAt(ns, 300, 7), [], "BitNode 1 ended: neither was about it");
+	assert.ok(forbids(loadConfig(ns), "bladeburner"), "bn7 applies in BitNode 7");
+	assert.deepEqual(runAt(ns, 400, 6), ["bn7"], "BitNode 7 ended: bn7 retires, bn6 waits for BitNode 6");
+	assert.ok(forbids(loadConfig(ns), "bladeburner"), "bn6 applies in BitNode 6");
+	assert.deepEqual(runAt(ns, 500, 1), ["bn6"]);
+	assert.deepEqual(named(ns), []);
+});
+
+test("bn1 doesn't retire: it stays on through every run until challenge clear", async () => {
+	const ns = challengeNs({ "data/bitnode.txt": "1" });
+	runAt(ns, 100, 1);
+	ns.args = ["challenge", "bn1"];
+	await setConfig(ns);
+	assert.deepEqual(runAt(ns, 200, 1), []);
+	assert.deepEqual(runAt(ns, 300, 1), []);
+	assert.equal(loadConfig(ns).homeUpgrades.ram.maxGB, 128, "still capped in the third run");
+	ns.args = ["challenge", "clear"];
+	await setConfig(ns);
+	assert.equal(loadConfig(ns).homeUpgrades.ram.maxGB, DEFAULTS.homeUpgrades.ram.maxGB, "clear lifts it at once");
 });
 
 test("clearing a challenge applies at once, even mid-run", () => {
@@ -200,9 +305,9 @@ test("retireChallenges: takes it out of data/config.json, keeps the rest, and te
 });
 
 test("challenge with no arguments lists the challenges in BitNode order", async () => {
-	const ns = fakeNs({ overrides: { args: ["challenge"] } });
+	const ns = fakeNs({ overrides: { args: ["challenge"], getResetInfo: () => ({ currentNode: 1, lastNodeReset: 1, ownedSF: new Map() }) } });
 	await setConfig(ns);
-	const names = ns.terminal.filter((line) => /^(ON |off) /.test(line)).map((line) => line.split(/\s+/)[1].replace(":", ""));
+	const names = ns.terminal.filter((line) => /^(ON |NEXT|off) /.test(line)).map((line) => line.split(/\s+/)[1].replace(":", ""));
 	const numbers = names.map((name) => parseInt(name.replace(/\D+/, ""), 10));
 	assert.deepEqual(names.length, Object.keys(CHALLENGES).length, "every challenge is listed");
 	assert.deepEqual(numbers, [...numbers].sort((first, second) => first - second), "bn1, bn2, bn6, bn7, bn10, not the order config.js happens to list them in");

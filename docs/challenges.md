@@ -56,19 +56,26 @@ Steps: [`../achievements/bn6-7-challenge.md`](../achievements/bn6-7-challenge.md
 - **Settings that would still steer around it** are dropped by `forbidAdjust` in [`../utils/config.js`](../utils/config.js): the route is
   `hacking`, the `bladeburner` augment group leaves `wantStats`, the sleeves' Bladeburner and karma jobs are worth 0, and the start-stage
   gang invite is off. `routeAdjust` can't put them back (it runs from the Bladeburner state on port 36, which nothing posts).
-- **When it applies.** A challenge named in `challenges` applies from the start of the NEXT run of its BitNode, not at once: a run that
+- **When it applies.** A challenge named in `challenges` applies from the start of the NEXT BitNode run, not at once: a run that
   is already going may have broken the rule (a division joined, a sleeve trained), and the player should be able to set it for the run
-  after, without being there when it starts (set in BitNode 10.1, active for 10.2). [`../utils/challenge.js`](../utils/challenge.js)
-  keeps `data/challenge-state.json` (`run` = `getResetInfo().lastNodeReset`, `node`, `active`), which `startup.js` rolls over at the start
-  of each run (`retireChallenges`); `loadConfig` lays only the `active` names over the config. `challenge <name> --now` makes it active in
-  this run (for a run that is still clean), `challenge clear` takes effect at once, and a save with no state file (from before this
-  existed) treats every named challenge as active. A challenge costs nothing until its BitNode run starts, since its settings sit
-  under `bitnodes`.
+  after, without being there when it starts (set in BitNode 7.1, active for 7.2). [`../utils/challenge.js`](../utils/challenge.js)
+  keeps `data/challenge-state.json`: the run (`run` = `getResetInfo().lastNodeReset`, `node`), the names that apply in it (`active`,
+  which `loadConfig` lays over the config), and one record per named challenge (`named`: the run it was named in, whether `--now` made
+  it apply in that run too, and `again` when it was named again while it applied). `startup.js` rolls it over at every start
+  (`retireChallenges`), and `challenge` rolls it over first too, so a name is always recorded against the run it was given in.
+  `challenge <name> --now` makes it apply in this run (for a run that is still clean), and `challenge clear` takes effect at once.
+  A challenge costs nothing outside its BitNode, since its settings sit under `bitnodes`.
+- **A name with no record waits.** A challenge in `data/config.json` with no record (written by hand, or by a version from before the
+  records) is taken as named now and queued for the next run, with a sticky notice that `--now` applies it at once. The other choice,
+  treating it as applying in the run going on, is what lost a queued `bn7`: the records arrived mid-run in BitNode 7.1, the first start
+  after that took the `bn7` named for 7.2 as 7.1's attempt, and the end of 7.1 retired it before 7.2 began. Rejected: guessing from
+  the BitNode the player is in (a challenge named in 7.1 is about 7, and still meant for 7.2).
 - **Retiring.** A leftover `bn7` would silently block the division in the next run of BitNode 7, so these challenges are marked `retire`:
-  when a run ends, `retireChallenges` takes the challenges that were active in it out of `data/config.json` and says so (with the command
-  to try again). A challenge named during that run (not active in it) stays and starts now. That covers won and lost attempts alike (the game
-  checks only at the destroy). `bn1` doesn't retire: a cap that does nothing outside its BitNode is harmless, and the BN1 steps keep the
-  challenge on for retries.
+  when a run of their BitNode ends and they applied in it, `retireChallenges` takes them out of `data/config.json` and says so (with the
+  command to try again). A challenge named during that run (queued, not applying) stays and starts now, and so does one named again
+  while it applied (the player wants the next run too, for example after the division was joined by hand). That covers won and lost
+  attempts alike (the game checks only at the destroy). `bn1` doesn't retire: a cap that does nothing outside its BitNode is harmless,
+  and the BN1 steps keep the challenge on for retries.
 - **Why not detect and clear automatically.** Reading achievements (`getUnlockedAchievements`) costs 5GB x 16/4/1, and a
   join can't be told from the outside for free, so the retire rule uses the one cheap fact there is: the BitNode ended.
 - **Rejected:** a `challenge` flag that every script checks (the capability helpers are the single place scripts already ask, as in

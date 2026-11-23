@@ -159,8 +159,8 @@ export async function main(ns) {
 		if (proc.filename === ns.getScriptName() && proc.pid !== ns.pid) ns.kill(proc.pid);
 	}
 	// For loadConfig's per-BitNode settings (`bitnodes` in config.js). getResetInfo is already paid for below.
-	// A challenge about the BitNode that just ended is over: switch it off before this run's config is read (utils/challenge.js).
-	// It also makes the challenges named during the run that ended the ones that apply now (utils/challenge.js).
+	// A challenge whose attempt was the run that just ended is over: switch it off before this run's config is read, and make the ones
+	// named during that run for the next one apply now (utils/challenge.js).
 	const runInfo = ns.getResetInfo();
 	retireChallenges(ns, runInfo.lastNodeReset, runInfo.currentNode);
 	ns.write(BITNODE_FILE, String(runInfo.currentNode), "w");
