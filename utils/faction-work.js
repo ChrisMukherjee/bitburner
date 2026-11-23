@@ -53,7 +53,8 @@ export const FACTION_WORK = {
  * @param {{ sharePower?: number, sf15?: number }} [options] sharePower: the share power (ns.getSharePower(), 1 when unknown); sf15: Source-File 15 level
  * @returns {Record<"hacking"|"field"|"security", number>}
  */
-export function workTypeRates(person, { sharePower = 1, sf15 = 0 } = {}) {
+export function workTypeRates(person, options = {}) {
+	const { sharePower = 1, sf15 = 0 } = options;
 	const s = person.skills;
 	const int = s.intelligence ?? 0;
 	const cha = sf15 >= 3 ? s.charisma : 0;

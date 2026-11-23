@@ -24,7 +24,8 @@ const NIL_LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const GUESS_NUMBER_MAX_GUESSES = 1000; // the range is at most 10^length; this only stops a runaway
 const SNIFF_MAX_ATTEMPTS = 8; // captures to intersect before giving up (two nearly always suffice)
 const OVERFLOW_LENGTHS = [4, 5, 6, 7]; // the game builds these buffers 4 to 7 bytes long
-const MASTERMIND_MAX_LENGTH = 6; // 10^6 candidates is the most worth holding in memory
+/** Longest numeric DeepGreen code solved here by listing every candidate (10^6); longer ones and letters: position-solvers.js. */
+export const MASTERMIND_MAX_LENGTH = 6;
 const MASTERMIND_MAX_GUESSES = 60; // a numeric code of 6 digits needs about 8; this only stops a runaway
 const MASTERMIND_HISTORY_FILE = "data/darknet-mastermind.txt"; // per-host replies, kept on the server the solver runs on
 const MASTERMIND_HISTORY_TTL = 60 * 60 * 1000; // ms; older replies may predate a password change
@@ -358,8 +359,8 @@ export async function solvePacketSniffer(ns, host, details) {
 	return { password: undefined, attempts: attempts.slice(-5) };
 }
 
-/** Mastermind scoring: [exact, misplaced] of guess against code (digit strings, repeats allowed). */
-function mastermindScore(guess, code) {
+/** Mastermind scoring: [exact, misplaced] of guess against code (strings, repeats allowed), as the game counts them. */
+export function mastermindScore(guess, code) {
 	let exact = 0;
 	const guessCount = {};
 	const codeCount = {};

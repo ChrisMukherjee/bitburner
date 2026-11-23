@@ -1,10 +1,11 @@
 // Design: docs/darknet.md
-import { candidatePasswords, fitsDetails } from "darknet/hint-interpreter.js";
-import { FACTORIOS_MODEL, DEEPGREEN_MODEL, OVERFLOW_MODEL, PACKET_SNIFFER_MODEL, GUESS_NUMBER_MODEL, NIL_MODEL, solveNil, solveNumberGuess, solveDivisibility, solveMastermind, solveOverflow, solvePacketSniffer } from "darknet/feedback-solvers.js";
+import { candidatePasswords, fitsDetails, SORTED_ECHO_MODEL } from "darknet/hint-interpreter.js";
+import { MASTERMIND_MAX_LENGTH, FACTORIOS_MODEL, DEEPGREEN_MODEL, OVERFLOW_MODEL, PACKET_SNIFFER_MODEL, GUESS_NUMBER_MODEL, NIL_MODEL, solveNil, solveNumberGuess, solveDivisibility, solveMastermind, solveOverflow, solvePacketSniffer } from "darknet/feedback-solvers.js";
 import { readLogs } from "darknet/heartbleed.js";
 import {
 	modelCandidates, parseClueFiles, solveRomanRange, solveTiming, solveTripleModulo, ROMAN_MODEL, TIMING_MODEL, MODULO_MODEL,
 } from "darknet/model-solvers.js";
+import { solveMastermindLong, solveSortedEcho } from "darknet/position-solvers.js";
 import { login } from "darknet/auth.js";
 import {
 	REPORT_PORT, CRAWLER_SCRIPT, PHISH_SCRIPT, STASIS_SCRIPT, MIGRATE_SCRIPT, MIGRATE, MIGRATE_TARGET_FILE,
@@ -111,7 +112,7 @@ async function spread(ns, crawl) {
  * Returns { later: result } instead when the server answered something other than "wrong password" (see
  * auth.js), so a timeout or a server drifting away mid-crack doesn't get it marked unsolvable.
  */
-async function crack(ns, host, details, passwords, clues = { byHost: {}, loose: [] }) {
+export async function crack(ns, host, details, passwords, clues = { byHost: {}, loose: [] }) {
 	// The server's logs first: another login's success, passcodes a model leaks, passwords already known to be wrong,
 	// and Mastermind replies that narrow DeepGreen. Costs one cheap call per neighbour.
 	const logs = await readLogs(ns, host);
@@ -129,7 +130,13 @@ async function crack(ns, host, details, passwords, clues = { byHost: {}, loose: 
 	}
 	if (details.modelId === OVERFLOW_MODEL) return await solveOverflow(ns, host, details);
 	if (details.modelId === FACTORIOS_MODEL) return await solveDivisibility(ns, host, details);
-	if (details.modelId === DEEPGREEN_MODEL) return await solveMastermind(ns, host, details, logs.observed, logs.clues);
+	if (details.modelId === DEEPGREEN_MODEL) {
+		// Numeric codes up to 6 digits: every candidate listed and narrowed; letters or longer: position by position.
+		if (details.passwordFormat === "numeric" && details.passwordLength <= MASTERMIND_MAX_LENGTH) {
+			return await solveMastermind(ns, host, details, logs.observed, logs.clues);
+		}
+		return await solveMastermindLong(ns, host, details, logs.observed);
+	}
 	if (details.modelId === PACKET_SNIFFER_MODEL) return await solvePacketSniffer(ns, host, details);
 	if (details.modelId === NIL_MODEL) return await solveNil(ns, host, details);
 	if (details.modelId === GUESS_NUMBER_MODEL) return await solveNumberGuess(ns, host, details, logs.wrong);
@@ -139,6 +146,11 @@ async function crack(ns, host, details, passwords, clues = { byHost: {}, loose: 
 	}
 	if (details.modelId === TIMING_MODEL) return await solveTiming(ns, host, details);
 	if (details.modelId === MODULO_MODEL) return await solveTripleModulo(ns, host, details);
+	if (details.modelId === SORTED_ECHO_MODEL) {
+		// From 5 digits the reply's RMS deviation narrows the anagrams in a few guesses; shorter ones are tried below.
+		const echo = await solveSortedEcho(ns, host, details);
+		if (echo.password !== undefined || echo.later) return echo;
+	}
 	const { candidates } = candidatePasswords(details);
 	// Last resort, after the hint's own candidates: passwords that opened other servers (people reuse them), capped.
 	const found = [...new Set(Object.values(passwords))].filter((candidate) => fitsDetails(candidate, details) && !candidates.includes(candidate));

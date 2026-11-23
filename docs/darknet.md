@@ -16,7 +16,7 @@ through [`auth.js`](../darknet/auth.js), and guesses whose reply matters through
 - **Passwords from what the server tells us.** Per neighbour, in order: the server's logs (`heartbleed.js`: a login that
   worked, a passcode a model leaks, passwords known to be wrong, Mastermind replies), then the solvers read the answer
   from the hint, or narrow it down from the replies to wrong guesses (Factori-Os by prime factoring from "divisible"
-  feedback within the hint's password length, starting from its "divisible by N" factor; DeepGreen as Mastermind (guesses only the reported length, picks a random remaining candidate so parallel crawlers differ, re-reads the log's earlier replies and "I can see a 8 and a 6" clues before every guess and keeps replies in `data/darknet-mastermind.txt`, so a restarted or second crawler continues instead of repeating); OpenWebAccessPoint returns a captured packet of ~125-145 characters with the password hidden in it on every wrong guess, so the runs of the right length and format common to the captures narrow to the password, usually after two guesses (a `host:password` marker on easy servers is tried at once); PHP 5.4 shows the real password with its characters sorted, so its candidates are the anagrams of Data, capped at 720; NIL (hint "you are one who's'nt authorized") replies "yes" or "yesn't" for each character sent, so a guess of one repeated character lists every position holding it: one guess per character of the set (10 digits, 62 with letters) gives the whole password, and positions that never say yes show the length when the details don't; AccountsManager_4.2 ("a number between 0 and N") is a plain integer of the reported length, so it tries each number in 10^(L-1)..10^L-1 once, skipping log-known wrong ones, and cuts the range when a reply says higher/lower), and last a few passwords that opened other servers. Blind guessing from fixed
+  feedback within the hint's password length, starting from its "divisible by N" factor; DeepGreen up to 6 digits as Mastermind (lists every candidate, guesses only the reported length, picks a random remaining candidate so parallel crawlers differ, re-reads the log's earlier replies and "I can see a 8 and a 6" clues before every guess and keeps replies in `data/darknet-mastermind.txt`, so a restarted or second crawler continues instead of repeating); OpenWebAccessPoint returns a captured packet of ~125-145 characters with the password hidden in it on every wrong guess, so the runs of the right length and format common to the captures narrow to the password, usually after two guesses (a `host:password` marker on easy servers is tried at once); PHP 5.4 shows the real password with its characters sorted: from 5 digits its RMS-deviation replies narrow the arrangements (below), and shorter ones are the anagrams of Data, capped at 720; NIL (hint "you are one who's'nt authorized") replies "yes" or "yesn't" for each character sent, so a guess of one repeated character lists every position holding it: one guess per character of the set (10 digits, 62 with letters) gives the whole password, and positions that never say yes show the length when the details don't; AccountsManager_4.2 ("a number between 0 and N") is a plain integer of the reported length, so it tries each number in 10^(L-1)..10^L-1 once, skipping log-known wrong ones, and cuts the range when a reply says higher/lower), and last a few passwords that opened other servers. Blind guessing from fixed
   word lists is out of scope; those passwords can be entered by hand in `data/darknet-passwords.txt`. Other
   feedback-driven models can be added the same way. Logs are read with `peek`, so the lines stay on the server.
 - **Every model with a rule gets a solver** ([`model-solvers.js`](../darknet/model-solvers.js), each rule copied from the game's
@@ -42,9 +42,23 @@ through [`auth.js`](../darknet/auth.js), and guesses whose reply matters through
 - **Clue files.** Opening a cache or clearing a RAM block can drop `.data.txt` files on that server; some say
   `Server: <host> Password: "<pw>"` or `Remember this password: <pw>` (a neighbour's). The crawler reads its own server's files
   at every re-check and tries those passwords first (after the log's).
-- **Not solved yet** (they stay unsolved and show in the manager's list): DeepGreen with letters or over 6 digits (the
-  candidate list would be too big to hold), PHP 5.4 over 6 characters (only 720 anagrams are tried; its RMS-deviation reply
-  is not used), RateMyPix.Auth and KingOfTheHill (Source-File 15 only), and the labyrinth servers.
+- **Passwords too many to list** ([`../darknet/position-solvers.js`](../darknet/position-solvers.js)). DeepGreen with letters or
+  over 6 digits (up to 10 characters, from 62 symbols) can't be narrowed from a list of every candidate, so it is found
+  position by position: first which symbols the code holds (digits: one repeated-digit guess each, whose exact count is how
+  often it appears; letters: groups of different symbols, whose exact plus misplaced count says how many of them appear, halved
+  until each is found), then where each one sits (the symbol on half the open positions, halved again). Every guess has the
+  reported length and is padded with `-`, which no password holds, so it scores only what it places. In the game's own
+  servers this takes about 25 guesses for 10 digits and 55 for 10 letters and digits. Replies already in the server's log or
+  in `data/darknet-solver-history.txt` are reused, so a restarted crawler carries on. PHP 5.4 from 5 digits answers a wrong
+  numeric guess of the right length with its RMS deviation, which fixes the sum of squared differences from the password, so the
+  arrangements of Data (no leading zero, as the game stores numbers) are narrowed by each reply: about 4 guesses for 9
+  digits instead of up to 720 anagrams. Rejected: listing DeepGreen candidates past 10^6 (memory), and a general consistent-guess
+  Mastermind search (fewer guesses, but finding a consistent code is a slow search in game).
+- **Caches on small servers need nothing extra.** The game gives every darknet server at least 16GB
+  (`ServerGenerator.ts` getMaxRam) and clearing its blocked RAM is what drops the cache, so a crawler (11.15GB) always fits by
+  then and opens the cache itself. A separate cache-opening worker was considered and dropped.
+- **Not solved yet** (they stay unsolved and show in the manager's list): RateMyPix.Auth and KingOfTheHill (Source-File 15
+  only), and the labyrinth servers.
 - **Only a 401 means a wrong password.** `login` retries 408 timeouts (they happen even with the right
   password); anything else (moved, offline, too little charisma) means "try again on the next re-check",
   not "unsolvable". Skips are counted in the manager's summary so they stay visible.
