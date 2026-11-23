@@ -15,6 +15,10 @@ export const DEEPGREEN_MODEL = "DeepGreen";
 export const OVERFLOW_MODEL = "Pr0verFl0";
 export const PACKET_SNIFFER_MODEL = "OpenWebAccessPoint";
 export const GUESS_NUMBER_MODEL = "AccountsManager_4.2";
+export const NIL_MODEL = "NIL"; // game id Yesn_t, hint "you are one who's'nt authorized"
+const NIL_UNKNOWN_LENGTH = 50; // the game's MAX_PASSWORD_LENGTH; a probe this long reveals any length
+const NIL_DIGITS = "0123456789";
+const NIL_LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const GUESS_NUMBER_MAX_GUESSES = 1000; // the range is at most 10^length; this only stops a runaway
 const SNIFF_MAX_ATTEMPTS = 8; // captures to intersect before giving up (two nearly always suffice)
 const OVERFLOW_LENGTHS = [4, 5, 6, 7]; // the game builds these buffers 4 to 7 bytes long
@@ -412,5 +416,68 @@ export async function solveNumberGuess(ns, host, details, wrong = new Set(), ran
 		if (/\b(higher|greater|larger|bigger|too low|more)\b/.test(reply)) low = Math.max(low, Number(guess) + 1);
 		else if (/\b(lower|smaller|less|too high|fewer)\b/.test(reply)) high = Math.min(high, Number(guess) - 1);
 	}
+	return { password: undefined, attempts: attempts.slice(-5) };
+}
+
+/**
+ * The characters a NIL password can use, from the details' format (numeric passwords are digits only; the game adds letters on
+ * harder servers). An unknown format tries digits first, then letters.
+ * @param {{ passwordFormat?: string }} details
+ */
+export function nilCharset(details) {
+	const format = details.passwordFormat;
+	if (format === "numeric") return NIL_DIGITS;
+	if (format === "alphabetic") return NIL_LETTERS;
+	return NIL_DIGITS + NIL_LETTERS;
+}
+
+/**
+ * Reads a NIL reply: data is "yes,yesn't,yes..." with one entry per character we sent, "yes" where that character equals the
+ * password's at the same position. Returns the indexes that said yes, or undefined when the reply can't be read.
+ * @param {{ data?: any, message?: any }} result
+ * @param {number} sent how many characters the guess had
+ */
+export function nilYesPositions(result, sent) {
+	const raw = result?.data;
+	if (typeof raw !== "string") return undefined;
+	const parts = raw.split(",").map((part) => part.trim().toLowerCase());
+	if (parts.length !== sent || !parts.every((part) => part === "yes" || part === "yesn't")) return undefined;
+	return parts.flatMap((part, i) => (part === "yes" ? [i] : []));
+}
+
+/**
+ * NIL (game "Yesn_t", hint "you are one who's'nt authorized"): every wrong guess replies, per character we sent, "yes" if it is
+ * the password's character at that position and "yesn't" if not (bitburner-src DarkNet/effects/authentication.ts). A guess of
+ * one repeated character therefore lists every position holding it, so one guess per character of the set (10 digits, 62 with
+ * letters) fixes the whole password; positions past the real length never say yes, which also shows the length when the
+ * details don't. Positions already known are filled in on later guesses, so the last needed guess can be the password itself.
+ * Same return shape as solveDivisibility.
+ * @param {NS} ns
+ */
+export async function solveNil(ns, host, details = {}) {
+	const known = details.passwordLength > 0 ? details.passwordLength : undefined;
+	const length = known ?? NIL_UNKNOWN_LENGTH;
+	/** @type {string[]} */
+	const letters = new Array(length).fill("");
+	const attempts = [];
+	for (const char of nilCharset(details)) {
+		if (known && letters.every((c) => c)) break;
+		const guess = letters.map((c) => c || char).join("");
+		const result = await login(ns, host, guess);
+		if (result.verdict === "ok") return { password: guess, attempts: [] };
+		if (result.verdict === "later") return { later: result };
+		attempts.push({ password: guess, code: result.code, message: result.message, data: result.data });
+		const yes = nilYesPositions(result, length);
+		if (!yes) return { password: undefined, attempts: attempts.slice(-5) }; // never guess from a reply we can't read
+		for (const i of yes) if (!letters[i]) letters[i] = char;
+	}
+	// Unknown length: the password is the unbroken run of found characters from the start.
+	const found = known ? letters : letters.slice(0, Math.max(0, letters.findIndex((c) => !c) < 0 ? length : letters.findIndex((c) => !c)));
+	if (found.length === 0 || found.some((c) => !c)) return { password: undefined, attempts: attempts.slice(-5) };
+	const password = found.join("");
+	const result = await login(ns, host, password);
+	if (result.verdict === "ok") return { password, attempts: [] };
+	if (result.verdict === "later") return { later: result };
+	attempts.push({ password, code: result.code, message: result.message, data: result.data });
 	return { password: undefined, attempts: attempts.slice(-5) };
 }

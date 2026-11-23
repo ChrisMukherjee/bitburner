@@ -62,6 +62,7 @@ npm run coverage                     # the suite with Node's coverage table: lin
 | [`darknet-hint.test.mjs`](darknet-hint.test.mjs) | [`darknet/hint-interpreter.js`](../darknet/hint-interpreter.js): PHP 5.4 anagram candidates (order, duplicates, limit) |
 | [`darknet-feedback.test.mjs`](darknet-feedback.test.mjs) | [`darknet/feedback-solvers.js`](../darknet/feedback-solvers.js) DeepGreen (Mastermind: guess length, history shared between runs, the log's "a 8 and a 6" clues) and Factori-Os against a copy of the game's replies |
 | [`darknet-factorios.test.mjs`](darknet-factorios.test.mjs) | Factori-Os candidates respect the password length and the hint's divisor |
+| [`darknet-nil.test.mjs`](darknet-nil.test.mjs) | [`darknet/feedback-solvers.js`](../darknet/feedback-solvers.js) NIL solver against a copy of the game's per-character "yes"/"yesn't" reply (numeric, mixed-case, unknown length, unreadable reply, server moved) |
 | [`darknet-overflow.test.mjs`](darknet-overflow.test.mjs) | Pr0verFl0: the overflow guess and length against the game's rule |
 | [`darknet-sniffer.test.mjs`](darknet-sniffer.test.mjs) | OpenWebAccessPoint: candidates narrowed by intersecting packet captures |
 | [`darknet-log.test.mjs`](darknet-log.test.mjs) | [`darknet/dnet-manager.js`](../darknet/dnet-manager.js) report timing (`darknetLog`) and a quiet contract solver |

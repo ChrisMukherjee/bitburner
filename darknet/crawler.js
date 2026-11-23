@@ -1,6 +1,6 @@
 // Design: docs/darknet.md
 import { candidatePasswords, fitsDetails } from "darknet/hint-interpreter.js";
-import { FACTORIOS_MODEL, DEEPGREEN_MODEL, OVERFLOW_MODEL, PACKET_SNIFFER_MODEL, GUESS_NUMBER_MODEL, solveNumberGuess, solveDivisibility, solveMastermind, solveOverflow, solvePacketSniffer } from "darknet/feedback-solvers.js";
+import { FACTORIOS_MODEL, DEEPGREEN_MODEL, OVERFLOW_MODEL, PACKET_SNIFFER_MODEL, GUESS_NUMBER_MODEL, NIL_MODEL, solveNil, solveNumberGuess, solveDivisibility, solveMastermind, solveOverflow, solvePacketSniffer } from "darknet/feedback-solvers.js";
 import { readLogs } from "darknet/heartbleed.js";
 import { login } from "darknet/auth.js";
 import {
@@ -123,6 +123,7 @@ async function crack(ns, host, details, passwords) {
 	if (details.modelId === FACTORIOS_MODEL) return await solveDivisibility(ns, host, details);
 	if (details.modelId === DEEPGREEN_MODEL) return await solveMastermind(ns, host, details, logs.observed, logs.clues);
 	if (details.modelId === PACKET_SNIFFER_MODEL) return await solvePacketSniffer(ns, host, details);
+	if (details.modelId === NIL_MODEL) return await solveNil(ns, host, details);
 	if (details.modelId === GUESS_NUMBER_MODEL) return await solveNumberGuess(ns, host, details, logs.wrong);
 	const { candidates } = candidatePasswords(details);
 	// Last resort, after the hint's own candidates: passwords that opened other servers (people reuse them), capped.
