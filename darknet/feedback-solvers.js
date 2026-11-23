@@ -14,6 +14,8 @@ export const FACTORIOS_MODEL = "Factori-Os";
 export const DEEPGREEN_MODEL = "DeepGreen";
 export const OVERFLOW_MODEL = "Pr0verFl0";
 export const PACKET_SNIFFER_MODEL = "OpenWebAccessPoint";
+export const GUESS_NUMBER_MODEL = "AccountsManager_4.2";
+const GUESS_NUMBER_MAX_GUESSES = 1000; // the range is at most 10^length; this only stops a runaway
 const SNIFF_MAX_ATTEMPTS = 8; // captures to intersect before giving up (two nearly always suffice)
 const OVERFLOW_LENGTHS = [4, 5, 6, 7]; // the game builds these buffers 4 to 7 bytes long
 const MASTERMIND_MAX_LENGTH = 6; // 10^6 candidates is the most worth holding in memory
@@ -365,4 +367,50 @@ function mastermindScore(guess, code) {
 	let misplaced = 0;
 	for (const digit in guessCount) misplaced += Math.min(guessCount[digit], codeCount[digit] || 0);
 	return [exact, misplaced];
+}
+
+/**
+ * The inclusive range a "The password is a number between 0 and N" server can hold. The game picks the password as a plain
+ * integer and sets N = 10^(its length), so a password of length L lies in 10^(L-1)..10^L-1 (0..9 for length 1). Falls back to
+ * the hint's own bounds when the length is unknown. Returns undefined when neither is known.
+ * @param {{ passwordLength?: number, passwordHint?: string }} details
+ * @returns {{ low: number, high: number }|undefined}
+ */
+export function guessNumberRange(details) {
+	const length = details.passwordLength;
+	if (length > 0 && length <= 9) return { low: length === 1 ? 0 : 10 ** (length - 1), high: 10 ** length - 1 };
+	const match = /between\s+(\d+)\s+and\s+(\d+)/i.exec(String(details.passwordHint ?? ""));
+	if (match && Number(match[2]) - Number(match[1]) <= 1e6) return { low: Number(match[1]), high: Number(match[2]) - 1 };
+	return undefined;
+}
+
+/**
+ * AccountsManager_4.2 ("The password is a number between 0 and N"): tries each number of the range once, never repeating
+ * a guess (including ones the server's log already shows as wrong, passed in `wrong`). If a wrong reply says higher/lower
+ * (in its message or data) the range is cut there, so it becomes a binary search; otherwise the order is random.
+ * Same return shape as solveDivisibility.
+ * @param {NS} ns
+ * @param {Set<string>} [wrong]
+ */
+export async function solveNumberGuess(ns, host, details, wrong = new Set(), random = Math.random) {
+	const range = guessNumberRange(details);
+	if (!range) return { password: undefined, attempts: [] };
+	let { low, high } = range;
+	const attempts = [];
+	const tried = new Set(wrong);
+	for (let round = 0; round < GUESS_NUMBER_MAX_GUESSES && low <= high; round++) {
+		const open = [];
+		for (let n = low; n <= high; n++) if (!tried.has(String(n))) open.push(n);
+		if (open.length === 0) break;
+		const guess = String(open[Math.floor(random() * open.length)]);
+		tried.add(guess);
+		const result = await login(ns, host, guess);
+		if (result.verdict === "ok") return { password: guess, attempts: [] };
+		if (result.verdict === "later") return { later: result };
+		attempts.push({ password: guess, code: result.code, message: result.message, data: result.data });
+		const reply = `${result.message ?? ""} ${result.data ?? ""}`.toLowerCase();
+		if (/\b(higher|greater|larger|bigger|too low|more)\b/.test(reply)) low = Math.max(low, Number(guess) + 1);
+		else if (/\b(lower|smaller|less|too high|fewer)\b/.test(reply)) high = Math.min(high, Number(guess) - 1);
+	}
+	return { password: undefined, attempts: attempts.slice(-5) };
 }
